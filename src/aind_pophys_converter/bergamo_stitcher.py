@@ -9,7 +9,7 @@ from typing import List
 
 import h5py as h5
 import numpy as np
-from aind_pophys_converter.utils.logging_config import setup_logging
+from aind_pophys_converter.utils.logging_cfg import setup_logging
 from pydantic import BaseModel, Field
 from ScanImageTiffReader import ScanImageTiffReader
 
