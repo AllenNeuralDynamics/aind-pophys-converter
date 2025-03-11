@@ -17,10 +17,17 @@ readme = "README.md"
 dynamic = ["version"]
 
 dependencies = [
+    'aind-ophys-utils',
+    'h5py',
+    'pydantic',
+    'pydantic-settings',
+    'scikit-image',
+    'tifffile==2024.2.12'
 ]
 
 [project.optional-dependencies]
 dev = [
+    'aind-pophys-converter[full]',
     'black',
     'coverage',
     'flake8',
