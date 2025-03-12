@@ -22,7 +22,8 @@ dependencies = [
     'pydantic',
     'pydantic-settings',
     'scikit-image',
-    'tifffile==2024.2.12'
+    'tifffile==2024.2.12',
+    'scanimage-tiff-reader==1.4.1.4'
 ]
 
 [project.optional-dependencies]
