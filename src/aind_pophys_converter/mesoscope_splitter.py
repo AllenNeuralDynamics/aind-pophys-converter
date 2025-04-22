@@ -174,8 +174,6 @@ def split_timeseries_tiff(
         offset_to_tmp_files[offset] = []
 
     try:
-        print(f"~~~~~~~~~~~~~~~~OFFSET, {offset}")
-        print(f"~~~~~~~~~~~~~~~~TIFF PATH, {tiff_path}")
         _split_timeseries_tiff(
             tiff_path=tiff_path,
             offset_to_path=offset_to_path,
