@@ -1702,7 +1702,7 @@ def from_args(args: list):
     )
 
     job_args = parser.parse_args(args)
-    # debug = str2bool(job_args.debug)
+
     return JobSettings(
         input_dir=job_args.input_dir,
         temp_dir=job_args.temp_dir,
