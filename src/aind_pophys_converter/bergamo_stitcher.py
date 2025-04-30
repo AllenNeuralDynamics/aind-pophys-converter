@@ -7,19 +7,23 @@ from datetime import datetime as dt
 from pathlib import Path
 from typing import List
 
+import dateutil
 import h5py as h5
 import numpy as np
-
-from aind_pophys_converter.utils.logging_cfg import setup_logging
 from pydantic import BaseModel, Field
 from ScanImageTiffReader import ScanImageTiffReader
+
+from aind_pophys_converter.utils.logging_cfg import setup_logging
+
 
 class BergamoSettings(BaseModel):
     """Settings required to stitch Bergamo images"""
 
     input_dir: Path = Field(description="directory of tiff files")
     output_dir: Path = Field(description="where to save the hdf5 file")
-    unique_id: str = Field(description="name for data (how it relates to the experiment)")
+    unique_id: str = Field(
+        description="name for data (how it relates to the experiment)"
+    )
     session_fp: Path = Field(description="path to the session file")
 
 
@@ -109,7 +113,7 @@ class BergamoTiffStitcher(BaseStitcher):
         """
         with open(self.session_fp, "r") as f:
             return json.load(f)
-    
+
     def _extract_tiff_from_session(self, session_data: dict) -> dict:
         """Builds tiff data structures used for the header data later
         Parameters
@@ -124,11 +128,16 @@ class BergamoTiffStitcher(BaseStitcher):
         """
 
         # Extract the tiff file names from the session file
-        stimulus_epochs = session_data.get("stimulus_epochs", {})
+        stimulus_epochs = sorted(
+            session_data.get("stimulus_epochs", {}),
+            key=lambda x: dateutil.parser.parse(x["stimulus_start_time"]),
+        )
         if not stimulus_epochs:
             raise ValueError("No stimulus epochs found in session file")
         native_tiffs = [i for i in self.input_dir.rglob("*.tif")]
-        native_tiffs_dict = dict(zip([i.name for i in native_tiffs], native_tiffs))
+        native_tiffs_dict = dict(
+            zip([i.name for i in native_tiffs], native_tiffs)
+        )
         epochs = {}
         for epoch in stimulus_epochs:
             epoch_files = []
@@ -138,7 +147,6 @@ class BergamoTiffStitcher(BaseStitcher):
             epochs[tiff_stem] = {"tiff_files": epoch_files}
             epochs[tiff_stem]["stimulus_name"] = epoch["stimulus_name"]
         return epochs
-
 
     def _get_image_dim(self) -> tuple:
         """Grab image shape from metdata"""
@@ -193,17 +201,22 @@ class BergamoTiffStitcher(BaseStitcher):
         for epoch in epochs.keys():
             header_count = 0
             for filename in epochs[epoch]["tiff_files"]:
-                epoch_name = "_".join(os.path.basename(filename).split("_")[:-1])
+                epoch_name = "_".join(
+                    os.path.basename(filename).split("_")[:-1]
+                )
                 image_data = ScanImageTiffReader(filename).data()
                 if header_count == 0:
-                        header_data[epoch_name] = ScanImageTiffReader(
-                            filename
-                        ).metadata()
+                    header_data[epoch_name] = ScanImageTiffReader(
+                        filename
+                    ).metadata()
                 image_shape = image_data.shape
                 frame_count = image_shape[0]
                 self.write_images(image_data, epoch_count, output_filepath)
                 epoch_count += frame_count
-                trial_locations[os.path.basename(filename)] = [trial_counter, (trial_counter + frame_count) - 1]
+                trial_locations[os.path.basename(filename)] = [
+                    trial_counter,
+                    (trial_counter + frame_count) - 1,
+                ]
                 trial_counter += frame_count
             epoch_location[epoch_name] = [start_epoch_count, epoch_count - 1]
             start_epoch_count = epoch_count
