@@ -29,7 +29,9 @@ class ScanImageMetadata(object):
     def __init__(self, tiff_path: pathlib.Path):
         self._file_path = tiff_path
         if not tiff_path.is_file():
-            raise ValueError(f"{tiff_path.resolve().absolute()} " "is not a file")
+            raise ValueError(
+                f"{tiff_path.resolve().absolute()} " "is not a file"
+            )
         self._metadata = _read_metadata(tiff_path)
 
     @property
@@ -168,7 +170,9 @@ class ScanImageMetadata(object):
 
         return self._metadata[0][other_key]
 
-    def roi_center(self, i_roi: int, atol: float = 1.0e-5) -> Tuple[float, float]:
+    def roi_center(
+        self, i_roi: int, atol: float = 1.0e-5
+    ) -> Tuple[float, float]:
         """
         Return the X, Y center of the specified ROI.
 

@@ -58,7 +58,7 @@ class BaseStitcher:
         with h5.File(cache_filepath, "a") as f:
             f["data"].resize(initial_frame + len(image_data_to_cache), axis=0)
             f["data"][
-                initial_frame : initial_frame + len(image_data_to_cache)
+                initial_frame: initial_frame + len(image_data_to_cache)
             ] = image_data_to_cache
 
     def write_final_output(
@@ -66,7 +66,8 @@ class BaseStitcher:
         output_filepath: Path,
         **kwargs: dict,
     ):
-        """Writes the final output to disk along with the metadata. Clears the temporary
+        """Writes the final output to disk along with the metadata.
+        Clears the temporary
         hdf5 data file
 
         Parameters
@@ -161,8 +162,8 @@ class BergamoTiffStitcher(BaseStitcher):
         image_height: int = 800,
     ) -> Path:
         """
-        Reads in a list of tiff files from a specified path (initialized above) and converts them
-        to a single h5 file
+        Reads in a list of tiff files from a specified path (initialized above)
+        and converts them to a single h5 file
 
         Parameters
         ----------
@@ -194,8 +195,8 @@ class BergamoTiffStitcher(BaseStitcher):
                 maxshape=(None, image_width, image_height),
                 dtype="int16",
             )
-        # metadata dictionary that keeps track of the epoch name and the location of the
-        # epoch image in the stack
+        # metadata dictionary that keeps track of the epoch name and the
+        # location of the epoch image in the stack
         epoch_location = {}
         trial_locations = {}
         for epoch in epochs.keys():
@@ -233,8 +234,9 @@ class BergamoTiffStitcher(BaseStitcher):
 
     def run_converter(self) -> Path:
         """
-        Reads in a list of tiff files from a specified path (initialized above) and converts them
-        to a single h5 file. Writes relevant metadata to the h5 file.
+        Reads in a list of tiff files from a specified path (initialized above)
+        and converts them to a single h5 file. Writes relevant metadata to the
+        h5 file.
 
         Returns
         -------
@@ -248,8 +250,8 @@ class BergamoTiffStitcher(BaseStitcher):
         shape = self._get_image_dim()
         # metadata dictionary where the keys are the image filename and the
         # values are the index of the order in which the image was read, which
-        # epoch it's associated with,  the location of the image in the h5 stack and the
-        # image shape
+        # epoch it's associated with,  the location of the image in the h5
+        # stack and the image shape
         # tmp_file = TemporaryFile(prefix=self.unique_id, suffix=".h5")
         output_filepath = self.write_bergamo(
             epochs=epochs,

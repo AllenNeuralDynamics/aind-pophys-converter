@@ -34,13 +34,16 @@ def find_split_directories(directory: Path) -> List[Path]:
     Returns
     -------
     List[Path]
-        A list of Path objects representing the V* directories found in the specified directory.
+        A list of Path objects representing the V* directories found in the
+        specified directory.
     """
     # Search for directories of the pattern V*_[0-9]
     pattern = re.compile(r"^V.*\d+$")
 
     matching_dirs = [
-        d.name for d in directory.iterdir() if d.is_dir() and pattern.match(d.name)
+        d.name
+        for d in directory.iterdir()
+        if d.is_dir() and pattern.match(d.name)
     ]
     return matching_dirs
 
@@ -78,7 +81,9 @@ def mkstemp_clean(
     causing some of our unit tests to overwhelm the OS's limit
     on the number of open files.
     """
-    (descriptor, file_path) = tempfile.mkstemp(dir=dir, prefix=prefix, suffix=suffix)
+    (descriptor, file_path) = tempfile.mkstemp(
+        dir=dir, prefix=prefix, suffix=suffix
+    )
 
     os.close(descriptor)
     return file_path
@@ -151,7 +156,9 @@ def split_timeseries_tiff(
     # was for.
     now = datetime.datetime.now()
     timestamp = (
-        f"{now.year}_{now.month}_" f"{now.day}_{now.hour}_" f"{now.minute}_{now.second}"
+        f"{now.year}_{now.month}_"
+        f"{now.day}_{now.hour}_"
+        f"{now.minute}_{now.second}"
     )
 
     tmp_prefix = f"mesoscope_timeseries_tmp_{timestamp}_"
@@ -168,7 +175,9 @@ def split_timeseries_tiff(
             offset_to_tmp_dir[offset] = actual_tmp_dir
         else:
             pth = offset_to_path[offset]
-            actual_tmp_dir = Path(tempfile.mkdtemp(dir=pth.parent, prefix=tmp_prefix))
+            actual_tmp_dir = Path(
+                tempfile.mkdtemp(dir=pth.parent, prefix=tmp_prefix)
+            )
             offset_to_tmp_dir[offset] = actual_tmp_dir
             directories_to_clean.append(actual_tmp_dir)
         offset_to_tmp_files[offset] = []
@@ -204,7 +213,6 @@ def _split_timeseries_tiff(
     dump_every: int = 1000,
     logger: Optional[callable] = None,
     metadata: Optional[dict] = None,
-    debug: Optional[bool] = False,
 ) -> None:
     """
     Method to do the work behind split_timeseries_tiff
@@ -269,7 +277,8 @@ def _split_timeseries_tiff(
                 video_dtype = arr.dtype
                 for offset in offset_to_path:
                     cache = np.zeros(
-                        (dump_every, fov_shape[0], fov_shape[1]), dtype=video_dtype
+                        (dump_every, fov_shape[0], fov_shape[1]),
+                        dtype=video_dtype,
                     )
                     offset_to_cache[offset] = cache
 
@@ -326,7 +335,9 @@ def _split_timeseries_tiff(
 
 
 def _gather_timeseries_caches(
-    file_path_list: List[Path], final_output_path: Path, metadata: Optional[dict] = None
+    file_path_list: List[Path],
+    final_output_path: Path,
+    metadata: Optional[dict] = None,
 ) -> None:
     """
     Take a list of HDF5 files containing an array 'data' and
@@ -377,7 +388,8 @@ def _gather_timeseries_caches(
             else:
                 if fov_shape != this_fov_shape:
                     raise RuntimeError(
-                        "Inconsistent FOV shape\n" f"{fov_shape}\n{this_fov_shape}"
+                        "Inconsistent FOV shape\n"
+                        f"{fov_shape}\n{this_fov_shape}"
                     )
 
     # apparently, HDF5 chunks sizes must be less than 4 GB;
@@ -398,7 +410,9 @@ def _gather_timeseries_caches(
     with h5.File(final_output_path, "w") as out_file:
         if metadata is not None:
             serialized_metadata = json.dumps(metadata).encode("utf-8")
-            out_file.create_dataset("scanimage_metadata", data=serialized_metadata)
+            out_file.create_dataset(
+                "scanimage_metadata", data=serialized_metadata
+            )
 
         out_file.create_dataset(
             "data",
@@ -411,7 +425,7 @@ def _gather_timeseries_caches(
         for file_path in file_path_list:
             with h5.File(file_path, "r") as in_file:
                 chunk = in_file["data"][()]
-                out_file["data"][i0 : i0 + chunk.shape[0], :, :] = chunk
+                out_file["data"][i0: i0 + chunk.shape[0], :, :] = chunk
                 i0 += chunk.shape[0]
             os.unlink(file_path)
 
@@ -671,7 +685,7 @@ class TiffSplitterBase(IntFromZMapperMixin):
             these_z_ints = set(
                 [
                     self._int_from_z(z_value=zz)
-                    for zz in z_value_array[offset : offset + n_z_per_roi]
+                    for zz in z_value_array[offset: offset + n_z_per_roi]
                 ]
             )
             if these_z_ints != roi_z_ints:
@@ -719,7 +733,9 @@ class TiffSplitterBase(IntFromZMapperMixin):
         self._roi_z_int_manifest = []
         ct = 0
         i_roi = 0
-        local_z_index_list = [self._int_from_z(zz) for zz in local_z_value_list]
+        local_z_index_list = [
+            self._int_from_z(zz) for zz in local_z_value_list
+        ]
         for zz in local_z_index_list:
             if i_roi >= len(valid_z_int_per_roi):
                 break
@@ -805,7 +821,9 @@ class TiffSplitterBase(IntFromZMapperMixin):
             raise ValueError(msg)
         return n_step_over
 
-    def frame_shape(self, i_roi: int, z_value: Optional[float]) -> Tuple[int, int]:
+    def frame_shape(
+        self, i_roi: int, z_value: Optional[float]
+    ) -> Tuple[int, int]:
         """
         Get the shape of the image for a specified ROI at a specified
         z value
@@ -976,7 +994,9 @@ class AvgImageTiffSplitter(TiffSplitterBase):
 
         avg_img = self.get_avg_img(i_roi=i_roi, z_value=z_value)
 
-        avg_img = normalize_array(array=avg_img, lower_cutoff=None, upper_cutoff=None)
+        avg_img = normalize_array(
+            array=avg_img, lower_cutoff=None, upper_cutoff=None
+        )
 
         metadata = {"scanimage_metadata": self.raw_metadata}
 
@@ -1100,7 +1120,8 @@ class TimeSeriesSplitter(TiffSplitterBase):
             offset = self._get_offset(i_roi=i_roi, z_value=z_value)
             if offset in offset_to_path:
                 raise RuntimeError(
-                    "Same offset occurs twice when splitting " f"{self._file_path}"
+                    "Same offset occurs twice when splitting "
+                    f"{self._file_path}"
                 )
             offset_to_path[offset] = output_path_map[key_pair]
 
@@ -1134,7 +1155,9 @@ class ZStackSplitter(IntFromZMapperMixin):
         self._frame_shape = dict()
         for tiff_path in tiff_path_list:
             str_path = str(tiff_path.resolve().absolute())
-            self._path_to_metadata[str_path] = ScanImageMetadata(tiff_path=tiff_path)
+            self._path_to_metadata[str_path] = ScanImageMetadata(
+                tiff_path=tiff_path
+            )
 
             if self._path_to_metadata[str_path].channelSave != [1, 2]:
                 raise RuntimeError(
@@ -1289,7 +1312,8 @@ class ZStackSplitter(IntFromZMapperMixin):
         baseline_shape = self.frame_shape(i_roi=i_roi, z_value=z_value)
         with tifffile.TiffFile(tiff_path, mode="rb") as tiff_file:
             data = [
-                tiff_file.pages[i_page].asarray() for i_page in range(z_index, n_pages, 2)
+                tiff_file.pages[i_page].asarray()
+                for i_page in range(z_index, n_pages, 2)
             ]
 
         for this_page in data:
@@ -1300,7 +1324,9 @@ class ZStackSplitter(IntFromZMapperMixin):
 
         return np.stack(data)
 
-    def write_output_file(self, i_roi: int, z_value: float, output_path: Path) -> None:
+    def write_output_file(
+        self, i_roi: int, z_value: float, output_path: Path
+    ) -> None:
         """
         Write the z-stack for a specific ROI, z pair to an
         HDF5 file
@@ -1368,7 +1394,8 @@ def get_valid_roi_centers(
 
 
 def get_nearest_roi_center(
-    this_roi_center: Tuple[float, float], valid_roi_centers: List[Tuple[float, float]]
+    this_roi_center: Tuple[float, float],
+    valid_roi_centers: List[Tuple[float, float]],
 ) -> int:
     """
     Take a specified ROI center and a list of valid ROI centers,
@@ -1378,7 +1405,9 @@ def get_nearest_roi_center(
     dmin = None
     ans = None
     for i_roi, roi in enumerate(valid_roi_centers):
-        dist = (this_roi_center[0] - roi[0]) ** 2 + (this_roi_center[1] - roi[1]) ** 2
+        dist = (this_roi_center[0] - roi[0]) ** 2 + (
+            this_roi_center[1] - roi[1]
+        ) ** 2
         if dmin is None or dist < dmin:
             ans = i_roi
             dmin = dist
@@ -1400,7 +1429,9 @@ class JobSettings(BaseModel):
     )
     temp_dir: Optional[Path]
     output_dir: Union[Path, str] = Field(description="where to save fovs")
-    debug: Optional[bool] = Field(default=False, description="clip movie - run in debug")
+    debug: Optional[bool] = Field(
+        default=False, description="clip movie - run in debug"
+    )
 
 
 class TiffSplitterCLI:
@@ -1411,7 +1442,6 @@ class TiffSplitterCLI:
         else:
             return False
 
-    # def __init__(self, storage_path: Union[Path, str], temp_dir: Optional[Union[Path, str]] = None):
     def __init__(self, job_settings: JobSettings):
         self.input_dir = job_settings.input_dir
         if isinstance(self.input_dir, str):
@@ -1424,13 +1454,19 @@ class TiffSplitterCLI:
             raise ValueError("No session.json file found")
         with open(session_json, "r") as f:
             self.session_data = json.load(f)
-        self.timeseries_tif = next(self.input_dir.glob("*timeseries.tiff"), None)
+        self.timeseries_tif = next(
+            self.input_dir.glob("*timeseries.tiff"), None
+        )
         if not self.timeseries_tif:
             raise ValueError("No timeseries.tiff file found")
-        self.depths_tif = next(self.input_dir.glob("*averaged_depth.tiff"), None)
+        self.depths_tif = next(
+            self.input_dir.glob("*averaged_depth.tiff"), None
+        )
         if not self.depths_tif:
             raise ValueError("No averaged_depth.tiff file found")
-        self.surface_tif = next(self.input_dir.glob("*averaged_surface.tiff"), None)
+        self.surface_tif = next(
+            self.input_dir.glob("*averaged_surface.tiff"), None
+        )
         if not self.surface_tif:
             raise ValueError("No averaged_surface.tiff file found")
         self.temp_dir = job_settings.temp_dir
@@ -1482,14 +1518,18 @@ class TiffSplitterCLI:
         # available ROI centers. When splitting the other TIFFs, we
         # will validate them by making sure that the closest
         # valid_roi_center is always what we expect.
-        valid_roi_centers = get_valid_roi_centers(timeseries_splitter=timeseries_splitter)
+        valid_roi_centers = get_valid_roi_centers(
+            timeseries_splitter=timeseries_splitter
+        )
 
         experiment_metadata = []
         for data_stream in self.session_data["data_streams"]:
             if data_stream.get("ophys_fovs"):
                 for fov in data_stream["ophys_fovs"]:
                     this_exp_metadata = dict()
-                    fov_id = fov["targeted_structure"] + "_" + str(fov["index"])
+                    fov_id = (
+                        fov["targeted_structure"] + "_" + str(fov["index"])
+                    )
                     this_exp_metadata["fov"] = fov_id
                     for file_key in (
                         "timeseries",
@@ -1507,7 +1547,6 @@ class TiffSplitterCLI:
                             this_metadata[data_key] = fov[data_key]
                         this_exp_metadata[file_key] = this_metadata
 
-                    fov_directory = self.input_dir
                     roi_index = fov["scanimage_roi_index"]
                     scanfield_z = fov["scanfield_z"]
                     baseline_center = None
@@ -1538,21 +1577,29 @@ class TiffSplitterCLI:
                             msg = f"experiment {fov_id}\n"
                             msg += "roi center inconsistent for "
                             msg += "input: "
-                            msg += f"{splitter.input_path.resolve().absolute()}\n"
+                            msg += (
+                                f"{splitter.input_path.resolve().absolute()}\n"
+                            )
                             msg += "output: "
                             msg += f"{output_path.resolve().absolute()}\n"
                             msg += f"{baseline_center}; {roi_center}\n"
                             raise RuntimeError(msg)
                         splitter.write_output_file(
-                            i_roi=roi_index, z_value=z_value, output_path=output_path
+                            i_roi=roi_index,
+                            z_value=z_value,
+                            output_path=output_path,
                         )
                         str_path = str(output_path.resolve().absolute())
                         this_exp_metadata[metadata_tag]["filename"] = str_path
                         frame_shape = splitter.frame_shape(
                             i_roi=roi_index, z_value=z_value
                         )
-                        this_exp_metadata[metadata_tag]["height"] = frame_shape[0]
-                        this_exp_metadata[metadata_tag]["width"] = frame_shape[1]
+                        this_exp_metadata[metadata_tag]["height"] = (
+                            frame_shape[0]
+                        )
+                        this_exp_metadata[metadata_tag]["width"] = frame_shape[
+                            1
+                        ]
 
                         elapsed_time = time.time() - t0
 
@@ -1609,7 +1656,8 @@ class TiffSplitterCLI:
         output["ready_to_archive"] = list(ready_to_archive)
 
         # TODO: why not just search for the file in the storage_path?
-        # full_field_path = get_full_field_path(runner_args=self.args, logger=logging)
+        # full_field_path = get_full_field_path(runner_args=self.args,
+        # logger=logging)
         full_field_path = next(self.input_dir.glob("*fullfield*.tiff"), None)
 
         if full_field_path is not None:

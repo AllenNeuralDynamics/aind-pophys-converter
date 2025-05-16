@@ -58,7 +58,9 @@ def write_out_stitched_full_field_image(
         with h5.File(output_path, "w") as out_file:
             out_file.create_dataset("stitched_full_field", data=full_field_img)
 
-            out_file.create_dataset("stitched_full_field_with_rois", data=with_rois)
+            out_file.create_dataset(
+                "stitched_full_field_with_rois", data=with_rois
+            )
 
             out_file.create_dataset(
                 "surface_roi_metadata",
@@ -139,13 +141,15 @@ def get_full_field_path(runner_args: dict) -> Optional[Path]:
         return None
 
     logging.info(
-        "Getting fullfield_2p image from " f"{full_field_path.resolve().absolute()}"
+        "Getting fullfield_2p image from "
+        f"{full_field_path.resolve().absolute()}"
     )
     return full_field_path
 
 
 def stitch_tiff_with_rois(
-    full_field_path: Union[pathlib.Path, str], avg_surface_path: Union[pathlib.Path, str]
+    full_field_path: Union[pathlib.Path, str],
+    avg_surface_path: Union[pathlib.Path, str],
 ) -> np.ndarray:
     """
     Create the stitched full field image with ROIs from the
@@ -247,7 +251,10 @@ def _insert_rois_into_surface_img(
 
     output_img = np.copy(full_field_img)
 
-    physical_to_pixels = (ff_resolution[0] / ff_size[0], ff_resolution[1] / ff_size[1])
+    physical_to_pixels = (
+        ff_resolution[0] / ff_size[0],
+        ff_resolution[1] / ff_size[1],
+    )
 
     for i_roi in range(avg_image_splitter.n_rois):
         roi_size = avg_image_splitter.roi_size(i_roi=i_roi)
@@ -496,7 +503,9 @@ def _stitch_full_field_tiff(
     stitched_img: np.ndarray
     """
 
-    final_shapes = _get_stitched_tiff_shapes(tiff_metadata=tiff_metadata, avg_img=avg_img)
+    final_shapes = _get_stitched_tiff_shapes(
+        tiff_metadata=tiff_metadata, avg_img=avg_img
+    )
 
     stitched_shape = final_shapes["shape"]
     pixel_gap = final_shapes["gap"]
@@ -525,13 +534,14 @@ def _stitch_full_field_tiff(
         pix_col0 = pix_col0.astype(int)
 
         sub_img = avg_img[
-            i_roi * (resolution[1] + pixel_gap) : i_roi * pixel_gap
+            i_roi * (resolution[1] + pixel_gap): i_roi * pixel_gap
             + (i_roi + 1) * resolution[1],
             :,
         ]
 
         stitched_img[
-            pix_row0 : pix_row0 + resolution[1], pix_col0 : pix_col0 + resolution[0]
+            pix_row0: pix_row0 + resolution[1],
+            pix_col0: pix_col0 + resolution[0],
         ] = sub_img
 
     return stitched_img
