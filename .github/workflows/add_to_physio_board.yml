@@ -33,6 +33,6 @@ jobs:
                   id
                 }
               }
-            }' -f project="PVT_kwDOBa47bs4AhzQZ" -f item="$ITEM_ID" -f field="PVTSSF_lADOBa47bs4AhzQZzgcOjdk" -f value="pophys"
+            }' -f project="PVT_kwDOBa47bs4AhzQZ" -f item="$ITEM_ID" -f field="PVTSSF_lADOBa47bs4AhzQZzgcOjdk" -f value="ophys"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
