@@ -38,14 +38,16 @@ jobs:
 
           # Set Team to Physiology and Behavior
           gh api graphql -f query='
-            mutation($project:ID!, $item:ID!, $field:ID!, $value:String!) {
+            mutation($project:ID!, $item:ID!, $field:ID!, $optionId:String!) {
               updateProjectV2ItemFieldValue(input: {
                 projectId: $project
                 itemId: $item
                 fieldId: $field
-                value: {text: $value}
+                value: {singleSelectOptionId: $optionId}
               }) {
-                projectV2Item { id }
+                projectV2Item {
+                  id
+                }
               }
             }' -f project="PVT_kwDOBa47bs4AhzQZ" -f item="$ITEM_ID" -f field="PVTSSF_lADOBa47bs4AhzQZzgqNGR4" -f optionId="0b8e06b0"
           
@@ -58,7 +60,9 @@ jobs:
                 fieldId: $field
                 value: {singleSelectOptionId: $optionId}
               }) {
-                projectV2Item { id }
+                projectV2Item {
+                  id
+                }
               }
             }' -f project="PVT_kwDOBa47bs4AhzQZ" -f item="$ITEM_ID" -f field="PVTSSF_lADOBa47bs4AhzQZzgaazJE" -f optionId="58e00b7d"
         env:
