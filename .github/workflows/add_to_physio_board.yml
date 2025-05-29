@@ -63,5 +63,3 @@ jobs:
             }' -f project="PVT_kwDOBa47bs4AhzQZ" -f item="$ITEM_ID" -f field="PVTSSF_lADOBa47bs4AhzQZzgaazJE" -f optionId="58e00b7d"
         env:
           GITHUB_TOKEN: ${{ secrets.PROJECT_ID }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.PROJECT_ID }}
