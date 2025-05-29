@@ -11,7 +11,7 @@ jobs:
     steps:
       - name: Add to project with labels (GraphQL method)
         run: |
-          # Step 1: Add issue to project and capture the item ID
+          # Add issue to Physiology Architecture board
           ITEM_ID=$(gh api graphql -f query='
             mutation($project:ID!, $item:ID!) {
               addProjectV2ItemById(input: {projectId: $project, contentId: $item}) {
@@ -21,7 +21,7 @@ jobs:
               }
             }' -f project="PVT_kwDOBa47bs4AhzQZ" -f item="${{ github.event.issue.node_id }}" --jq '.data.addProjectV2ItemById.item.id')
           
-          # Step 2: Set single select field value using option ID
+          # Set Platform to ophys
           gh api graphql -f query='
             mutation($project:ID!, $item:ID!, $field:ID!, $optionId:String!) {
               updateProjectV2ItemFieldValue(input: {
@@ -35,5 +35,33 @@ jobs:
                 }
               }
             }' -f project="PVT_kwDOBa47bs4AhzQZ" -f item="$ITEM_ID" -f field="PVTSSF_lADOBa47bs4AhzQZzgcOjdk" -f optionId="8fab6831"
+
+          # Set Team to Physiology and Behavior
+          gh api graphql -f query='
+            mutation($project:ID!, $item:ID!, $field:ID!, $value:String!) {
+              updateProjectV2ItemFieldValue(input: {
+                projectId: $project
+                itemId: $item
+                fieldId: $field
+                value: {text: $value}
+              }) {
+                projectV2Item { id }
+              }
+            }' -f project="PVT_kwDOBa47bs4AhzQZ" -f item="$ITEM_ID" -f field="PVTSSF_lADOBa47bs4AhzQZzgqNGR4" -f optionId="0b8e06b0"
+          
+          # Set Status to Backlog
+          gh api graphql -f query='
+            mutation($project:ID!, $item:ID!, $field:ID!, $optionId:String!) {
+              updateProjectV2ItemFieldValue(input: {
+                projectId: $project
+                itemId: $item
+                fieldId: $field
+                value: {singleSelectOptionId: $optionId}
+              }) {
+                projectV2Item { id }
+              }
+            }' -f project="PVT_kwDOBa47bs4AhzQZ" -f item="$ITEM_ID" -f field="PVTSSF_lADOBa47bs4AhzQZzgaazJE" -f optionId="58e00b7d"
+        env:
+          GITHUB_TOKEN: ${{ secrets.PROJECT_ID }}
         env:
           GITHUB_TOKEN: ${{ secrets.PROJECT_ID }}
