@@ -10,7 +10,6 @@ jobs:
     permissions: write-all
     steps:
       - name: Add to project with labels (GraphQL method)
-        if: true  # Changed from false to true
         run: |
           # Step 1: Add issue to project and capture the item ID
           ITEM_ID=$(gh api graphql -f query='
@@ -22,19 +21,19 @@ jobs:
               }
             }' -f project="PVT_kwDOBa47bs4AhzQZ" -f item="${{ github.event.issue.node_id }}" --jq '.data.addProjectV2ItemById.item.id')
           
-          # Step 2: Set field value using the captured item ID
+          # Step 2: Set single select field value using option ID
           gh api graphql -f query='
-            mutation($project:ID!, $item:ID!, $field:ID!, $value:String!) {
+            mutation($project:ID!, $item:ID!, $field:ID!, $optionId:String!) {
               updateProjectV2ItemFieldValue(input: {
                 projectId: $project
                 itemId: $item
                 fieldId: $field
-                value: {text: $value}
+                value: {singleSelectOptionId: $optionId}
               }) {
                 projectV2Item {
                   id
                 }
               }
-            }' -f project="PVT_kwDOBa47bs4AhzQZ" -f item="$ITEM_ID" -f field="PVTSSF_lADOBa47bs4AhzQZzgcOjdk" -f optionID="8fab6831"
+            }' -f project="PVT_kwDOBa47bs4AhzQZ" -f item="$ITEM_ID" -f field="PVTSSF_lADOBa47bs4AhzQZzgcOjdk" -f optionId="8fab6831"
         env:
           GITHUB_TOKEN: ${{ secrets.PROJECT_ID }}
