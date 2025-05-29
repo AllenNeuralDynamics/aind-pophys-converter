@@ -9,18 +9,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Add to project with labels (GraphQL method)
-        if: false  # Set to true to use this method instead
+        if: true  # Changed from false to true
         run: |
-          gh api graphql -f query='
+          # Step 1: Add issue to project and capture the item ID
+          ITEM_ID=$(gh api graphql -f query='
             mutation($project:ID!, $item:ID!) {
               addProjectV2ItemById(input: {projectId: $project, contentId: $item}) {
                 item {
                   id
                 }
               }
-            }' -f project="PVT_kwDOBa47bs4AhzQZ" -f item="${{ github.event.issue.node_id }}"
+            }' -f project="PVT_kwDOBa47bs4AhzQZ" -f item="${{ github.event.issue.node_id }}" --jq '.data.addProjectV2ItemById.item.id')
           
-          # Add labels to the project item
+          # Step 2: Set field value using the captured item ID
           gh api graphql -f query='
             mutation($project:ID!, $item:ID!, $field:ID!, $value:String!) {
               updateProjectV2ItemFieldValue(input: {
