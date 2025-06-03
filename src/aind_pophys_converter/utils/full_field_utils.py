@@ -167,7 +167,7 @@ def stitch_tiff_with_rois(
     -------
     stitched_roi_img: np.ndarray
     """
-    from mesoscope_file_splitter.splitter import AvgImageTiffSplitter
+    from aind_pophys_converter.mesoscope_splitter import AvgImageTiffSplitter
 
     if isinstance(full_field_path, str):
         full_field_path = pathlib.Path(full_field_path)

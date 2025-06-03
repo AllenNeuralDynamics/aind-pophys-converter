@@ -191,7 +191,6 @@ def split_timeseries_tiff(
             dump_every=dump_every,
             logger=logger,
             metadata=metadata,
-            debug=debug,
         )
     finally:
         for offset in offset_to_tmp_files:
