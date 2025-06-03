@@ -1,5 +1,5 @@
 import pytest
-from mesoscope_file_splitter.splitter import (
+from aind_pophys_converter.mesoscope_splitter import (
     IntFromZMapperMixin)
 
 

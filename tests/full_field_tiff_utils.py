@@ -2,7 +2,7 @@ import numpy as np
 import tifffile
 import pathlib
 
-from mesoscope_file_splitter.splitter import mkstemp_clean
+from aind_pophys_converter.mesoscope_splitter import mkstemp_clean
 
 
 def _create_full_field_tiff(

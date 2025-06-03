@@ -6,16 +6,15 @@ import json
 from unittest.mock import patch
 import numpy as np
 
-from mesoscope_file_splitter.splitter import TiffSplitterCLI
+from aind_pophys_converter.mesoscope_splitter import TiffSplitterCLI
 
-from mesoscope_file_splitter.full_field_utils import (
+from aind_pophys_converter.utils.full_field_utils import (
     stitch_full_field_tiff,
     stitch_tiff_with_rois)
 
 
 def run_mesoscope_cli_test(
-        storage_directory_fixture,
-        tmp_dir,
+        job_settings,
         zstack_metadata,
         surface_metadata,
         image_metadata,
@@ -36,11 +35,8 @@ def run_mesoscope_cli_test(
 
     Parameters
     ----------
-    strorage_directory_fixture:
-        Storge directory where data are stored
-
-    tmp_dir: pathlib.Path
-        temporary directory where the output.json will get written
+    job_settings:
+        Job settings for the tiff cli
 
     zstack_metadata:
         The result of zstack_metadata_fixture
@@ -97,7 +93,7 @@ def run_mesoscope_cli_test(
         str_path = str(tiff_path.resolve().absolute())
         return metadata_lookup[str_path]
 
-    to_replace = 'mesoscope_file_splitter.'
+    to_replace = 'aind_pophys_converter.utils.'
     to_replace += 'tiff_metadata._read_metadata'
     with patch(to_replace,
                new=mock_read_metadata):
@@ -187,7 +183,7 @@ def run_mesoscope_cli_test(
         def mock_metadata(file_path):
             return metadata_lookup[str(file_path.resolve().absolute())]
 
-        to_patch = 'mesoscope_file_splitter.'
+        to_patch = 'aind_pophys_converter.utils.'
         to_patch += 'tiff_metadata._read_metadata'
         with patch(to_patch, new=mock_metadata):
 

@@ -33,7 +33,10 @@ from full_field_tiff_utils import (
     _create_full_field_tiff,
     _create_roi_metadata)
 
-from mesoscope_file_splitter.splitter import mkstemp_clean
+from aind_pophys_converter.mesoscope_splitter import (
+    mkstemp_clean,
+    JobSettings
+)
 
 from aind_ophys_utils.array_utils import normalize_array
 
@@ -55,16 +58,52 @@ def _roi_index_to_centerxy(roi_index):
 
 
 @pytest.fixture
-def storage_directory_fixture(
+def input_directory_fixture(
        tmp_path_factory):
     """
-    The 'storage_directory' key in the mesoscope splitter
-    input_json
+    The 'input_dir' in value in the JobSettings class
     """
-    output_tmp_dir = tmp_path_factory.mktemp('splitter_cli_output')
+    input_directory = tmp_path_factory.mktemp('data')
+    input_directory = pathlib.Path(input_directory)
+    yield input_directory
+
+
+@pytest.fixture
+def output_directory_fixture(
+       tmp_path_factory):
+    """
+    The 'output_dir' in value in the JobSettings class
+    """
+    output_tmp_dir = tmp_path_factory.mktemp('results')
     output_tmp_dir = pathlib.Path(output_tmp_dir)
     yield output_tmp_dir
 
+@pytest.fixture
+def temp_directory_fixture(
+       tmp_path_factory):
+    """
+    The 'temp_dir' in value in the JobSettings class
+    """
+    temp_directory = tmp_path_factory.mktemp('scratch')
+    temp_directory = pathlib.Path(temp_directory)
+    yield temp_directory
+
+
+@pytest.fixture
+def job_settings_fixture():
+    """Returns the JobSettings object for the client
+    Returns
+    ------
+    aind_pophys_converter.mesoscope_splitter.JobSettings
+        JobSettings to run the TiffSplitterCLI
+    """
+    job_settings = JobSettings(
+        input_dir=input_directory_fixture,
+        temp_dir=temp_directory_fixture,
+        output_dir=output_directory_fixture,
+        debug=False
+    )
+    return job_settings
 
 @pytest.fixture
 def full_field_roi_size_fixture():
@@ -528,6 +567,32 @@ def full_field_2p_tiff_fixture(
     if tiff_path.exists():
         tiff_path.unlink()
 
+
+@pytest.fixture
+def platform_json_fixture(tmp_path_factory):
+    """
+    Create a platform.json file for testing
+    """
+    platform_json_dir = tmp_path_factory.mktemp('platform_json')
+    platform_json_path = platform_json_dir / 'platform.json'
+    
+    # Create a simple platform config with required fields
+    platform_data = {
+        "microscope": "Test Microscope",
+        "rig_id": "test_rig",
+        "version": "1.0.0"
+    }
+    
+    with open(platform_json_path, 'w') as f:
+        json.dump(platform_data, f)
+    
+    yield platform_json_path
+    
+    # Clean up
+    if platform_json_path.exists():
+        platform_json_path.unlink()
+    
+
 @pytest.fixture
 def session_dir(upload_directory_fixture):
     """
@@ -535,6 +600,7 @@ def session_dir(upload_directory_fixture):
     file will be written
     """
     return upload_directory_fixture
+
 
 @pytest.fixture
 def session_json_fixture(

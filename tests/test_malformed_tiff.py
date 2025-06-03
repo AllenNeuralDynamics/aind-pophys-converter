@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import patch, Mock
 import pathlib
 
-from mesoscope_file_splitter.splitter import (
+from aind_pophys_converter.mesoscope_splitter import (
     mkstemp_clean,
     AvgImageTiffSplitter
 )

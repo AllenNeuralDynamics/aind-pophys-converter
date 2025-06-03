@@ -3,9 +3,9 @@ import copy
 from unittest.mock import patch, Mock
 import pathlib
 
-from mesoscope_file_splitter.tiff_metadata import (
+from aind_pophys_converter.utils.tiff_metadata import (
     ScanImageMetadata)
-from mesoscope_file_splitter.splitter import mkstemp_clean
+from aind_pophys_converter.mesoscope_splitter import mkstemp_clean
 
 
 @pytest.fixture(scope='session')
@@ -175,7 +175,7 @@ def test_all_zs(
 
     expected = [[1, 4, 2], [9, 5, 11], [2, 6, 1]]
 
-    to_replace = 'mesoscope_file_splitter.'
+    to_replace = 'aind_pophys_converter.utils.'
     to_replace += 'tiff_metadata._read_metadata'
 
     for metadata_fixture in (mock_2x3_metadata_zs,
@@ -204,7 +204,7 @@ def test_raw_metadata(
     tmpdir = tmp_path_factory.mktemp('test_all_zs')
     tmp_path = pathlib.Path(mkstemp_clean(dir=tmpdir, suffix='.tiff'))
 
-    to_replace = 'mesoscope_file_splitter.'
+    to_replace = 'aind_pophys_converter.utils.'
     to_replace += 'tiff_metadata._read_metadata'
 
     for metadata_fixture in (mock_2x3_metadata_zs[0],
@@ -231,7 +231,7 @@ def test_all_zs_error(
     tmpdir = tmp_path_factory.mktemp('test_all_zs')
     tmp_path = pathlib.Path(mkstemp_clean(dir=tmpdir, suffix='.tiff'))
 
-    to_replace = 'mesoscope_file_splitter.'
+    to_replace = 'aind_pophys_converter.utils.'
     to_replace += 'tiff_metadata._read_metadata'
 
     with patch(to_replace,
@@ -253,7 +253,7 @@ def test_zs_for_roi(
     tmpdir = tmp_path_factory.mktemp('test_all_zs')
     tmp_path = pathlib.Path(mkstemp_clean(dir=tmpdir, suffix='.tiff'))
 
-    to_replace = 'mesoscope_file_splitter.'
+    to_replace = 'aind_pophys_converter.utils.'
     to_replace += 'tiff_metadata._read_metadata'
 
     for metadata_fixture in (mock_2x3_metadata_zs,
@@ -286,7 +286,7 @@ def test_defined_rois(
     tmpdir = tmp_path_factory.mktemp('test_all_zs')
     tmp_path = pathlib.Path(mkstemp_clean(dir=tmpdir, suffix='.tiff'))
 
-    to_replace = 'mesoscope_file_splitter.'
+    to_replace = 'aind_pophys_converter.utils.'
     to_replace += 'tiff_metadata._read_metadata'
 
     for metadata_fixture in (mock_2x3_metadata_zs,

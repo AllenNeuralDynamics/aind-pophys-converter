@@ -9,7 +9,7 @@ import copy
 import json
 
 from aind_ophys_utils.array_utils import normalize_array
-from mesoscope_file_splitter.splitter import AvgImageTiffSplitter, TimeSeriesSplitter, mkstemp_clean, ZStackSplitter
+from aind_pophys_converter.mesoscope_splitter import AvgImageTiffSplitter, TimeSeriesSplitter, mkstemp_clean, ZStackSplitter
 
 
 def _create_image_tiff(
@@ -650,7 +650,7 @@ def test_z_stack_splitter(tmp_path_factory,
         str_path = str(tiff_path.resolve().absolute())
         return z_stack_path_to_metadata[str_path]
 
-    to_replace = 'mesoscope_file_splitter.'
+    to_replace = 'aind_pophys_converter.utils.'
     to_replace += 'tiff_metadata._read_metadata'
     with patch(to_replace,
                new=mock_read_metadata):

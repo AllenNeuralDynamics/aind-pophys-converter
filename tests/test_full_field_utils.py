@@ -5,19 +5,19 @@ import pathlib
 import copy
 from itertools import product
 
-from full_field_tiff_utils import (
+from .full_field_tiff_utils import (
     _create_full_field_tiff,
     _create_roi_metadata)
 from aind_ophys_utils.array_utils import normalize_array
-from mesoscope_file_splitter.full_field_utils import (
+from aind_pophys_converter.utils.full_field_utils import (
     _average_full_field_tiff,
     _get_stitched_tiff_shapes,
     _stitch_full_field_tiff,
     _get_origin,
     _validate_all_roi_same_size,
     stitch_full_field_tiff)
-from mesoscope_file_splitter.splitter import mkstemp_clean
-from mesoscope_file_splitter.tiff_metadata import (
+from aind_pophys_converter.mesoscope_splitter import mkstemp_clean
+from aind_pophys_converter.utils.tiff_metadata import (
     ScanImageMetadata)
 
 @pytest.mark.parametrize(
@@ -392,7 +392,7 @@ def test_user_facing_stitch_full_field_tiff(
 
     with patch("tifffile.read_scanimage_metadata",
                new=Mock(return_value=metadata)):
-        with patch("mesoscope_file_splitter.full_field_utils."
+        with patch("aind_pophys_converter.utils.full_field_utils."
                    "_average_full_field_tiff",
                    new=Mock(return_value=avg_img)):
             stitched_img = stitch_full_field_tiff(

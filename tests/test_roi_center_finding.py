@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 
-from mesoscope_file_splitter.splitter import (
+from aind_pophys_converter.mesoscope_splitter import (
     get_nearest_roi_center,
     get_valid_roi_centers)
 

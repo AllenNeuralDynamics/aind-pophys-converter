@@ -4,7 +4,7 @@ import pathlib
 import numpy as np
 from unittest.mock import patch
 
-from mesoscope_file_splitter.splitter import (
+from aind_pophys_converter.mesoscope_splitter import (
     mkstemp_clean,
     ZStackSplitter
     )
@@ -77,7 +77,7 @@ def test_many_discrete_planes(
     tiff_path_list = [pathlib.Path(n)
                       for n in z_stack_path_to_metadata.keys()]
 
-    to_replace = 'mesoscope_file_splitter.'
+    to_replace = 'aind_pophys_converter.utils.'
     to_replace += 'tiff_metadata._read_metadata'
     with patch(to_replace, new=mock_read_metadata):
         with pytest.raises(RuntimeError,
@@ -122,7 +122,7 @@ def test_no_discrete_planes(
     tiff_path_list = [pathlib.Path(n)
                       for n in z_stack_path_to_metadata.keys()]
 
-    to_replace = 'mesoscope_file_splitter.'
+    to_replace = 'aind_pophys_converter.utils.'
     to_replace += 'tiff_metadata._read_metadata'
     with patch(to_replace, new=mock_read_metadata):
         with pytest.raises(RuntimeError,
@@ -170,7 +170,7 @@ def test_z_odd_shape(
     tiff_path_list = [pathlib.Path(n)
                       for n in z_stack_path_to_metadata.keys()]
 
-    to_replace = 'mesoscope_file_splitter.'
+    to_replace = 'aind_pophys_converter.utils.'
     to_replace += 'tiff_metadata._read_metadata'
     with patch(to_replace, new=mock_read_metadata):
         with pytest.raises(RuntimeError,
@@ -217,7 +217,7 @@ def test_roi_missing_tiff(
     tiff_path_list = [pathlib.Path(n)
                       for n in z_stack_path_to_metadata.keys()]
 
-    to_replace = 'mesoscope_file_splitter.'
+    to_replace = 'aind_pophys_converter.utils.'
     to_replace += 'tiff_metadata._read_metadata'
     with patch(to_replace, new=mock_read_metadata):
         with pytest.raises(RuntimeError,
@@ -261,7 +261,7 @@ def test_zstack_bad_channelSave(
     tiff_path_list = [pathlib.Path(n)
                       for n in z_stack_path_to_metadata.keys()]
 
-    to_replace = 'mesoscope_file_splitter.'
+    to_replace = 'aind_pophys_converter.utils.'
     to_replace += 'tiff_metadata._read_metadata'
     with patch(to_replace, new=mock_read_metadata):
         with pytest.raises(RuntimeError,

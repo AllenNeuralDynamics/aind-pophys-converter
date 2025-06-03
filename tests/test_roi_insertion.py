@@ -9,21 +9,21 @@ import numpy as np
 from skimage.transform import resize as skimage_resize
 from unittest.mock import Mock, patch
 
-from full_field_tiff_utils import (
+from .full_field_tiff_utils import (
     _create_full_field_tiff,
     _create_roi_metadata)
 
 from aind_ophys_utils.array_utils import normalize_array
 
-from mesoscope_file_splitter.splitter import (
+from aind_pophys_converter.mesoscope_splitter import (
     mkstemp_clean, 
     AvgImageTiffSplitter)
 
-from mesoscope_file_splitter.tiff_metadata import (
+from aind_pophys_converter.utils.tiff_metadata import (
     ScanImageMetadata)
 
 
-from mesoscope_file_splitter.full_field_utils import (
+from aind_pophys_converter.utils.full_field_utils import (
     _insert_rois_into_surface_img,
     stitch_tiff_with_rois)
 
@@ -127,7 +127,7 @@ def test_insertion_worker(
     """
     origin_x = 4.3
     origin_y = 3.2
-    bckgd_img = np.NaN*np.ones((512, 512), dtype=float)
+    bckgd_img = np.nan*np.ones((512, 512), dtype=float)
 
     tmpdir = pathlib.Path(
             tmpdir_factory.mktemp('insertion_worker'))
@@ -256,7 +256,7 @@ def test_user_facing_insertion(
             return avg_metadata
         raise RuntimeError(f"do not know {tiff_path}")
 
-    to_replace = 'mesoscope_file_splitter.'
+    to_replace = 'aind_pophys_converter.utils.'
     to_replace += 'tiff_metadata._read_metadata'
     with patch(to_replace, new=mock_read_metadata):
         img = stitch_tiff_with_rois(

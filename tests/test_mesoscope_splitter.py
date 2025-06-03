@@ -13,8 +13,8 @@ import pathlib
 import json
 import copy
 from itertools import product
-from utils import run_mesoscope_cli_test
-
+from .utils import run_mesoscope_cli_test
+from .conftest import job_settings_fixture
 
 @pytest.fixture
 def flavor(request):
@@ -198,9 +198,7 @@ def expected_count(flavor):
         indirect=['flavor',
                   'platform_json_fixture',
                   'full_field_2p_tiff_fixture'])
-def test_splitter_cli(storage_directory_fixture,
-                      input_json_fixture,
-                      tmp_path_factory,
+def test_splitter_cli(job_settings_fixture,
                       zstack_metadata_fixture,
                       surface_metadata_fixture,
                       image_metadata_fixture,
@@ -247,14 +245,11 @@ def test_splitter_cli(storage_directory_fixture,
     if use_data_upload_dir is None or not use_data_upload_dir:
         ff_parent = pathlib.Path(full_field_2p_tiff_fixture['raw']).parent
         ff_parent = ff_parent.resolve().absolute()
-        if ff_parent == upload_directory_fixture.resolve().absolute():
-            expect_full_field = False
+        expect_full_field = False
 
-    tmp_dir = tmp_path_factory.mktemp('cli_output_json_1x6')
-    tmp_dir = pathlib.Path(tmp_dir)
+
     actual_count = run_mesoscope_cli_test(
-                input_json=input_json_data,
-                tmp_dir=tmp_dir,
+                job_settings=job_settings_fixture,
                 zstack_metadata=zstack_metadata_fixture,
                 surface_metadata=surface_metadata_fixture,
                 image_metadata=image_metadata_fixture,

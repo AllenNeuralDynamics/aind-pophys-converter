@@ -5,11 +5,12 @@ import tifffile
 import json
 from itertools import product
 import numpy as np
-from mesoscope_file_splitter.splitter import (
+from aind_pophys_converter.mesoscope_splitter import (
     _dump_timeseries_caches,
     _gather_timeseries_caches,
     _split_timeseries_tiff,
-    split_timeseries_tiff)
+    split_timeseries_tiff
+)
 
 
 @pytest.fixture
