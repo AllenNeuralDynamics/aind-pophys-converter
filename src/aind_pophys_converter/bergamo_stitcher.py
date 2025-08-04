@@ -139,9 +139,11 @@ class BergamoTiffStitcher(BaseStitcher):
         native_tiffs_dict = dict(
             zip([i.name for i in native_tiffs], native_tiffs)
         )
+        from pprint import pprint
         epochs = {}
         for epoch in stimulus_epochs:
             epoch_files = []
+            pprint(epoch)
             tiff_stem = epoch["output_parameters"]["tiff_stem"]
             for stim in epoch["output_parameters"]["tiff_files"]:
                 epoch_files.append(str(native_tiffs_dict[stim]))
