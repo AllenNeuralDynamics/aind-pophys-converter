@@ -139,20 +139,16 @@ class BergamoTiffStitcher(BaseStitcher):
         native_tiffs_dict = dict(
             zip([i.name for i in native_tiffs], native_tiffs)
         )
-        from pprint import pprint
-
-        count = 0
         epochs = {}
         for epoch in stimulus_epochs:
             epoch_files = []
-            print(f"Count: {count}\n")
-            pprint(epoch)
+            if not epoch.get("output_parameters", {}):
+                continue
             tiff_stem = epoch["output_parameters"]["tiff_stem"]
             for stim in epoch["output_parameters"]["tiff_files"]:
                 epoch_files.append(str(native_tiffs_dict[stim]))
             epochs[tiff_stem] = {"tiff_files": epoch_files}
             epochs[tiff_stem]["stimulus_name"] = epoch["stimulus_name"]
-            count += 1
         return epochs
 
     def _get_image_dim(self) -> tuple:
