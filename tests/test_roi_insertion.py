@@ -2,7 +2,8 @@
 # that specifically insert ROI images into the stitched
 # full field images
 
-import pytest
+
+import unittest
 import pathlib
 import tifffile
 import numpy as np
@@ -109,159 +110,128 @@ def _create_avg_surface_tiff(
             metadata)
 
 
-@pytest.mark.parametrize(
-        "n_rois, bckgd_pixel, roi_pixel",
-        [(3, 1.1, 2.2),
-         (4, 3.2, 1.6)])
-def test_insertion_worker(
-        tmpdir_factory,
-        n_rois,
-        bckgd_pixel,
-        roi_pixel):
-    """
-    Test _insert_rois_into_surface_img
 
-    n_rois -- number of ROIs
-    bckgd_pixel -- physical size of one pixel in the background image
-    roi_pixel -- physical size of one pixel in the ROIs
-    """
-    origin_x = 4.3
-    origin_y = 3.2
-    bckgd_img = np.nan*np.ones((512, 512), dtype=float)
-
-    tmpdir = pathlib.Path(
-            tmpdir_factory.mktemp('insertion_worker'))
-
-    (tiff_path,
-     expected_avg,
-     avg_metadata) = _create_avg_surface_tiff(
-                         n_rois=n_rois,
-                         pixel_size=roi_pixel,
-                         origin_x=origin_x,
-                         origin_y=origin_y,
-                         output_dir=tmpdir)
-
-    with patch("tifffile.read_scanimage_metadata",
-               new=Mock(return_value=avg_metadata)):
-        avg_splitter = AvgImageTiffSplitter(tiff_path)
-    for i_roi in range(n_rois):
-        actual = avg_splitter.get_avg_img(i_roi=i_roi, z_value=None)
-        np.testing.assert_allclose(actual, expected_avg[i_roi])
-
-    # create metadata dict for the background image
-    sizexy = [512*bckgd_pixel, 512*bckgd_pixel]
-    bckgd_metadata = [dict(), dict()]
-    bckgd_metadata[1]['RoiGroups'] = {
-        'imagingRoiGroup': {
-            'rois': [{'scanfields':
-                      {'pixelResolutionXY': [512, 512],
-                       'sizeXY': sizexy,
-                       'centerXY': [origin_x+0.5*sizexy[0],
-                                    origin_y+0.5*sizexy[1]]}}]}}
-
-    nonsense_path = pathlib.Path(
-            mkstemp_clean(dir=tmpdir, suffix='.tiff'))
-
-    with patch("tifffile.read_scanimage_metadata",
-               new=Mock(return_value=bckgd_metadata)):
-        ff_metadata = ScanImageMetadata(nonsense_path)
-
-    img = _insert_rois_into_surface_img(
-            full_field_img=bckgd_img,
-            full_field_metadata=ff_metadata,
-            avg_image_splitter=avg_splitter)
-
-    # mask out expected ROI pixels so that we can verify that
-    # non-ROI pixels are still NaN after insertion
-    mask_missing = np.ones((512, 512), dtype=bool)
-
-    # make sure that ROIs were correctly inserted into the
-    # image
-    for i_roi in range(n_rois):
-        expected = expected_avg[i_roi]
-        new_dim = np.round(12*roi_pixel/bckgd_pixel).astype(int)
-        expected = skimage_resize(expected, (new_dim, new_dim))
-        expected = normalize_array(expected, dtype=np.uint16)
-
-        roi_col0 = 24*(i_roi+1)-6
-        roi_col0 = np.round(roi_col0*roi_pixel/bckgd_pixel).astype(int)
-        roi_row0 = 36*(i_roi+1)-6
-        roi_row0 = np.round(roi_row0*roi_pixel/bckgd_pixel).astype(int)
-
-        actual = img[roi_row0: roi_row0+expected.shape[0],
-                     roi_col0: roi_col0+expected.shape[1]]
-
-        mask_missing[roi_row0: roi_row0+expected.shape[0],
-                     roi_col0: roi_col0+expected.shape[1]] = False
-
-        np.testing.assert_allclose(actual, expected)
-
-    # verify that all of the pixels that should not be in the ROIs are
-    # still NaNs
-    assert np.all(np.isnan(img[mask_missing]))
+class TestRoiInsertion(unittest.TestCase):
+    def test_insertion_worker(self):
+        for n_rois, bckgd_pixel, roi_pixel in [(3, 1.1, 2.2), (4, 3.2, 1.6)]:
+            with self.subTest(n_rois=n_rois, bckgd_pixel=bckgd_pixel, roi_pixel=roi_pixel):
+                origin_x = 4.3
+                origin_y = 3.2
+                bckgd_img = np.nan*np.ones((512, 512), dtype=float)
+                import tempfile
+                tmpdir = pathlib.Path(tempfile.mkdtemp(prefix='insertion_worker'))
+                (tiff_path,
+                 expected_avg,
+                 avg_metadata) = _create_avg_surface_tiff(
+                                     n_rois=n_rois,
+                                     pixel_size=roi_pixel,
+                                     origin_x=origin_x,
+                                     origin_y=origin_y,
+                                     output_dir=tmpdir)
+                with patch("tifffile.read_scanimage_metadata",
+                           new=Mock(return_value=avg_metadata)):
+                    avg_splitter = AvgImageTiffSplitter(tiff_path)
+                for i_roi in range(n_rois):
+                    actual = avg_splitter.get_avg_img(i_roi=i_roi, z_value=None)
+                    np.testing.assert_allclose(actual, expected_avg[i_roi])
+                # create metadata dict for the background image
+                sizexy = [512*bckgd_pixel, 512*bckgd_pixel]
+                bckgd_metadata = [dict(), dict()]
+                bckgd_metadata[1]['RoiGroups'] = {
+                    'imagingRoiGroup': {
+                        'rois': [{'scanfields':
+                                  {'pixelResolutionXY': [512, 512],
+                                   'sizeXY': sizexy,
+                                   'centerXY': [origin_x+0.5*sizexy[0],
+                                                origin_y+0.5*sizexy[1]]}}]}}
+                nonsense_path = pathlib.Path(
+                        mkstemp_clean(dir=tmpdir, suffix='.tiff'))
+                with patch("tifffile.read_scanimage_metadata",
+                           new=Mock(return_value=bckgd_metadata)):
+                    ff_metadata = ScanImageMetadata(nonsense_path)
+                img = _insert_rois_into_surface_img(
+                        full_field_img=bckgd_img,
+                        full_field_metadata=ff_metadata,
+                        avg_image_splitter=avg_splitter)
+                # mask out expected ROI pixels so that we can verify that
+                # non-ROI pixels are still NaN after insertion
+                mask_missing = np.ones((512, 512), dtype=bool)
+                # make sure that ROIs were correctly inserted into the
+                # image
+                for i_roi in range(n_rois):
+                    expected = expected_avg[i_roi]
+                    new_dim = np.round(12*roi_pixel/bckgd_pixel).astype(int)
+                    expected = skimage_resize(expected, (new_dim, new_dim))
+                    expected = normalize_array(expected, dtype=np.uint16)
+                    roi_col0 = 24*(i_roi+1)-6
+                    roi_col0 = np.round(roi_col0*roi_pixel/bckgd_pixel).astype(int)
+                    roi_row0 = 36*(i_roi+1)-6
+                    roi_row0 = np.round(roi_row0*roi_pixel/bckgd_pixel).astype(int)
+                    actual = img[roi_row0: roi_row0+expected.shape[0],
+                                 roi_col0: roi_col0+expected.shape[1]]
+                    mask_missing[roi_row0: roi_row0+expected.shape[0],
+                                 roi_col0: roi_col0+expected.shape[1]] = False
+                    np.testing.assert_allclose(actual, expected)
+                # verify that all of the pixels that should not be in the ROIs are
+                # still NaNs
+                self.assertTrue(np.all(np.isnan(img[mask_missing])))
 
 
-def test_user_facing_insertion(
-        tmpdir_factory):
-    """
-    This is really just a smoke test of stitch_tiff_with_rois
-    """
-    tmpdir = pathlib.Path(
-                tmpdir_factory.mktemp('user_facing_insertion'))
 
-    origin_x = 21.2
-    origin_y = 11.1
+    def test_user_facing_insertion(self):
+        """
+        This is really just a smoke test of stitch_tiff_with_rois
+        """
+        import tempfile
+        tmpdir = pathlib.Path(tempfile.mkdtemp(prefix='user_facing_insertion'))
+        origin_x = 21.2
+        origin_y = 11.1
+        (avg_tiff_path,
+         avg_images,
+         avg_metadata) = _create_avg_surface_tiff(
+                              n_rois=3,
+                              pixel_size=1.3,
+                              origin_x=origin_x,
+                              origin_y=origin_y,
+                              output_dir=tmpdir)
+        nrois = 2
+        roix = 372
+        roiy = 168
+        gap = 3
+        nrows = gap*(nrois-1)+roiy*nrois
+        ncols = roix
+        (bckgd_path,
+         bckgd_img,
+         bckgd_metadata) = _create_full_field_tiff(
+                     numVolumes=2,
+                     numSlices=7,
+                     seed=45678,
+                     output_dir=tmpdir,
+                     nrows=nrows,
+                     ncols=ncols)
+        roi_metadata = _create_roi_metadata(
+                nrois=nrois,
+                roix=roix,
+                roiy=roiy,
+                sizex=1.51*roix,
+                sizey=1.51*roiy,
+                origin_x=origin_x,
+                origin_y=origin_y)
+        bckgd_metadata.append(roi_metadata)
+        def mock_read_metadata(tiff_path):
+            if tiff_path == bckgd_path:
+                return bckgd_metadata
+            elif tiff_path == avg_tiff_path:
+                return avg_metadata
+            raise RuntimeError(f"do not know {tiff_path}")
+        to_replace = 'aind_pophys_converter.utils.tiff_metadata._read_metadata'
+        with patch(to_replace, new=mock_read_metadata):
+            img = stitch_tiff_with_rois(
+                    full_field_path=bckgd_path,
+                    avg_surface_path=avg_tiff_path)
+        self.assertIsInstance(img, np.ndarray)
+        self.assertEqual(img.dtype, np.uint16)
 
-    (avg_tiff_path,
-     avg_images,
-     avg_metadata) = _create_avg_surface_tiff(
-                          n_rois=3,
-                          pixel_size=1.3,
-                          origin_x=origin_x,
-                          origin_y=origin_y,
-                          output_dir=tmpdir)
 
-    nrois = 2
-    roix = 372
-    roiy = 168
-    gap = 3
-    nrows = gap*(nrois-1)+roiy*nrois
-    ncols = roix
-
-    (bckgd_path,
-     bckgd_img,
-     bckgd_metadata) = _create_full_field_tiff(
-                 numVolumes=2,
-                 numSlices=7,
-                 seed=45678,
-                 output_dir=tmpdir,
-                 nrows=nrows,
-                 ncols=ncols)
-
-    roi_metadata = _create_roi_metadata(
-            nrois=nrois,
-            roix=roix,
-            roiy=roiy,
-            sizex=1.51*roix,
-            sizey=1.51*roiy,
-            origin_x=origin_x,
-            origin_y=origin_y)
-
-    bckgd_metadata.append(roi_metadata)
-
-    def mock_read_metadata(tiff_path):
-        if tiff_path == bckgd_path:
-            return bckgd_metadata
-        elif tiff_path == avg_tiff_path:
-            return avg_metadata
-        raise RuntimeError(f"do not know {tiff_path}")
-
-    to_replace = 'aind_pophys_converter.utils.'
-    to_replace += 'tiff_metadata._read_metadata'
-    with patch(to_replace, new=mock_read_metadata):
-        img = stitch_tiff_with_rois(
-                full_field_path=bckgd_path,
-                avg_surface_path=avg_tiff_path)
-
-    assert isinstance(img, np.ndarray)
-    assert img.dtype == np.uint16
+if __name__ == "__main__":
+    unittest.main()

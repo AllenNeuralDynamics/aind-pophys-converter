@@ -308,11 +308,28 @@ class BergamoTiffStitcher(BaseStitcher):
                 """
             ),
         )
+        parser.add_argument(
+            "-s",
+            "--session-file",
+            required=True,
+            type=str,
+            help=(
+                """
+                path to the session file
+                """
+            ),
+        )
         job_args = parser.parse_args(args)
+        
+        # Provide default values for optional arguments  
+        output_dir = Path(job_args.output_dir) if job_args.output_dir else Path(job_args.input_dir)
+        unique_id = job_args.unique_id if job_args.unique_id else "bergamo_stitched"
+        
         job_settings = BergamoSettings(
             input_dir=Path(job_args.input_dir),
-            output_dir=Path(job_args.output_dir),
-            unique_id=job_args.unique_id,
+            output_dir=output_dir,
+            unique_id=unique_id,
+            session_fp=Path(job_args.session_file),
         )
         return cls(
             job_settings,

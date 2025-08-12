@@ -1,4 +1,5 @@
-import pytest
+
+import unittest
 from typing import List, Tuple, Dict
 from unittest.mock import patch, Mock
 import numpy as np
@@ -117,405 +118,295 @@ def _create_image_tiff(
             metadata)
 
 
-@pytest.mark.parametrize(
-    "z_value_list, n_rois, use_zs",
-    [(list(range(8)), 2, True),
-     (list(range(8)), 4, True),
-     (list(range(6)), 3, True),
-     ((0, 2, 3, 5, 7, 4, 6, 11), 4, True),
-     ((0, 2, 3, 5, 7, 4, 6, 11), 2, True),
-     ((0, 2, 3, 5, 7, 4, 6, 5), 4, True),
-     ((0, 2, 3, 5, 7, 4, 6, 5), 2, True),
-     ((0, 4, 5, 2, 8, 7), 1, True),
-     (list(range(8)), 2, False),
-     (list(range(8)), 4, False),
-     (list(range(6)), 3, False),
-     ((0, 2, 3, 5, 7, 4, 6, 11), 4, False),
-     ((0, 2, 3, 5, 7, 4, 6, 11), 2, False),
-     ((0, 2, 3, 5, 7, 4, 6, 5), 4, False),
-     ((0, 2, 3, 5, 7, 4, 6, 5), 2, False),
-     ((0, 4, 5, 2, 8, 7), 1, False)])
-def test_depth_splitter(tmp_path_factory,
-                        z_value_list,
-                        n_rois,
-                        use_zs,
-                        ):
-    """
-    Test that, when splitting a depth TIFF, _get_pages and
-    write_output_file behave as expected
-    """
 
-    tmp_dir = tmp_path_factory.mktemp('test_depth_2x4')
-
-    depth_tiff = _create_image_tiff(
-                    pathlib.Path(tmp_dir),
+class TestSplitter(unittest.TestCase):
+    def test_depth_splitter(self):
+        param_list = [
+            (list(range(8)), 2, True),
+            (list(range(8)), 4, True),
+            (list(range(6)), 3, True),
+            ((0, 2, 3, 5, 7, 4, 6, 11), 4, True),
+            ((0, 2, 3, 5, 7, 4, 6, 11), 2, True),
+            ((0, 2, 3, 5, 7, 4, 6, 5), 4, True),
+            ((0, 2, 3, 5, 7, 4, 6, 5), 2, True),
+            ((0, 4, 5, 2, 8, 7), 1, True),
+            (list(range(8)), 2, False),
+            (list(range(8)), 4, False),
+            (list(range(6)), 3, False),
+            ((0, 2, 3, 5, 7, 4, 6, 11), 4, False),
+            ((0, 2, 3, 5, 7, 4, 6, 11), 2, False),
+            ((0, 2, 3, 5, 7, 4, 6, 5), 4, False),
+            ((0, 2, 3, 5, 7, 4, 6, 5), 2, False),
+            ((0, 4, 5, 2, 8, 7), 1, False)
+        ]
+        import tempfile
+        for z_value_list, n_rois, use_zs in param_list:
+            with self.subTest(z_value_list=z_value_list, n_rois=n_rois, use_zs=use_zs):
+                tmp_dir = pathlib.Path(tempfile.mkdtemp(prefix='test_depth_2x4'))
+                depth_tiff = _create_image_tiff(
+                    tmp_dir,
                     z_value_list,
                     n_rois,
                     use_zs=use_zs,
                     is_surface=False)
-
-    tiff_path = depth_tiff[0]
-    raw_avg_img_lookup = depth_tiff[1]
-    avg_img_lookup = depth_tiff[2]
-    page_lookup = depth_tiff[3]
-    metadata = depth_tiff[4]
-
-    n_z_per_roi = len(z_value_list) // n_rois
-
-    with patch('tifffile.read_scanimage_metadata',
-               new=Mock(return_value=metadata)):
-
-        splitter = AvgImageTiffSplitter(tiff_path=tiff_path)
-    for i_z, z_value in enumerate(z_value_list):
-        i_roi = i_z//n_z_per_roi
-        arr = splitter._get_pages(i_roi=i_roi,
-                                  z_value=z_value)
-        assert len(arr) == 5
-        for i_page in range(5):
-            expected = page_lookup[(i_roi, z_value)][i_page]
-            np.testing.assert_array_equal(expected,
-                                          arr[i_page])
-
-        actual = splitter.get_avg_img(
-                    i_roi=i_roi,
-                    z_value=z_value)
-        np.testing.assert_allclose(
-                    actual,
-                    raw_avg_img_lookup[(i_roi, z_value)])
-
-        tmp_path = mkstemp_clean(dir=tmp_dir, suffix='.tiff')
-        tmp_path = pathlib.Path(tmp_path)
-
-        splitter.write_output_file(i_roi=i_roi,
-                                   z_value=z_value,
-                                   output_path=tmp_path)
-        with tifffile.TiffFile(tmp_path, mode='rb') as tiff_file:
-            assert len(tiff_file.pages) == 1
-            actual = tiff_file.pages[0].asarray()
-            output_metadata = tiff_file.shaped_metadata[0][
-                                           'scanimage_metadata']
-
-            assert output_metadata == metadata
-
-        np.testing.assert_array_equal(actual,
-                                      avg_img_lookup[(i_roi, z_value)])
-
-        if tmp_path.is_file():
-            tmp_path.unlink()
-    if tiff_path.is_file():
-        tiff_path.unlink()
-
-    # #.clean_up_dir(tmp_dir)
+                tiff_path = depth_tiff[0]
+                raw_avg_img_lookup = depth_tiff[1]
+                avg_img_lookup = depth_tiff[2]
+                page_lookup = depth_tiff[3]
+                metadata = depth_tiff[4]
+                n_z_per_roi = len(z_value_list) // n_rois
+                with patch('tifffile.read_scanimage_metadata', new=Mock(return_value=metadata)):
+                    splitter = AvgImageTiffSplitter(tiff_path=tiff_path)
+                for i_z, z_value in enumerate(z_value_list):
+                    i_roi = i_z//n_z_per_roi
+                    arr = splitter._get_pages(i_roi=i_roi, z_value=z_value)
+                    self.assertEqual(len(arr), 5)
+                    for i_page in range(5):
+                        expected = page_lookup[(i_roi, z_value)][i_page]
+                        np.testing.assert_array_equal(expected, arr[i_page])
+                    actual = splitter.get_avg_img(i_roi=i_roi, z_value=z_value)
+                    np.testing.assert_allclose(actual, raw_avg_img_lookup[(i_roi, z_value)])
+                    tmp_path = mkstemp_clean(dir=tmp_dir, suffix='.tiff')
+                    tmp_path = pathlib.Path(tmp_path)
+                    splitter.write_output_file(i_roi=i_roi, z_value=z_value, output_path=tmp_path)
+                    with tifffile.TiffFile(tmp_path, mode='rb') as tiff_file:
+                        self.assertEqual(len(tiff_file.pages), 1)
+                        actual = tiff_file.pages[0].asarray()
+                        output_metadata = tiff_file.shaped_metadata[0]['scanimage_metadata']
+                        self.assertEqual(output_metadata, metadata)
+                    np.testing.assert_array_equal(actual, avg_img_lookup[(i_roi, z_value)])
+                    if tmp_path.is_file():
+                        tmp_path.unlink()
+                if tiff_path.is_file():
+                    tiff_path.unlink()
 
 
-@pytest.mark.parametrize(
-    "z_value_list, n_rois, use_zs",
-    [(list(range(8)), 2, True),
-     (list(range(8)), 4, True),
-     (list(range(6)), 3, True),
-     ((0, 2, 3, 5, 7, 4, 6, 11), 4, True),
-     ((0, 2, 3, 5, 7, 4, 6, 11), 2, True),
-     ((0, 2, 3, 5, 7, 4, 6, 5), 4, True),
-     ((0, 2, 3, 5, 7, 4, 6, 5), 2, True),
-     ((0, 4, 5, 2, 8, 7), 1, True),
-     (list(range(8)), 2, False),
-     (list(range(8)), 4, False),
-     (list(range(6)), 3, False),
-     ((0, 2, 3, 5, 7, 4, 6, 11), 4, False),
-     ((0, 2, 3, 5, 7, 4, 6, 11), 2, False),
-     ((0, 2, 3, 5, 7, 4, 6, 5), 4, False),
-     ((0, 2, 3, 5, 7, 4, 6, 5), 2, False),
-     ((0, 4, 5, 2, 8, 7), 1, False)])
-def test_splitter_manifest(tmp_path_factory,
-                           z_value_list,
-                           n_rois,
-                           use_zs,
-                           ):
-    """
-    Test that the various methods characterizing legal
-    combinations of i_roi and z behave as expected
-    """
 
-    tmp_dir = tmp_path_factory.mktemp('test_depth_2x4')
-
-    depth_tiff = _create_image_tiff(
-                    pathlib.Path(tmp_dir),
+    def test_splitter_manifest(self):
+        param_list = [
+            (list(range(8)), 2, True),
+            (list(range(8)), 4, True),
+            (list(range(6)), 3, True),
+            ((0, 2, 3, 5, 7, 4, 6, 11), 4, True),
+            ((0, 2, 3, 5, 7, 4, 6, 11), 2, True),
+            ((0, 2, 3, 5, 7, 4, 6, 5), 4, True),
+            ((0, 2, 3, 5, 7, 4, 6, 5), 2, True),
+            ((0, 4, 5, 2, 8, 7), 1, True),
+            (list(range(8)), 2, False),
+            (list(range(8)), 4, False),
+            (list(range(6)), 3, False),
+            ((0, 2, 3, 5, 7, 4, 6, 11), 4, False),
+            ((0, 2, 3, 5, 7, 4, 6, 11), 2, False),
+            ((0, 2, 3, 5, 7, 4, 6, 5), 4, False),
+            ((0, 2, 3, 5, 7, 4, 6, 5), 2, False),
+            ((0, 4, 5, 2, 8, 7), 1, False)
+        ]
+        import tempfile
+        for z_value_list, n_rois, use_zs in param_list:
+            with self.subTest(z_value_list=z_value_list, n_rois=n_rois, use_zs=use_zs):
+                tmp_dir = pathlib.Path(tempfile.mkdtemp(prefix='test_depth_2x4'))
+                depth_tiff = _create_image_tiff(
+                    tmp_dir,
                     z_value_list,
                     n_rois,
                     use_zs=use_zs,
                     is_surface=False)
-
-    tiff_path = depth_tiff[0]
-    metadata = depth_tiff[4]
-
-    n_z_per_roi = len(z_value_list) // n_rois
-
-    with patch('tifffile.read_scanimage_metadata',
-               new=Mock(return_value=metadata)):
-        splitter = AvgImageTiffSplitter(tiff_path=tiff_path)
-
-    assert splitter.n_pages == 5*len(z_value_list)
-    assert splitter.n_valid_zs == len(z_value_list)
-    assert splitter.n_rois == n_rois
-    offset = 0
-    for i_roi in range(n_rois):
-        for zz in z_value_list[offset:offset+n_z_per_roi]:
-            assert splitter.is_z_valid_for_roi(i_roi=i_roi, z_value=zz)
-        offset += n_z_per_roi
-
-    # check for all (i_roi, z) pairs
-    assert len(splitter.roi_z_int_manifest) == len(z_value_list)
-    for pair in splitter.roi_z_int_manifest:
-        i_roi = pair[0]
-        roi_grp = metadata[1]['RoiGroups']['imagingRoiGroup']['rois']
-        if isinstance(roi_grp, dict):
-            assert i_roi == 0
-            roi_z_ints = splitter._int_from_z(z_value=roi_grp['zs'])
-        else:
-            roi_z_ints = [splitter._int_from_z(z_value=zz)
-                          for zz in roi_grp[i_roi]['zs']]
-
-        if isinstance(roi_z_ints, int):
-            assert pair[1] == roi_z_ints
-        else:
-            assert pair[1] in roi_z_ints
-
-    if tiff_path.is_file():
-        tiff_path.unlink()
-
-    #.clean_up_dir(tmp_dir)
+                tiff_path = depth_tiff[0]
+                metadata = depth_tiff[4]
+                n_z_per_roi = len(z_value_list) // n_rois
+                with patch('tifffile.read_scanimage_metadata', new=Mock(return_value=metadata)):
+                    splitter = AvgImageTiffSplitter(tiff_path=tiff_path)
+                self.assertEqual(splitter.n_pages, 5*len(z_value_list))
+                self.assertEqual(splitter.n_valid_zs, len(z_value_list))
+                self.assertEqual(splitter.n_rois, n_rois)
+                offset = 0
+                for i_roi in range(n_rois):
+                    for zz in z_value_list[offset:offset+n_z_per_roi]:
+                        self.assertTrue(splitter.is_z_valid_for_roi(i_roi=i_roi, z_value=zz))
+                    offset += n_z_per_roi
+                self.assertEqual(len(splitter.roi_z_int_manifest), len(z_value_list))
+                for pair in splitter.roi_z_int_manifest:
+                    i_roi = pair[0]
+                    roi_grp = metadata[1]['RoiGroups']['imagingRoiGroup']['rois']
+                    if isinstance(roi_grp, dict):
+                        self.assertEqual(i_roi, 0)
+                        roi_z_ints = splitter._int_from_z(z_value=roi_grp['zs'])
+                    else:
+                        roi_z_ints = [splitter._int_from_z(z_value=zz) for zz in roi_grp[i_roi]['zs']]
+                    if isinstance(roi_z_ints, int):
+                        self.assertEqual(pair[1], roi_z_ints)
+                    else:
+                        self.assertIn(pair[1], roi_z_ints)
+                if tiff_path.is_file():
+                    tiff_path.unlink()
 
 
-@pytest.mark.parametrize(
-    "z_value_list, use_zs",
-    [(list(range(3)), True),
-     (list(range(4)), True),
-     (list(range(2)), True),
-     ((0, 5, 4), True),
-     (list(range(3)), False),
-     (list(range(4)), False),
-     (list(range(2)), False),
-     ((0, 5, 4), False)])
-def test_surface_splitter(tmp_path_factory,
-                          z_value_list,
-                          use_zs,
-                          ):
-    """
-    Test that, when splitting a surface TIFF, _get_pages and
-    write_output_file behave as expected
-    """
 
-    n_rois = len(z_value_list)
-    n_z_per_roi = 1
-
-    tmp_dir = tmp_path_factory.mktemp('test_depth_2x4')
-
-    surface_tiff = _create_image_tiff(
-                    pathlib.Path(tmp_dir),
-                    z_value_list,
-                    n_rois,
-                    use_zs=use_zs,
-                    is_surface=True)
-
-    tiff_path = surface_tiff[0]
-    raw_avg_img_lookup = surface_tiff[1]
-    avg_img_lookup = surface_tiff[2]
-    page_lookup = surface_tiff[3]
-    metadata = surface_tiff[4]
-
-    with patch('tifffile.read_scanimage_metadata',
-               new=Mock(return_value=metadata)):
-        splitter = AvgImageTiffSplitter(tiff_path=tiff_path)
-
-    for i_z, z_value in enumerate(z_value_list):
-        i_roi = i_z//n_z_per_roi
-        arr = splitter._get_pages(i_roi=i_roi,
-                                  z_value=z_value)
-        assert len(arr) == 5
-        for i_page in range(5):
-            expected = page_lookup[(i_roi, z_value)][i_page]
-            np.testing.assert_array_equal(expected,
-                                          arr[i_page])
-
-        actual = splitter.get_avg_img(
-                    i_roi=i_roi,
-                    z_value=None)
-
-        np.testing.assert_allclose(
-                actual,
-                raw_avg_img_lookup[(i_roi, z_value)])
-
-        tmp_path = mkstemp_clean(dir=tmp_dir, suffix='.tiff')
-        tmp_path = pathlib.Path(tmp_path)
-        splitter.write_output_file(i_roi=i_roi,
-                                   z_value=None,
-                                   output_path=tmp_path)
-        with tifffile.TiffFile(tmp_path, mode='rb') as tiff_file:
-            assert len(tiff_file.pages) == 1
-            actual = tiff_file.pages[0].asarray()
-
-        np.testing.assert_array_equal(actual,
-                                      avg_img_lookup[(i_roi, z_value)])
-        if tmp_path.is_file():
-            tmp_path.unlink()
-    if tiff_path.is_file():
-        tiff_path.unlink()
-
-    #.clean_up_dir(tmp_dir)
-
-
-@pytest.mark.parametrize(
-    "z_value_list, n_rois, use_zs",
-    [(list(range(8)), 2, True),
-     (list(range(8)), 4, True),
-     (list(range(6)), 3, True),
-     ((0, 2, 3, 5, 7, 4, 6, 11), 4, True),
-     ((0, 2, 3, 5, 7, 4, 6, 11), 2, True),
-     ((0, 2, 3, 5, 7, 4, 6, 5), 4, True),
-     ((0, 2, 3, 5, 7, 4, 6, 5), 2, True),
-     ((0, 4, 5, 2, 8, 7), 1, True),
-     (list(range(8)), 2, False),
-     (list(range(8)), 4, False),
-     (list(range(6)), 3, False),
-     ((0, 2, 3, 5, 7, 4, 6, 11), 4, False),
-     ((0, 2, 3, 5, 7, 4, 6, 11), 2, False),
-     ((0, 2, 3, 5, 7, 4, 6, 5), 4, False),
-     ((0, 2, 3, 5, 7, 4, 6, 5), 2, False),
-     ((0, 4, 5, 2, 8, 7), 1, False)])
-def test_time_splitter(tmp_path_factory,
-                       z_value_list,
-                       n_rois,
-                       use_zs,
-                       ):
-
-    """
-    Test that, when splitting a timeseries TIFF,
-    write_output_file behaves as expected
-    """
-    n_rois = len(z_value_list)
-    n_z_per_roi = 1
-
-    tmp_dir = tmp_path_factory.mktemp('test_depth_2x4')
-
-    time_tiff = _create_image_tiff(
-                    pathlib.Path(tmp_dir),
-                    z_value_list,
-                    n_rois,
-                    use_zs=use_zs,
-                    is_surface=True)
-
-    tiff_path = time_tiff[0]
-    page_lookup = time_tiff[3]
-    metadata = time_tiff[4]
-
-    with patch('tifffile.read_scanimage_metadata',
-               new=Mock(return_value=metadata)):
-        splitter = TimeSeriesSplitter(tiff_path=tiff_path)
-
-    output_path_map = dict()
-    for i_z, z_value in enumerate(z_value_list):
-        i_roi = i_z//n_z_per_roi
-        output_path = pathlib.Path(
-                mkstemp_clean(dir=tmp_dir, suffix='.h5'))
-        output_path_map[(i_roi, z_value)] = output_path
-
-    splitter.write_output_files(
-            output_path_map=output_path_map,
-            tmp_dir=tmp_dir,
-            dump_every=5)
-
-    for i_z, z_value in enumerate(z_value_list):
-        i_roi = i_z//n_z_per_roi
-        tmp_path = output_path_map[(i_roi, z_value)]
-        with h5py.File(tmp_path, 'r') as in_file:
-            actual = in_file['data'][()]
-        expected = np.stack(page_lookup[(i_roi, z_value)])
-        np.testing.assert_array_equal(expected, actual)
-
-        if tmp_path.is_file():
-            tmp_path.unlink()
-
-    if tiff_path.is_file():
-        tiff_path.unlink()
-
-    #.clean_up_dir(tmp_dir)
-
-
-def test_invalid_timeseries_output_map(
-        tmp_path_factory,
-        ):
-    """
-    Test that timeseries splitter raises expected errors
-    for invalid output map values
-    """
-
-    # construct a self-consistent timeseries TIFF with metadata
-    z_value_list = list(range(8))
-    n_rois = 2
-    use_zs = True
-    n_rois = len(z_value_list)
-    n_z_per_roi = 1
-
-    tmp_dir = pathlib.Path(
-            tmp_path_factory.mktemp('test_invalid_timeseries'))
-
-    time_tiff = _create_image_tiff(
+    def test_surface_splitter(self):
+        param_list = [
+            (list(range(3)), True),
+            (list(range(4)), True),
+            (list(range(2)), True),
+            ((0, 5, 4), True),
+            (list(range(3)), False),
+            (list(range(4)), False),
+            (list(range(2)), False),
+            ((0, 5, 4), False)
+        ]
+        import tempfile
+        for z_value_list, use_zs in param_list:
+            with self.subTest(z_value_list=z_value_list, use_zs=use_zs):
+                n_rois = len(z_value_list)
+                n_z_per_roi = 1
+                tmp_dir = pathlib.Path(tempfile.mkdtemp(prefix='test_depth_2x4'))
+                surface_tiff = _create_image_tiff(
                     tmp_dir,
                     z_value_list,
                     n_rois,
                     use_zs=use_zs,
                     is_surface=True)
+                tiff_path = surface_tiff[0]
+                raw_avg_img_lookup = surface_tiff[1]
+                avg_img_lookup = surface_tiff[2]
+                page_lookup = surface_tiff[3]
+                metadata = surface_tiff[4]
+                with patch('tifffile.read_scanimage_metadata', new=Mock(return_value=metadata)):
+                    splitter = AvgImageTiffSplitter(tiff_path=tiff_path)
+                for i_z, z_value in enumerate(z_value_list):
+                    i_roi = i_z//n_z_per_roi
+                    arr = splitter._get_pages(i_roi=i_roi, z_value=z_value)
+                    self.assertEqual(len(arr), 5)
+                    for i_page in range(5):
+                        expected = page_lookup[(i_roi, z_value)][i_page]
+                        np.testing.assert_array_equal(expected, arr[i_page])
+                    actual = splitter.get_avg_img(i_roi=i_roi, z_value=None)
+                    np.testing.assert_allclose(actual, raw_avg_img_lookup[(i_roi, z_value)])
+                    tmp_path = mkstemp_clean(dir=tmp_dir, suffix='.tiff')
+                    tmp_path = pathlib.Path(tmp_path)
+                    splitter.write_output_file(i_roi=i_roi, z_value=None, output_path=tmp_path)
+                    with tifffile.TiffFile(tmp_path, mode='rb') as tiff_file:
+                        self.assertEqual(len(tiff_file.pages), 1)
+                        actual = tiff_file.pages[0].asarray()
+                    np.testing.assert_array_equal(actual, avg_img_lookup[(i_roi, z_value)])
+                    if tmp_path.is_file():
+                        tmp_path.unlink()
+                if tiff_path.is_file():
+                    tiff_path.unlink()
 
-    tiff_path = time_tiff[0]
-    metadata = time_tiff[4]
 
-    with patch('tifffile.read_scanimage_metadata',
-               new=Mock(return_value=metadata)):
-        splitter = TimeSeriesSplitter(tiff_path=tiff_path)
 
-    output_path_map = dict()
-    for i_z, z_value in enumerate(z_value_list):
-        i_roi = i_z//n_z_per_roi
-        output_path = pathlib.Path(
-                mkstemp_clean(dir=tmp_dir, suffix='.h5'))
-        output_path_map[(i_roi, z_value)] = output_path
+    def test_time_splitter(self):
+        param_list = [
+            (list(range(8)), 2, True),
+            (list(range(8)), 4, True),
+            (list(range(6)), 3, True),
+            ((0, 2, 3, 5, 7, 4, 6, 11), 4, True),
+            ((0, 2, 3, 5, 7, 4, 6, 11), 2, True),
+            ((0, 2, 3, 5, 7, 4, 6, 5), 4, True),
+            ((0, 2, 3, 5, 7, 4, 6, 5), 2, True),
+            ((0, 4, 5, 2, 8, 7), 1, True),
+            (list(range(8)), 2, False),
+            (list(range(8)), 4, False),
+            (list(range(6)), 3, False),
+            ((0, 2, 3, 5, 7, 4, 6, 11), 4, False),
+            ((0, 2, 3, 5, 7, 4, 6, 11), 2, False),
+            ((0, 2, 3, 5, 7, 4, 6, 5), 4, False),
+            ((0, 2, 3, 5, 7, 4, 6, 5), 2, False),
+            ((0, 4, 5, 2, 8, 7), 1, False)
+        ]
+        import tempfile
+        for z_value_list, n_rois, use_zs in param_list:
+            with self.subTest(z_value_list=z_value_list, n_rois=n_rois, use_zs=use_zs):
+                n_rois = len(z_value_list)
+                n_z_per_roi = 1
+                tmp_dir = pathlib.Path(tempfile.mkdtemp(prefix='test_depth_2x4'))
+                time_tiff = _create_image_tiff(
+                    tmp_dir,
+                    z_value_list,
+                    n_rois,
+                    use_zs=use_zs,
+                    is_surface=True)
+                tiff_path = time_tiff[0]
+                page_lookup = time_tiff[3]
+                metadata = time_tiff[4]
+                with patch('tifffile.read_scanimage_metadata', new=Mock(return_value=metadata)):
+                    splitter = TimeSeriesSplitter(tiff_path=tiff_path)
+                output_path_map = dict()
+                for i_z, z_value in enumerate(z_value_list):
+                    i_roi = i_z//n_z_per_roi
+                    output_path = pathlib.Path(mkstemp_clean(dir=tmp_dir, suffix='.h5'))
+                    output_path_map[(i_roi, z_value)] = output_path
+                splitter.write_output_files(
+                        output_path_map=output_path_map,
+                        tmp_dir=tmp_dir,
+                        dump_every=5)
+                for i_z, z_value in enumerate(z_value_list):
+                    i_roi = i_z//n_z_per_roi
+                    tmp_path = output_path_map[(i_roi, z_value)]
+                    with h5py.File(tmp_path, 'r') as in_file:
+                        actual = in_file['data'][()]
+                    expected = np.stack(page_lookup[(i_roi, z_value)])
+                    np.testing.assert_array_equal(expected, actual)
+                    if tmp_path.is_file():
+                        tmp_path.unlink()
+                if tiff_path.is_file():
+                    tiff_path.unlink()
 
-    # test i_roi that is too large
-    output_path_map[(11, 2.0)] = tmp_dir / 'junk.h5'
-    with pytest.raises(ValueError, match='there are only'):
-        splitter.write_output_files(
-            output_path_map=output_path_map)
-    output_path_map.pop((11, 2.0))
 
-    # test i_roi < 0
-    z_value = z_value_list[1]
-    output_path_map[(-2, z_value)] = output_path_map[(1, z_value)]
-    with pytest.raises(ValueError, match='i_roi must be >= 0'):
-        splitter.write_output_files(
-            output_path_map=output_path_map)
-    output_path_map.pop((-2, z_value))
 
-    # test z value that does not match i_roi
-    output_path_map[(3, 11111.0)] = tmp_dir / 'junk.h5'
-    with pytest.raises(ValueError, match='is not a valid z value for ROI'):
-        splitter.write_output_files(
-            output_path_map=output_path_map)
-    output_path_map.pop((3, 11111.0))
-
-    # test when the file suffix is not .h5
-    z_value = z_value_list[0]
-    output_path_map[(0, z_value)] = tmp_dir / 'junk.json'
-    with pytest.raises(ValueError, match='expected HDF5 output path'):
-        splitter.write_output_files(
-            output_path_map=output_path_map)
-
-    # test when you haven't specified a path for every ROI
-    output_path_map.pop((0, z_value))
-    with pytest.raises(ValueError, match="says it contains"):
-        splitter.write_output_files(
-            output_path_map=output_path_map)
-
-    #.clean_up_dir(tmp_dir)
+    def test_invalid_timeseries_output_map(self):
+        import tempfile
+        z_value_list = list(range(8))
+        n_rois = 2
+        use_zs = True
+        n_rois = len(z_value_list)
+        n_z_per_roi = 1
+        tmp_dir = pathlib.Path(tempfile.mkdtemp(prefix='test_invalid_timeseries'))
+        time_tiff = _create_image_tiff(
+            tmp_dir,
+            z_value_list,
+            n_rois,
+            use_zs=use_zs,
+            is_surface=True)
+        tiff_path = time_tiff[0]
+        metadata = time_tiff[4]
+        with patch('tifffile.read_scanimage_metadata', new=Mock(return_value=metadata)):
+            splitter = TimeSeriesSplitter(tiff_path=tiff_path)
+        output_path_map = dict()
+        for i_z, z_value in enumerate(z_value_list):
+            i_roi = i_z//n_z_per_roi
+            output_path = pathlib.Path(mkstemp_clean(dir=tmp_dir, suffix='.h5'))
+            output_path_map[(i_roi, z_value)] = output_path
+        # test i_roi that is too large
+        output_path_map[(11, 2.0)] = tmp_dir / 'junk.h5'
+        with self.assertRaises(ValueError) as cm:
+            splitter.write_output_files(output_path_map=output_path_map)
+        self.assertIn('there are only', str(cm.exception))
+        output_path_map.pop((11, 2.0))
+        # test i_roi < 0
+        z_value = z_value_list[1]
+        output_path_map[(-2, z_value)] = output_path_map[(1, z_value)]
+        with self.assertRaises(ValueError) as cm:
+            splitter.write_output_files(output_path_map=output_path_map)
+        self.assertIn('i_roi must be >= 0', str(cm.exception))
+        output_path_map.pop((-2, z_value))
+        # test z value that does not match i_roi
+        output_path_map[(3, 11111.0)] = tmp_dir / 'junk.h5'
+        with self.assertRaises(ValueError) as cm:
+            splitter.write_output_files(output_path_map=output_path_map)
+        self.assertIn('is not a valid z value for ROI', str(cm.exception))
+        output_path_map.pop((3, 11111.0))
+        # test when the file suffix is not .h5
+        z_value = z_value_list[0]
+        output_path_map[(0, z_value)] = tmp_dir / 'junk.json'
+        with self.assertRaises(ValueError) as cm:
+            splitter.write_output_files(output_path_map=output_path_map)
+        self.assertIn('expected HDF5 output path', str(cm.exception))
+        # test when you haven't specified a path for every ROI
+        output_path_map.pop((0, z_value))
+        with self.assertRaises(ValueError) as cm:
+            splitter.write_output_files(output_path_map=output_path_map)
+        self.assertIn('says it contains', str(cm.exception))
 
 
 def _create_z_stack_tiffs(
@@ -600,96 +491,72 @@ def _create_z_stack_tiffs(
             tiff_path_lookup)
 
 
-@pytest.mark.parametrize(
-    "z_value_list, use_zs",
-    [(list(range(8)), True),
-     (list(range(8)), True),
-     (list(range(6)), True),
-     ((0, 2, 3, 5, 7, 4, 6, 11), True),
-     ((0, 2, 3, 5, 7, 4, 6, 11), True),
-     ((0, 2, 3, 5, 7, 4, 6, 5), True),
-     ((0, 2, 3, 5, 7, 4, 6, 5), True),
-     ((0, 4, 5, 2, 8, 7), True),
-     (list(range(8)), False),
-     (list(range(8)), False),
-     (list(range(6)), False),
-     ((0, 2, 3, 5, 7, 4, 6, 11), False),
-     ((0, 2, 3, 5, 7, 4, 6, 11), False),
-     ((0, 2, 3, 5, 7, 4, 6, 5), False),
-     ((0, 2, 3, 5, 7, 4, 6, 5), False),
-     ((0, 4, 5, 2, 8, 7), False)])
-def test_z_stack_splitter(tmp_path_factory,
-                          z_value_list,
-                          use_zs,
-                          ):
-    """
-    Test that _get_pages and write_output_file behave properly
-    for zstack_splitter
-    """
-    tmpdir = pathlib.Path(tmp_path_factory.mktemp('z_stack_test'))
 
-    n_z_per_roi = 2  # a requirement of the z-stacks
-    n_rois = len(z_value_list) // n_z_per_roi
-    roi_to_z_mapping = []
-    for i_roi in range(n_rois):
-        i0 = i_roi*n_z_per_roi
-        i1 = i0 + n_z_per_roi
-        these_zs = z_value_list[i0:i1]
-        roi_to_z_mapping.append(these_zs)
-
-    dataset = _create_z_stack_tiffs(
+    def test_z_stack_splitter(self):
+        param_list = [
+            (list(range(8)), True),
+            (list(range(8)), True),
+            (list(range(6)), True),
+            ((0, 2, 3, 5, 7, 4, 6, 11), True),
+            ((0, 2, 3, 5, 7, 4, 6, 11), True),
+            ((0, 2, 3, 5, 7, 4, 6, 5), True),
+            ((0, 2, 3, 5, 7, 4, 6, 5), True),
+            ((0, 4, 5, 2, 8, 7), True),
+            (list(range(8)), False),
+            (list(range(8)), False),
+            (list(range(6)), False),
+            ((0, 2, 3, 5, 7, 4, 6, 11), False),
+            ((0, 2, 3, 5, 7, 4, 6, 11), False),
+            ((0, 2, 3, 5, 7, 4, 6, 5), False),
+            ((0, 2, 3, 5, 7, 4, 6, 5), False),
+            ((0, 4, 5, 2, 8, 7), False)
+        ]
+        import tempfile
+        for z_value_list, use_zs in param_list:
+            with self.subTest(z_value_list=z_value_list, use_zs=use_zs):
+                tmpdir = pathlib.Path(tempfile.mkdtemp(prefix='z_stack_test'))
+                n_z_per_roi = 2  # a requirement of the z-stacks
+                n_rois = len(z_value_list) // n_z_per_roi
+                roi_to_z_mapping = []
+                for i_roi in range(n_rois):
+                    i0 = i_roi*n_z_per_roi
+                    i1 = i0 + n_z_per_roi
+                    these_zs = z_value_list[i0:i1]
+                    roi_to_z_mapping.append(these_zs)
+                dataset = _create_z_stack_tiffs(
                     tmpdir=tmpdir,
                     roi_to_z_mapping=roi_to_z_mapping,
                     use_zs=use_zs)
+                z_stack_path_to_metadata = dataset[0]
+                tiff_pages_lookup = dataset[1]
+                tiff_path_lookup = dataset[2]
+                def mock_read_metadata(tiff_path):
+                    str_path = str(tiff_path.resolve().absolute())
+                    return z_stack_path_to_metadata[str_path]
+                to_replace = 'aind_pophys_converter.utils.tiff_metadata._read_metadata'
+                with patch(to_replace, new=mock_read_metadata):
+                    z_stack_path_list = [pathlib.Path(k) for k in z_stack_path_to_metadata]
+                    splitter = ZStackSplitter(tiff_path_list=z_stack_path_list)
+                for i_roi in range(n_rois):
+                    for z_value in roi_to_z_mapping[i_roi]:
+                        expected_metadata = mock_read_metadata(pathlib.Path(tiff_path_lookup[(i_roi, z_value)]))
+                        actual = splitter._get_pages(i_roi=i_roi, z_value=z_value)
+                        expected = np.stack(tiff_pages_lookup[(i_roi, z_value)])
+                        np.testing.assert_array_equal(actual, expected)
+                        tmp_h5 = mkstemp_clean(dir=tmpdir, suffix='.h5')
+                        tmp_h5 = pathlib.Path(tmp_h5)
+                        splitter.write_output_file(i_roi=i_roi, z_value=z_value, output_path=tmp_h5)
+                        with h5py.File(tmp_h5, 'r') as in_file:
+                            actual_metadata = json.loads(in_file['scanimage_metadata'][()].decode('utf-8'))
+                            self.assertEqual(actual_metadata, expected_metadata)
+                            actual = in_file['data'][()]
+                        np.testing.assert_array_equal(actual, expected)
+                        if tmp_h5.is_file():
+                            tmp_h5.unlink()
+                for z_stack_path in z_stack_path_list:
+                    if z_stack_path.is_file():
+                        z_stack_path.unlink()
 
-    z_stack_path_to_metadata = dataset[0]
-    tiff_pages_lookup = dataset[1]
-    tiff_path_lookup = dataset[2]
 
-    def mock_read_metadata(tiff_path):
-        str_path = str(tiff_path.resolve().absolute())
-        return z_stack_path_to_metadata[str_path]
-
-    to_replace = 'aind_pophys_converter.utils.'
-    to_replace += 'tiff_metadata._read_metadata'
-    with patch(to_replace,
-               new=mock_read_metadata):
-
-        z_stack_path_list = [pathlib.Path(k)
-                             for k in z_stack_path_to_metadata]
-        splitter = ZStackSplitter(
-                        tiff_path_list=z_stack_path_list)
-
-    for i_roi in range(n_rois):
-        for z_value in roi_to_z_mapping[i_roi]:
-
-            expected_metadata = mock_read_metadata(
-                    pathlib.Path(tiff_path_lookup[(i_roi, z_value)]))
-
-            actual = splitter._get_pages(
-                                 i_roi=i_roi,
-                                 z_value=z_value)
-            expected = np.stack(tiff_pages_lookup[(i_roi, z_value)])
-            np.testing.assert_array_equal(actual, expected)
-
-            tmp_h5 = mkstemp_clean(dir=tmpdir, suffix='.h5')
-            tmp_h5 = pathlib.Path(tmp_h5)
-            splitter.write_output_file(
-                            i_roi=i_roi,
-                            z_value=z_value,
-                            output_path=tmp_h5)
-            with h5py.File(tmp_h5, 'r') as in_file:
-                actual_metadata = json.loads(
-                            in_file['scanimage_metadata'][()].decode('utf-8'))
-                assert actual_metadata == expected_metadata
-                actual = in_file['data'][()]
-
-            np.testing.assert_array_equal(actual, expected)
-
-            if tmp_h5.is_file():
-                tmp_h5.unlink()
-    for z_stack_path in z_stack_path_list:
-        if z_stack_path.is_file():
-            z_stack_path.unlink()
-
-    #.clean_up_dir(tmpdir)
+if __name__ == "__main__":
+    unittest.main()
