@@ -75,12 +75,13 @@ class TestBergamoTiffStitcher(unittest.TestCase):
 
     def create_mock_tiff_files(self):
         """Create mock TIFF files for testing."""
-        # We'll mock the ScanImageTiffReader instead of creating actual TIFF files
         pass
 
     @patch("aind_pophys_converter.bergamo_stitcher.ScanImageTiffReader")
     def test_run_converter_creates_hdf5(self, mock_reader):
-        """Test that run_converter creates an HDF5 file with the expected structure."""
+        """Test that run_converter creates an HDF5 file with the
+        expected structure.
+        """
         # Mock ScanImageTiffReader behavior
         mock_instance = Mock()
         mock_reader.return_value = mock_instance
@@ -126,7 +127,9 @@ class TestBergamoTiffStitcher(unittest.TestCase):
             self.assertEqual(f["data"].shape[1:], (10, 10))
 
     def test_from_args_creates_stitcher(self):
-        """Test that from_args creates a BergamoTiffStitcher from command line arguments."""
+        """Test that from_args creates a BergamoTiffStitcher from
+        command line arguments.
+        """
         # Test with minimal required arguments
         args = [
             "--input-dir",

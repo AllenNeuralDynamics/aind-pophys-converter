@@ -1,10 +1,15 @@
+"""Test mapper mixin"""
+
 import unittest
 
 from aind_pophys_converter.mesoscope_splitter import IntFromZMapperMixin
 
 
 class TestIntFromZMapperMixin(unittest.TestCase):
+    """Test mapper mixin"""
+
     def test_int_from_z_mapper(self):
+        """test mixin"""
         for atol in [0.01, 0.001, 0.0001]:
             with self.subTest(atol=atol):
                 mapper = IntFromZMapperMixin()

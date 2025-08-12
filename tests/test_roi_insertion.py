@@ -1,7 +1,4 @@
-# methods in this module will test the full_field_utils
-# that specifically insert ROI images into the stitched
-# full field images
-
+"""Methods for inserting ROIs into stitched full field images"""
 
 import pathlib
 import unittest
@@ -107,7 +104,12 @@ def _create_avg_surface_tiff(
 
 
 class TestRoiInsertion(unittest.TestCase):
+    """Tests for inserting ROIs into stitched full field images"""
+
     def test_insertion_worker(self):
+        """
+        Test the insertion worker by creating a set of average images
+        """
         for n_rois, bckgd_pixel, roi_pixel in [(3, 1.1, 2.2), (4, 3.2, 1.6)]:
             with self.subTest(
                 n_rois=n_rois, bckgd_pixel=bckgd_pixel, roi_pixel=roi_pixel
@@ -192,15 +194,16 @@ class TestRoiInsertion(unittest.TestCase):
                         roi_row0 * roi_pixel / bckgd_pixel
                     ).astype(int)
                     actual = img[
-                        roi_row0 : roi_row0 + expected.shape[0],
-                        roi_col0 : roi_col0 + expected.shape[1],
+                        roi_row0: roi_row0 + expected.shape[0],
+                        roi_col0: roi_col0 + expected.shape[1],
                     ]
                     mask_missing[
-                        roi_row0 : roi_row0 + expected.shape[0],
-                        roi_col0 : roi_col0 + expected.shape[1],
+                        roi_row0: roi_row0 + expected.shape[0],
+                        roi_col0: roi_col0 + expected.shape[1],
                     ] = False
                     np.testing.assert_allclose(actual, expected)
-                # verify that all of the pixels that should not be in the ROIs are
+                # verify that all of the pixels that should not be
+                # in the ROIs are
                 # still NaNs
                 self.assertTrue(np.all(np.isnan(img[mask_missing])))
 
@@ -246,6 +249,9 @@ class TestRoiInsertion(unittest.TestCase):
         bckgd_metadata.append(roi_metadata)
 
         def mock_read_metadata(tiff_path):
+            """
+            Mock function to return metadata based on the tiff path.
+            """
             if tiff_path == bckgd_path:
                 return bckgd_metadata
             elif tiff_path == avg_tiff_path:

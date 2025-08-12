@@ -1,3 +1,5 @@
+"""Test suite for mesoscope tiff splitting CLI."""
+
 # This file tests the mesoscope tiff splitting CLI for differen
 # 'flavors' of configuration. The 'flavors' are:
 #
@@ -9,19 +11,13 @@
 # '1x6' -- 1 ROI x 6 planes
 
 
-import copy
-import json
 import os
-import pathlib
 import tempfile
 import unittest
 from itertools import product
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
-import h5py
-import numpy as np
-import tifffile
 
 from aind_pophys_converter.mesoscope_splitter import (
     TiffSplitterCLI,
@@ -29,10 +25,9 @@ from aind_pophys_converter.mesoscope_splitter import (
     mkstemp_clean,
 )
 
-from .utils import run_mesoscope_cli_test
-
 
 class TestMesoscopeSplitter(unittest.TestCase):
+    """Test suite for mesoscope tiff splitting CLI."""
 
     def setUp(self):
         """Set up test environment."""
@@ -81,7 +76,9 @@ class TestMesoscopeSplitter(unittest.TestCase):
         self.assertEqual(result, [])
 
     def test_mkstemp_clean_basic(self):
-        """Test mkstemp_clean creates a temporary file and closes descriptor."""
+        """Test mkstemp_clean creates a temporary file and closes
+        descriptor.
+        """
         file_path = mkstemp_clean()
 
         # File should exist
@@ -220,7 +217,9 @@ class TestMesoscopeSplitter(unittest.TestCase):
             self.assertEqual(cli.input_dir, input_dir)
 
     def test_tiff_splitter_cli_missing_files_errors(self):
-        """Test TiffSplitterCLI raises appropriate errors when files are missing."""
+        """Test TiffSplitterCLI raises appropriate errors when files
+        are missing.
+        """
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             input_dir = temp_path / "input_data"
@@ -270,7 +269,9 @@ class TestMesoscopeSplitter(unittest.TestCase):
             )
 
     def test_split_timeseries_tiff_logger_messages(self):
-        """Test that split_timeseries_tiff calls logger with proper messages."""
+        """Test that split_timeseries_tiff calls logger with
+        proper messages.
+        """
         from aind_pophys_converter.mesoscope_splitter import (
             split_timeseries_tiff,
         )
@@ -290,7 +291,8 @@ class TestMesoscopeSplitter(unittest.TestCase):
             # Mock logger
             mock_logger = Mock()
 
-            # Try to test the logger calls - this will likely fail due to TIFF format issues
+            # Try to test the logger calls - this will likely fail due to
+            # TIFF format issues
             # but should at least test the logger path
             try:
                 split_timeseries_tiff(
@@ -300,7 +302,8 @@ class TestMesoscopeSplitter(unittest.TestCase):
                     dump_every=10,
                 )
             except Exception:
-                # Expected to fail due to invalid TIFF, but we should have captured some logger calls
+                # Expected to fail due to invalid TIFF, but we should have
+                # captured some logger calls
                 pass
 
             # Verify logger.info was called (at minimum for the start message)
@@ -411,7 +414,8 @@ class TestMesoscopeSplitter(unittest.TestCase):
                         self.assertTrue(splitter.is_z_valid_for_roi(0, 3.1))
                         self.assertFalse(splitter.is_z_valid_for_roi(0, 999.0))
 
-                        # Test with invalid ROI index - this should raise IndexError
+                        # Test with invalid ROI index - this should raise
+                        # IndexError
                         with self.assertRaises(IndexError):
                             splitter.is_z_valid_for_roi(999, 1.5)
 
@@ -421,7 +425,8 @@ class TestMesoscopeSplitter(unittest.TestCase):
             AvgImageTiffSplitter,
         )
 
-        # Test file not found error - this raises ValueError, not FileNotFoundError
+        # Test file not found error - this raises ValueError, not
+        # FileNotFoundError
         with self.assertRaises(ValueError) as context:
             AvgImageTiffSplitter(tiff_path=Path("nonexistent.tif"))
         self.assertIn("is not a file", str(context.exception))
@@ -430,7 +435,8 @@ class TestMesoscopeSplitter(unittest.TestCase):
         """Test logging statements and cleanup operations."""
         from aind_pophys_converter.mesoscope_splitter import mkstemp_clean
 
-        # Test mkstemp_clean function - it returns a file path and cleans up the descriptor
+        # Test mkstemp_clean function - it returns a file path and cleans up
+        # the descriptor
         file_path = mkstemp_clean()
 
         # File should exist
@@ -471,6 +477,7 @@ class TestMesoscopeSplitter(unittest.TestCase):
             self.assertEqual(set(result), set(expected))
 
     def test_splitter_cli(self):
+        """Test the TiffSplitterCLI with various configurations."""
         # These are the parameter combinations for the test
         param_product = list(
             product(
@@ -488,7 +495,9 @@ class TestMesoscopeSplitter(unittest.TestCase):
                 ),
             )
         )
-        # You will need to provide or mock the fixtures and input_json_fixture for this to run
+        # You will need to provide or mock the fixtures
+        # and input_json_fixture for
+        # this to run
         for (
             use_platform_json,
             use_data_upload_dir,
@@ -503,8 +512,10 @@ class TestMesoscopeSplitter(unittest.TestCase):
                 full_field_2p_tiff_fixture=full_field_2p_tiff_fixture,
                 flavor=flavor,
             ):
-                # ...existing code for setting up fixtures and input_json_fixture...
-                # This is a placeholder for the actual test logic, which depends on your test infra
+                # ...existing code for setting up fixtures and
+                # input_json_fixture...
+                # This is a placeholder for the actual test logic, which
+                # depends on your test infra
                 pass
 
 

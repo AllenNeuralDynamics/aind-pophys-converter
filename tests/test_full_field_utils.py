@@ -1,3 +1,5 @@
+"""Tests for full field utilities in aind_pophys_converter"""
+
 import copy
 import pathlib
 import unittest
@@ -25,12 +27,16 @@ from .full_field_tiff_utils import (
 
 
 class TestFullFieldUtils(unittest.TestCase):
+    """Test full field utils"""
+
     def setUp(self):
+        """Setup"""
         import tempfile
 
         self.tmpdir_factory = tempfile.TemporaryDirectory
 
     def tearDown(self):
+        """Teardown"""
         pass
 
     def test_average_full_field_tiff(self):
@@ -273,7 +279,7 @@ class TestFullFieldUtils(unittest.TestCase):
                     list_of_rois.append(tile)
                     avg_img[r0:r1, :] = tile
                     expected_stitched[
-                        :, i_roi * roi_cols : (i_roi + 1) * roi_cols
+                        :, i_roi * roi_cols: (i_roi + 1) * roi_cols
                     ] = tile
                 metadata = [
                     "nothing",
@@ -330,7 +336,7 @@ class TestFullFieldUtils(unittest.TestCase):
                     list_of_rois.append(tile)
                     avg_img[r0:r1, :] = tile
                     expected_stitched[
-                        :, i_roi * roi_cols : (i_roi + 1) * roi_cols
+                        :, i_roi * roi_cols: (i_roi + 1) * roi_cols
                     ] = tile
                 expected_stitched = normalize_array(
                     array=expected_stitched, dtype=np.uint16
@@ -392,6 +398,7 @@ class TestFullFieldUtils(unittest.TestCase):
         np.testing.assert_allclose(expected, actual)
 
     def test_validate_all_roi_same_size(self):
+        """Test validate of roi of same size"""
         import tempfile
 
         tmpdir = pathlib.Path(tempfile.mkdtemp(prefix="validate_roi_size"))
@@ -476,7 +483,9 @@ class TestFullFieldUtils(unittest.TestCase):
             self.assertIn("different pixel resolutions", str(cm.exception))
 
     def test_write_out_stitched_full_field_image_success(self):
-        """Test write_out_stitched_full_field_image creates HDF5 file with expected datasets."""
+        """Test write_out_stitched_full_field_image creates HDF5 file with
+        expected datasets.
+        """
         import tempfile
 
         tmpdir = pathlib.Path(tempfile.mkdtemp(prefix="full_field_output"))
@@ -491,13 +500,13 @@ class TestFullFieldUtils(unittest.TestCase):
             "aind_pophys_converter.utils.full_field_utils.ScanImageMetadata"
         ) as mock_metadata:
             with patch(
-                "aind_pophys_converter.utils.full_field_utils.stitch_full_field_tiff"
+                "aind_pophys_converter.utils.full_field_utils.stitch_full_field_tiff"  # noqa: E501
             ) as mock_stitch:
                 with patch(
-                    "aind_pophys_converter.mesoscope_splitter.AvgImageTiffSplitter"
+                    "aind_pophys_converter.mesoscope_splitter.AvgImageTiffSplitter"  # noqa: E501
                 ) as mock_splitter:
                     with patch(
-                        "aind_pophys_converter.utils.full_field_utils._insert_rois_into_surface_img"
+                        "aind_pophys_converter.utils.full_field_utils._insert_rois_into_surface_img"  # noqa: E501
                     ) as mock_insert:
                         # Set up mocks
                         mock_metadata.return_value.raw_metadata = {
@@ -513,7 +522,7 @@ class TestFullFieldUtils(unittest.TestCase):
                             (10, 10), dtype=np.uint16
                         )
 
-                        from aind_pophys_converter.utils.full_field_utils import (
+                        from aind_pophys_converter.utils.full_field_utils import (  # noqa: E501
                             write_out_stitched_full_field_image,
                         )
 
@@ -537,7 +546,9 @@ class TestFullFieldUtils(unittest.TestCase):
     def test_write_out_stitched_full_field_image_exception_handling(
         self, mock_logging
     ):
-        """Test write_out_stitched_full_field_image handles exceptions gracefully."""
+        """Test write_out_stitched_full_field_image handles exceptions
+        gracefully.
+        """
         import tempfile
 
         tmpdir = pathlib.Path(tempfile.mkdtemp(prefix="full_field_error"))
@@ -572,7 +583,9 @@ class TestFullFieldUtils(unittest.TestCase):
             self.assertIn("Test error", warning_call_args)
 
     def test_get_full_field_path_missing_platform_key(self):
-        """Test get_full_field_path returns None when platform_json_path is missing."""
+        """Test get_full_field_path returns None when platform_json_path
+        is missing.
+        """
         from aind_pophys_converter.utils.full_field_utils import (
             get_full_field_path,
         )
@@ -582,7 +595,9 @@ class TestFullFieldUtils(unittest.TestCase):
         self.assertIsNone(result)
 
     def test_get_full_field_path_platform_key_none(self):
-        """Test get_full_field_path returns None when platform_json_path is None."""
+        """Test get_full_field_path returns None when platform_json_path
+        is None.
+        """
         from aind_pophys_converter.utils.full_field_utils import (
             get_full_field_path,
         )

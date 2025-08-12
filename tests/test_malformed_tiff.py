@@ -1,3 +1,5 @@
+"""Test tiffs that are malformed"""
+
 import pathlib
 import unittest
 from unittest.mock import Mock, patch
@@ -9,7 +11,10 @@ from aind_pophys_converter.mesoscope_splitter import (
 
 
 class TestMalformedTiff(unittest.TestCase):
+    """Test malformed tiffs"""
+
     def setUp(self):
+        """setup"""
         # Use a temp directory for each test
         import tempfile
 
@@ -17,6 +22,7 @@ class TestMalformedTiff(unittest.TestCase):
         self.tmp_dir = pathlib.Path(self.temp_dir.name)
 
     def tearDown(self):
+        """tear down"""
         self.temp_dir.cleanup()
 
     def test_repeated_z_error(self):

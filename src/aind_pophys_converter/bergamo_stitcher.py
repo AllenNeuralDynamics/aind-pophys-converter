@@ -1,3 +1,4 @@
+"""This module provides functionality to stitch together multiple TIFF files"""
 import argparse
 import json
 import logging
@@ -28,7 +29,9 @@ class BergamoSettings(BaseModel):
 
 
 class BaseStitcher:
+    """Base class for stitching TIFF files into a single HDF5 file"""
     def __init__(self, bergamo_settings: BergamoSettings):
+        """Initialize the stitcher with settings"""
         self.input_dir = bergamo_settings.input_dir
         self.output_dir = bergamo_settings.output_dir
         self.unique_id = bergamo_settings.unique_id
@@ -58,7 +61,7 @@ class BaseStitcher:
         with h5.File(cache_filepath, "a") as f:
             f["data"].resize(initial_frame + len(image_data_to_cache), axis=0)
             f["data"][
-                initial_frame : initial_frame + len(image_data_to_cache)
+                initial_frame: initial_frame + len(image_data_to_cache)
             ] = image_data_to_cache
 
     def write_final_output(
@@ -102,7 +105,9 @@ class BaseStitcher:
 
 
 class BergamoTiffStitcher(BaseStitcher):
+    """Class to stitch together TIFF files from a Bergamo session"""
     def __init__(self, bergamo_settings: BergamoSettings):
+        """Initialize the BergamoTiffStitcher with settings"""
         super().__init__(bergamo_settings)
 
     def _load_session(self) -> dict:

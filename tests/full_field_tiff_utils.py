@@ -1,3 +1,5 @@
+"""Utility functions for creating full field TIFFs and ROI metadata"""
+
 import pathlib
 
 import numpy as np

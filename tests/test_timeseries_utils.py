@@ -1,3 +1,8 @@
+"""Test cases for the timeseries utilities in the
+aind_pophys_converter package.
+These tests cover the functionality of dumping,
+gathering, and splitting timeseries data."""
+
 import json
 import pathlib
 import unittest
@@ -16,7 +21,11 @@ from aind_pophys_converter.mesoscope_splitter import (
 
 
 class TestTimeseriesUtils(unittest.TestCase):
+    """Test cases for the timeseries utilities in the
+    aind_pophys_converter package."""
+
     def setUp(self):
+        """Set up test fixtures and suppress ResourceWarnings."""
         rng = np.random.RandomState(1123)
         self.timeseries_fixtures = [
             rng.random((37, 12, 12)),
@@ -25,6 +34,7 @@ class TestTimeseriesUtils(unittest.TestCase):
         ]
 
     def make_timeseries_tiff(self, tmpdir):
+        """Create a TIFF file from the timeseries fixtures."""
         tiff_path = tmpdir / "eg_timeseries.tiff"
         all_data = []
         for ii in range(37):
@@ -36,6 +46,9 @@ class TestTimeseriesUtils(unittest.TestCase):
         return tiff_path
 
     def test_dump_timeseries_caches(self):
+        """Test the _dump_timeseries_caches function with various
+        chunk sizes.
+        """
         chunk_sizes_list = [(5, 11, 9), (12, 30, 6), (4, 18, 22), (11, -1, 6)]
         import tempfile
 
@@ -89,6 +102,8 @@ class TestTimeseriesUtils(unittest.TestCase):
                         self.assertEqual(len(offset_to_tmp_files[offset]), 0)
 
     def test_gather_timeseries_caches(self):
+        """Test the _gather_timeseries_caches function with various
+        metadata parameters."""
         param_list = [{"a": 1, "b": 2}, None]
         import tempfile
 
@@ -130,6 +145,8 @@ class TestTimeseriesUtils(unittest.TestCase):
                 self.assertEqual(len(filename_list), 0)
 
     def test_split_timeseries_tiff_worker(self):
+        """Test the _split_timeseries_tiff function with various
+        parameters including metadata and temporary directories."""
         param_list = list(
             product((50, 17, 8), (True, False), (None, {"a": 1, "b": 2}))
         )
@@ -191,6 +208,8 @@ class TestTimeseriesUtils(unittest.TestCase):
                     np.testing.assert_allclose(expected, actual)
 
     def test_split_timeseries_tiff(self):
+        """Test the split_timeseries_tiff function with various
+        parameters including metadata and temporary directories."""
         param_list = list(product((50, 17, 8), (None, {"a": 1, "b": 2})))
         import tempfile
 

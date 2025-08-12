@@ -1,3 +1,5 @@
+"""test malformed zstack"""
+
 import copy
 import pathlib
 import unittest
@@ -12,11 +14,15 @@ from aind_pophys_converter.mesoscope_splitter import (
 
 
 class TestMalformedZStack(unittest.TestCase):
+    """Test malformed zstack"""
+
     def setUp(self):
+        """setup"""
         self.n_rois = 3
         self.baseline_zstack_metadata = self._make_baseline_zstack_metadata()
 
     def _make_baseline_zstack_metadata(self):
+        """Baseline zstack metadata"""
         n_rois = 3
         main_roi_list = []
         for ii in range(n_rois):
@@ -43,6 +49,7 @@ class TestMalformedZStack(unittest.TestCase):
         ]
 
     def _z_stack_many_discrete_plane_zero(self):
+        """Test discrete plane"""
         import tempfile
 
         path_to_metadata = dict()
@@ -67,6 +74,7 @@ class TestMalformedZStack(unittest.TestCase):
         z_stack_path_to_metadata = self._z_stack_many_discrete_plane_zero()
 
         def mock_read_metadata(tiff_path):
+            """mock read metadataq"""
             str_path = str(tiff_path.resolve().absolute())
             return z_stack_path_to_metadata[str_path]
 
@@ -80,6 +88,7 @@ class TestMalformedZStack(unittest.TestCase):
             self.assertIn("More than one ROI has discrete", str(cm.exception))
 
     def _z_stack_no_discrete_plane_zero(self):
+        """Tests no discrete plane"""
         import tempfile
 
         path_to_metadata = dict()
@@ -101,6 +110,7 @@ class TestMalformedZStack(unittest.TestCase):
         z_stack_path_to_metadata = self._z_stack_no_discrete_plane_zero()
 
         def mock_read_metadata(tiff_path):
+            """mock read metadata"""
             str_path = str(tiff_path.resolve().absolute())
             return z_stack_path_to_metadata[str_path]
 
@@ -114,6 +124,7 @@ class TestMalformedZStack(unittest.TestCase):
             self.assertIn("Could not find discrete", str(cm.exception))
 
     def _z_stack_z_array_odd_shape(self):
+        """Test odd shape"""
         import tempfile
 
         path_to_metadata = dict()
@@ -138,6 +149,7 @@ class TestMalformedZStack(unittest.TestCase):
         z_stack_path_to_metadata = self._z_stack_z_array_odd_shape()
 
         def mock_read_metadata(tiff_path):
+            """test mock read metadata"""
             str_path = str(tiff_path.resolve().absolute())
             return z_stack_path_to_metadata[str_path]
 
@@ -151,6 +163,7 @@ class TestMalformedZStack(unittest.TestCase):
             self.assertIn("has odd shape", str(cm.exception))
 
     def _z_stack_roi_missing_tiff(self):
+        """Test missing zstack roi"""
         import tempfile
 
         path_to_metadata = dict()
@@ -174,6 +187,7 @@ class TestMalformedZStack(unittest.TestCase):
         z_stack_path_to_metadata = self._z_stack_roi_missing_tiff()
 
         def mock_read_metadata(tiff_path):
+            """mock read metadata"""
             str_path = str(tiff_path.resolve().absolute())
             return z_stack_path_to_metadata[str_path]
 
@@ -189,6 +203,7 @@ class TestMalformedZStack(unittest.TestCase):
             )
 
     def _z_stack_bad_channelSave(self):
+        """test bad channel save"""
         import tempfile
 
         path_to_metadata = dict()
@@ -209,6 +224,7 @@ class TestMalformedZStack(unittest.TestCase):
         z_stack_path_to_metadata = self._z_stack_bad_channelSave()
 
         def mock_read_metadata(tiff_path):
+            """mock read metadata"""
             str_path = str(tiff_path.resolve().absolute())
             return z_stack_path_to_metadata[str_path]
 

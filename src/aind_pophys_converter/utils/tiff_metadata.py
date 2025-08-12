@@ -1,3 +1,4 @@
+"""Utilities for reading and parsing ScanImage TIFF metadata"""
 import copy
 import pathlib
 from typing import List, Tuple, Union
@@ -27,6 +28,7 @@ class ScanImageMetadata(object):
     """
 
     def __init__(self, tiff_path: pathlib.Path):
+        """Initialize the ScanImageMetadata object"""
         self._file_path = tiff_path
         if not tiff_path.is_file():
             raise ValueError(
@@ -36,6 +38,10 @@ class ScanImageMetadata(object):
 
     @property
     def file_path(self) -> pathlib.Path:
+        """
+        Return the path to the TIFF file whose metadata
+        is being parsed.
+        """
         return self._file_path
 
     @property

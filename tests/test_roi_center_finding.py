@@ -1,3 +1,5 @@
+"""Test suite for ROI center finding functions in mesoscope splitter module."""
+
 import unittest
 
 import numpy as np
@@ -9,6 +11,8 @@ from aind_pophys_converter.mesoscope_splitter import (
 
 
 class TestRoiCenterFinding(unittest.TestCase):
+    """Test suite for ROI center finding functions."""
+
     def test_get_nearest_valid_roi_center(self):
         """
         Test that get_nearest_valid_roi_center correctly maps
@@ -39,7 +43,10 @@ class TestRoiCenterFinding(unittest.TestCase):
         """
 
         class MockTimeSeriesSplitter(object):
+            """Mock class to simulate TimeSeriesSplitter behavior."""
+
             def __init__(self):
+                """Initialize mock data."""
                 manifest = []
                 center_lookup = dict()
                 for i_roi, zz, xx, yy in zip(
@@ -56,6 +63,9 @@ class TestRoiCenterFinding(unittest.TestCase):
                 self.center_lookup = center_lookup
 
             def roi_center(self, i_roi: int):
+                """
+                Mock method to return the center of a given ROI.
+                """
                 return self.center_lookup[i_roi]
 
         splitter = MockTimeSeriesSplitter()

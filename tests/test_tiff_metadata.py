@@ -1,3 +1,8 @@
+"""Test cases for the ScanImageMetadata class in the
+aind_pophys_converter.utils.tiff_metadata module.
+This module contains unit tests for the functionality
+of reading and processing TIFF metadata,"""
+
 import copy
 import pathlib
 import unittest
@@ -135,6 +140,8 @@ def mock_1x3_metadata_zsAllActuators():
 
 
 class TestTiffMetadata(unittest.TestCase):
+    """Test cases for the ScanImageMetadata class."""
+
     def test_no_file_error(self):
         """
         Test that, ScanImageMetadata raises an error if you
@@ -362,7 +369,8 @@ class TestTiffMetadata(unittest.TestCase):
         tmpdir = pathlib.Path(tempfile.mkdtemp(prefix="roi_size"))
         tmp_path = pathlib.Path(mkstemp_clean(dir=tmpdir, suffix=".tiff"))
         roi_to_size = [(10.1, 2.3), (4.5, 6.1), (8.3, 2.5)]
-        # test for error when an ROI has two conflicting values for scanfields:sizeXY
+        # test for error when an ROI has two conflicting
+        # values for scanfields:sizeXY
         roi_list = [
             {"scanfields": {"sizeXY": roi_to_size[0]}},
             {
@@ -439,7 +447,8 @@ class TestTiffMetadata(unittest.TestCase):
         tmpdir = pathlib.Path(tempfile.mkdtemp(prefix="roi_resolution"))
         tmp_path = pathlib.Path(mkstemp_clean(dir=tmpdir, suffix=".tiff"))
         roi_to_res = [(10, 2), (4, 6), (8, 2)]
-        # test for error when an ROI has two conflicting values for scanfields:pixelResolutionXY
+        # test for error when an ROI has two conflicting values for
+        # scanfields:pixelResolutionXY
         roi_list = [
             {"scanfields": {"pixelResolutionXY": roi_to_res[0]}},
             {
