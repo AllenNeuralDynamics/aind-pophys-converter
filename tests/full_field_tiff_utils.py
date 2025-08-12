@@ -1,17 +1,19 @@
+import pathlib
+
 import numpy as np
 import tifffile
-import pathlib
 
 from aind_pophys_converter.mesoscope_splitter import mkstemp_clean
 
 
 def _create_full_field_tiff(
-        numVolumes: int,
-        numSlices: int,
-        seed: int,
-        output_dir: pathlib.Path,
-        nrows: int = 23,
-        ncols: int = 37):
+    numVolumes: int,
+    numSlices: int,
+    seed: int,
+    output_dir: pathlib.Path,
+    nrows: int = 23,
+    ncols: int = 37,
+):
     """
     Create a random full field tiff according to specified
     metadata fields
@@ -49,28 +51,32 @@ def _create_full_field_tiff(
         List containing dict of metadata fields
     """
     rng = np.random.default_rng(seed=seed)
-    data = rng.random((numVolumes*numSlices, nrows, ncols))
+    data = rng.random((numVolumes * numSlices, nrows, ncols))
     avg_img = data.mean(axis=0)
     tiff_pages = [data[ii, :, :] for ii in range(data.shape[0])]
     tiff_path = pathlib.Path(
-            mkstemp_clean(dir=output_dir,
-                          prefix='full_field_',
-                          suffix='.tiff'))
+        mkstemp_clean(dir=output_dir, prefix="full_field_", suffix=".tiff")
+    )
     tifffile.imwrite(tiff_path, tiff_pages)
-    metadata = [{'SI.hStackManager.actualNumVolumes': numVolumes,
-                 'SI.hStackManager.actualNumSlices': numSlices}]
+    metadata = [
+        {
+            "SI.hStackManager.actualNumVolumes": numVolumes,
+            "SI.hStackManager.actualNumSlices": numSlices,
+        }
+    ]
 
     return (tiff_path, avg_img, metadata)
 
 
 def _create_roi_metadata(
-        nrois: int,
-        roix: int,
-        roiy: int,
-        sizex: float = 2.1,
-        sizey: float = 3.2,
-        origin_x: float = 0.0,
-        origin_y: float = 0.0):
+    nrois: int,
+    roix: int,
+    roiy: int,
+    sizex: float = 2.1,
+    sizey: float = 3.2,
+    origin_x: float = 0.0,
+    origin_y: float = 0.0,
+):
     """
     Create the dict of ROI metadata for a simulated ScanImage TIFF
 
@@ -108,15 +114,18 @@ def _create_roi_metadata(
     stitched image.
     """
 
-    roi_metadata = {
-        'RoiGroups':
-            {'imagingRoiGroup': {'rois': list()}}}
+    roi_metadata = {"RoiGroups": {"imagingRoiGroup": {"rois": list()}}}
 
     for i_roi in range(nrois):
-        this_roi = {'scanfields':
-                    {'pixelResolutionXY': [roix, roiy],
-                     'sizeXY': [sizex, sizey],
-                     'centerXY': [origin_x+0.5*sizex+i_roi*sizex,
-                                  origin_y+0.5*sizey]}}
-        roi_metadata['RoiGroups']['imagingRoiGroup']['rois'].append(this_roi)
+        this_roi = {
+            "scanfields": {
+                "pixelResolutionXY": [roix, roiy],
+                "sizeXY": [sizex, sizey],
+                "centerXY": [
+                    origin_x + 0.5 * sizex + i_roi * sizex,
+                    origin_y + 0.5 * sizey,
+                ],
+            }
+        }
+        roi_metadata["RoiGroups"]["imagingRoiGroup"]["rois"].append(this_roi)
     return roi_metadata

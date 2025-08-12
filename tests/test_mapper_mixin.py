@@ -1,7 +1,6 @@
-
 import unittest
-from aind_pophys_converter.mesoscope_splitter import (
-    IntFromZMapperMixin)
+
+from aind_pophys_converter.mesoscope_splitter import IntFromZMapperMixin
 
 
 class TestIntFromZMapperMixin(unittest.TestCase):
@@ -10,10 +9,10 @@ class TestIntFromZMapperMixin(unittest.TestCase):
             with self.subTest(atol=atol):
                 mapper = IntFromZMapperMixin()
                 f0 = 4.1
-                f1 = f0 + 1.01*atol
-                f2 = f0 + 0.5*atol
+                f1 = f0 + 1.01 * atol
+                f2 = f0 + 0.5 * atol
                 f3 = 5.7
-                f4 = f0 + 0.6*atol
+                f4 = f0 + 0.6 * atol
 
                 i0 = mapper._int_from_z(z_value=f0, atol=atol)
                 i1 = mapper._int_from_z(z_value=f1, atol=atol)
@@ -32,7 +31,7 @@ class TestIntFromZMapperMixin(unittest.TestCase):
 
                 for pair in ((i0, f0), (i1, f1), (i3, f3)):
                     actual = mapper._z_from_int(ii=pair[0])
-                    self.assertTrue(abs(actual-pair[1]) < 1.0e-10)
+                    self.assertTrue(abs(actual - pair[1]) < 1.0e-10)
 
 
 if __name__ == "__main__":

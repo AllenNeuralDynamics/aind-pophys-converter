@@ -1,14 +1,14 @@
-
-import unittest
 import copy
 import pathlib
-import numpy as np
+import unittest
 from unittest.mock import patch
 
+import numpy as np
+
 from aind_pophys_converter.mesoscope_splitter import (
+    ZStackSplitter,
     mkstemp_clean,
-    ZStackSplitter
-    )
+)
 
 
 class TestMalformedZStack(unittest.TestCase):
@@ -20,38 +20,44 @@ class TestMalformedZStack(unittest.TestCase):
         n_rois = 3
         main_roi_list = []
         for ii in range(n_rois):
-            main_roi_list.append({'zs': -10,  # for z_stack, ;zs' does not matter
-                                  'discretePlaneMode': 1})
-        main_roi_metadata = {'RoiGroups':
-                             {'imagingRoiGroup':
-                              {'rois': main_roi_list}}}
+            main_roi_list.append(
+                {
+                    "zs": -10,  # for z_stack, ;zs' does not matter
+                    "discretePlaneMode": 1,
+                }
+            )
+        main_roi_metadata = {
+            "RoiGroups": {"imagingRoiGroup": {"rois": main_roi_list}}
+        }
         z0_values = np.linspace(1.0, 3.0, 13)
         z1_values = np.linspace(3.0, 5.0, 13)
         zz = []
         for z0, z1 in zip(z0_values, z1_values):
             zz.append([z0, z1])
-        return [{'SI.hStackManager.zsAllActuators': zz,
-                 'SI.hChannels.channelSave': [1, 2]},
-                main_roi_metadata]
-
+        return [
+            {
+                "SI.hStackManager.zsAllActuators": zz,
+                "SI.hChannels.channelSave": [1, 2],
+            },
+            main_roi_metadata,
+        ]
 
     def _z_stack_many_discrete_plane_zero(self):
         import tempfile
+
         path_to_metadata = dict()
-        tmp_dir = pathlib.Path(tempfile.mkdtemp(prefix='z_stack_many'))
+        tmp_dir = pathlib.Path(tempfile.mkdtemp(prefix="z_stack_many"))
         for ii in range(3):
-            tmp_path = mkstemp_clean(dir=tmp_dir, suffix='.tiff')
+            tmp_path = mkstemp_clean(dir=tmp_dir, suffix=".tiff")
             metadata = copy.deepcopy(self.baseline_zstack_metadata)
-            rois = metadata[1]['RoiGroups']['imagingRoiGroup']['rois']
+            rois = metadata[1]["RoiGroups"]["imagingRoiGroup"]["rois"]
             if ii == 0:
-                rois[0]['discretePlaneMode'] = 0
-                rois[1]['discretePlaneMode'] = 0
+                rois[0]["discretePlaneMode"] = 0
+                rois[1]["discretePlaneMode"] = 0
             else:
-                rois[ii]['discretePlaneMode'] = 0
+                rois[ii]["discretePlaneMode"] = 0
             path_to_metadata[tmp_path] = metadata
         return path_to_metadata
-
-
 
     def test_many_discrete_planes(self):
         """
@@ -59,32 +65,33 @@ class TestMalformedZStack(unittest.TestCase):
         with discretePlaneMode==0
         """
         z_stack_path_to_metadata = self._z_stack_many_discrete_plane_zero()
+
         def mock_read_metadata(tiff_path):
             str_path = str(tiff_path.resolve().absolute())
             return z_stack_path_to_metadata[str_path]
-        tiff_path_list = [pathlib.Path(n) for n in z_stack_path_to_metadata.keys()]
-        to_replace = 'aind_pophys_converter.utils.tiff_metadata._read_metadata'
+
+        tiff_path_list = [
+            pathlib.Path(n) for n in z_stack_path_to_metadata.keys()
+        ]
+        to_replace = "aind_pophys_converter.utils.tiff_metadata._read_metadata"
         with patch(to_replace, new=mock_read_metadata):
             with self.assertRaises(RuntimeError) as cm:
                 ZStackSplitter(tiff_path_list=tiff_path_list)
             self.assertIn("More than one ROI has discrete", str(cm.exception))
 
-
-
     def _z_stack_no_discrete_plane_zero(self):
         import tempfile
+
         path_to_metadata = dict()
-        tmp_dir = pathlib.Path(tempfile.mkdtemp(prefix='z_stack_none'))
+        tmp_dir = pathlib.Path(tempfile.mkdtemp(prefix="z_stack_none"))
         for ii in range(3):
-            tmp_path = mkstemp_clean(dir=tmp_dir, suffix='.tiff')
+            tmp_path = mkstemp_clean(dir=tmp_dir, suffix=".tiff")
             metadata = copy.deepcopy(self.baseline_zstack_metadata)
-            rois = metadata[1]['RoiGroups']['imagingRoiGroup']['rois']
+            rois = metadata[1]["RoiGroups"]["imagingRoiGroup"]["rois"]
             if ii != 1:
-                rois[ii]['discretePlaneMode'] = 0
+                rois[ii]["discretePlaneMode"] = 0
             path_to_metadata[tmp_path] = metadata
         return path_to_metadata
-
-
 
     def test_no_discrete_planes(self):
         """
@@ -92,35 +99,36 @@ class TestMalformedZStack(unittest.TestCase):
         with discretePlaneMode==0
         """
         z_stack_path_to_metadata = self._z_stack_no_discrete_plane_zero()
+
         def mock_read_metadata(tiff_path):
             str_path = str(tiff_path.resolve().absolute())
             return z_stack_path_to_metadata[str_path]
-        tiff_path_list = [pathlib.Path(n) for n in z_stack_path_to_metadata.keys()]
-        to_replace = 'aind_pophys_converter.utils.tiff_metadata._read_metadata'
+
+        tiff_path_list = [
+            pathlib.Path(n) for n in z_stack_path_to_metadata.keys()
+        ]
+        to_replace = "aind_pophys_converter.utils.tiff_metadata._read_metadata"
         with patch(to_replace, new=mock_read_metadata):
             with self.assertRaises(RuntimeError) as cm:
                 ZStackSplitter(tiff_path_list=tiff_path_list)
             self.assertIn("Could not find discrete", str(cm.exception))
 
-
-
     def _z_stack_z_array_odd_shape(self):
         import tempfile
+
         path_to_metadata = dict()
-        tmp_dir = pathlib.Path(tempfile.mkdtemp(prefix='z_stack_none'))
+        tmp_dir = pathlib.Path(tempfile.mkdtemp(prefix="z_stack_none"))
         for ii in range(3):
-            tmp_path = mkstemp_clean(dir=tmp_dir, suffix='.tiff')
+            tmp_path = mkstemp_clean(dir=tmp_dir, suffix=".tiff")
             metadata = copy.deepcopy(self.baseline_zstack_metadata)
-            rois = metadata[1]['RoiGroups']['imagingRoiGroup']['rois']
-            rois[ii]['discretePlaneMode'] = 0
+            rois = metadata[1]["RoiGroups"]["imagingRoiGroup"]["rois"]
+            rois[ii]["discretePlaneMode"] = 0
             if ii == 1:
-                key_name = 'SI.hStackManager.zsAllActuators'
+                key_name = "SI.hStackManager.zsAllActuators"
                 metadata[0].pop(key_name)
                 metadata[0][key_name] = [[1, 2, 3], [1, 2, 3]]
             path_to_metadata[tmp_path] = metadata
         return path_to_metadata
-
-
 
     def test_z_odd_shape(self):
         """
@@ -128,34 +136,35 @@ class TestMalformedZStack(unittest.TestCase):
         is not (N, 2)
         """
         z_stack_path_to_metadata = self._z_stack_z_array_odd_shape()
+
         def mock_read_metadata(tiff_path):
             str_path = str(tiff_path.resolve().absolute())
             return z_stack_path_to_metadata[str_path]
-        tiff_path_list = [pathlib.Path(n) for n in z_stack_path_to_metadata.keys()]
-        to_replace = 'aind_pophys_converter.utils.tiff_metadata._read_metadata'
+
+        tiff_path_list = [
+            pathlib.Path(n) for n in z_stack_path_to_metadata.keys()
+        ]
+        to_replace = "aind_pophys_converter.utils.tiff_metadata._read_metadata"
         with patch(to_replace, new=mock_read_metadata):
             with self.assertRaises(RuntimeError) as cm:
                 ZStackSplitter(tiff_path_list=tiff_path_list)
             self.assertIn("has odd shape", str(cm.exception))
 
-
-
     def _z_stack_roi_missing_tiff(self):
         import tempfile
+
         path_to_metadata = dict()
-        tmp_dir = pathlib.Path(tempfile.mkdtemp(prefix='z_stack_many'))
+        tmp_dir = pathlib.Path(tempfile.mkdtemp(prefix="z_stack_many"))
         for ii in range(3):
-            tmp_path = mkstemp_clean(dir=tmp_dir, suffix='.tiff')
+            tmp_path = mkstemp_clean(dir=tmp_dir, suffix=".tiff")
             metadata = copy.deepcopy(self.baseline_zstack_metadata)
-            rois = metadata[1]['RoiGroups']['imagingRoiGroup']['rois']
+            rois = metadata[1]["RoiGroups"]["imagingRoiGroup"]["rois"]
             if ii == 0 or ii == 1:
-                rois[0]['discretePlaneMode'] = 0
+                rois[0]["discretePlaneMode"] = 0
             else:
-                rois[ii]['discretePlaneMode'] = 0
+                rois[ii]["discretePlaneMode"] = 0
             path_to_metadata[tmp_path] = metadata
         return path_to_metadata
-
-
 
     def test_roi_missing_tiff(self):
         """
@@ -163,31 +172,34 @@ class TestMalformedZStack(unittest.TestCase):
         a corresponding z-stack TIFF with discretePlaneMode==0
         """
         z_stack_path_to_metadata = self._z_stack_roi_missing_tiff()
+
         def mock_read_metadata(tiff_path):
             str_path = str(tiff_path.resolve().absolute())
             return z_stack_path_to_metadata[str_path]
-        tiff_path_list = [pathlib.Path(n) for n in z_stack_path_to_metadata.keys()]
-        to_replace = 'aind_pophys_converter.utils.tiff_metadata._read_metadata'
+
+        tiff_path_list = [
+            pathlib.Path(n) for n in z_stack_path_to_metadata.keys()
+        ]
+        to_replace = "aind_pophys_converter.utils.tiff_metadata._read_metadata"
         with patch(to_replace, new=mock_read_metadata):
             with self.assertRaises(RuntimeError) as cm:
                 ZStackSplitter(tiff_path_list=tiff_path_list)
-            self.assertIn("are represented in the local z-stack", str(cm.exception))
-
-
+            self.assertIn(
+                "are represented in the local z-stack", str(cm.exception)
+            )
 
     def _z_stack_bad_channelSave(self):
         import tempfile
+
         path_to_metadata = dict()
-        tmp_dir = pathlib.Path(tempfile.mkdtemp(prefix='z_stack_many'))
+        tmp_dir = pathlib.Path(tempfile.mkdtemp(prefix="z_stack_many"))
         for ii in range(3):
-            tmp_path = mkstemp_clean(dir=tmp_dir, suffix='.tiff')
+            tmp_path = mkstemp_clean(dir=tmp_dir, suffix=".tiff")
             metadata = copy.deepcopy(self.baseline_zstack_metadata)
             if ii == 1:
-                metadata[0]['SI.hChannels.channelSave'] = 1
+                metadata[0]["SI.hChannels.channelSave"] = 1
             path_to_metadata[tmp_path] = metadata
         return path_to_metadata
-
-
 
     def test_zstack_bad_channelSave(self):
         """
@@ -195,11 +207,15 @@ class TestMalformedZStack(unittest.TestCase):
         does not have channelSave==[1, 2]
         """
         z_stack_path_to_metadata = self._z_stack_bad_channelSave()
+
         def mock_read_metadata(tiff_path):
             str_path = str(tiff_path.resolve().absolute())
             return z_stack_path_to_metadata[str_path]
-        tiff_path_list = [pathlib.Path(n) for n in z_stack_path_to_metadata.keys()]
-        to_replace = 'aind_pophys_converter.utils.tiff_metadata._read_metadata'
+
+        tiff_path_list = [
+            pathlib.Path(n) for n in z_stack_path_to_metadata.keys()
+        ]
+        to_replace = "aind_pophys_converter.utils.tiff_metadata._read_metadata"
         with patch(to_replace, new=mock_read_metadata):
             with self.assertRaises(RuntimeError) as cm:
                 ZStackSplitter(tiff_path_list=tiff_path_list)

@@ -20,25 +20,18 @@
 # For an example of how these are implemented self-consistently, see any
 # of the test_*py files in this module
 
-import pytest
 import copy
-import tifffile
+import json
 import pathlib
+
 import h5py
 import numpy as np
-import json
-
-
-from full_field_tiff_utils import (
-    _create_full_field_tiff,
-    _create_roi_metadata)
-
-from aind_pophys_converter.mesoscope_splitter import (
-    mkstemp_clean,
-    JobSettings
-)
-
+import pytest
+import tifffile
 from aind_ophys_utils.array_utils import normalize_array
+from full_field_tiff_utils import _create_full_field_tiff, _create_roi_metadata
+
+from aind_pophys_converter.mesoscope_splitter import JobSettings, mkstemp_clean
 
 
 def _roi_index_to_centerxy(roi_index):
@@ -51,40 +44,39 @@ def _roi_index_to_centerxy(roi_index):
         (0.3, 0.3),
         (0.5, 0.5),
         (0.1, 0.5),
-        (0.3, 0.5)]
+        (0.3, 0.5),
+    ]
 
     jj = roi_index % len(center_xy_list)
     return center_xy_list[jj]
 
 
 @pytest.fixture
-def input_directory_fixture(
-       tmp_path_factory):
+def input_directory_fixture(tmp_path_factory):
     """
     The 'input_dir' in value in the JobSettings class
     """
-    input_directory = tmp_path_factory.mktemp('data')
+    input_directory = tmp_path_factory.mktemp("data")
     input_directory = pathlib.Path(input_directory)
     yield input_directory
 
 
 @pytest.fixture
-def output_directory_fixture(
-       tmp_path_factory):
+def output_directory_fixture(tmp_path_factory):
     """
     The 'output_dir' in value in the JobSettings class
     """
-    output_tmp_dir = tmp_path_factory.mktemp('results')
+    output_tmp_dir = tmp_path_factory.mktemp("results")
     output_tmp_dir = pathlib.Path(output_tmp_dir)
     yield output_tmp_dir
 
+
 @pytest.fixture
-def temp_directory_fixture(
-       tmp_path_factory):
+def temp_directory_fixture(tmp_path_factory):
     """
     The 'temp_dir' in value in the JobSettings class
     """
-    temp_directory = tmp_path_factory.mktemp('scratch')
+    temp_directory = tmp_path_factory.mktemp("scratch")
     temp_directory = pathlib.Path(temp_directory)
     yield temp_directory
 
@@ -101,9 +93,10 @@ def job_settings_fixture():
         input_dir=input_directory_fixture,
         temp_dir=temp_directory_fixture,
         output_dir=output_directory_fixture,
-        debug=False
+        debug=False,
     )
     return job_settings
+
 
 @pytest.fixture
 def full_field_roi_size_fixture():
@@ -139,8 +132,7 @@ def surface_roi_sizexy_fixture():
 
 
 @pytest.fixture
-def z_to_stack_path_fixture(upload_directory_fixture,
-                            z_list_fixture):
+def z_to_stack_path_fixture(upload_directory_fixture, z_list_fixture):
     """
     Return a dict mapping a tuple of z-values to the path
     to local_z_stack.tiff corresponding to those z-values
@@ -148,16 +140,14 @@ def z_to_stack_path_fixture(upload_directory_fixture,
     tmp_dir = upload_directory_fixture
     result = dict()
     for pair in z_list_fixture:
-        path = mkstemp_clean(dir=tmp_dir,
-                             suffix='_z_stack.tiff')
+        path = mkstemp_clean(dir=tmp_dir, suffix="_z_stack.tiff")
         result[tuple(pair)] = path
 
     return result
 
 
 @pytest.fixture
-def image_metadata_fixture(z_list_fixture,
-                           roi_index_to_z_fixture):
+def image_metadata_fixture(z_list_fixture, roi_index_to_z_fixture):
     """
     ScanImage metadata for depth and timeseries TIFFs
     """
@@ -166,8 +156,8 @@ def image_metadata_fixture(z_list_fixture,
 
     metadata = []
     si_metadata = dict()
-    si_metadata['SI.hStackManager.zsAllActuators'] = z_list
-    si_metadata['SI.hChannels.channelSave'] = [1, 2]
+    si_metadata["SI.hStackManager.zsAllActuators"] = z_list
+    si_metadata["SI.hChannels.channelSave"] = [1, 2]
     metadata.append(si_metadata)
 
     roi_list = []
@@ -176,58 +166,66 @@ def image_metadata_fixture(z_list_fixture,
     for roi_index in roi_index_list:
         zs = roi_index_to_z_fixture[roi_index]
         centerxy = _roi_index_to_centerxy(roi_index)
-        this_roi = {'zs': zs,
-                    'scanfields': [{'centerXY': [centerxy[0], centerxy[1]]},
-                                   {'centerXY': [centerxy[0], centerxy[1]]}]}
+        this_roi = {
+            "zs": zs,
+            "scanfields": [
+                {"centerXY": [centerxy[0], centerxy[1]]},
+                {"centerXY": [centerxy[0], centerxy[1]]},
+            ],
+        }
         roi_list.append(this_roi)
 
     if len(roi_list) == 1:
         roi_list = roi_list[0]
 
-    metadata.append({'RoiGroups': {'imagingRoiGroup': {'rois': roi_list}}})
+    metadata.append({"RoiGroups": {"imagingRoiGroup": {"rois": roi_list}}})
 
     return metadata
 
 
 @pytest.fixture
-def surface_metadata_fixture(image_metadata_fixture,
-                             roi_index_to_z_fixture,
-                             surface_roi_resolutionxy_fixture,
-                             surface_roi_sizexy_fixture):
+def surface_metadata_fixture(
+    image_metadata_fixture,
+    roi_index_to_z_fixture,
+    surface_roi_resolutionxy_fixture,
+    surface_roi_sizexy_fixture,
+):
     """
     ScanImage metadata for surface TIFFs
     """
     metadata = copy.deepcopy(image_metadata_fixture)
 
-    metadata[0].pop('SI.hChannels.channelSave')
-    metadata[0]['SI.hChannels.channelSave'] = 1
+    metadata[0].pop("SI.hChannels.channelSave")
+    metadata[0]["SI.hChannels.channelSave"] = 1
 
     n_rois = len(roi_index_to_z_fixture)
     z_list = []
-    rois = metadata[1]['RoiGroups']['imagingRoiGroup']['rois']
+    rois = metadata[1]["RoiGroups"]["imagingRoiGroup"]["rois"]
     for ii in range(n_rois):
-        val = 1+17*ii
+        val = 1 + 17 * ii
         z_list.append([val, 0])
         if n_rois > 1:
             this_roi = rois[ii]
         else:
             this_roi = rois
 
-        this_roi['zs'] = val
+        this_roi["zs"] = val
 
-        for scanfield in this_roi['scanfields']:
-            scanfield['pixelResolutionXY'] = surface_roi_resolutionxy_fixture
-            scanfield['sizeXY'] = surface_roi_sizexy_fixture
+        for scanfield in this_roi["scanfields"]:
+            scanfield["pixelResolutionXY"] = surface_roi_resolutionxy_fixture
+            scanfield["sizeXY"] = surface_roi_sizexy_fixture
 
-    metadata[0]['SI.hStackManager.zsAllActuators'] = z_list
+    metadata[0]["SI.hStackManager.zsAllActuators"] = z_list
     return metadata
 
 
 @pytest.fixture
-def zstack_metadata_fixture(image_metadata_fixture,
-                            z_to_stack_path_fixture,
-                            z_to_roi_index_fixture,
-                            roi_index_to_z_fixture):
+def zstack_metadata_fixture(
+    image_metadata_fixture,
+    z_to_stack_path_fixture,
+    z_to_roi_index_fixture,
+    roi_index_to_z_fixture,
+):
     """
     Dict mapping z-stack path to ScanImage metadata for
     the local_z_stack TIFFs
@@ -241,30 +239,32 @@ def zstack_metadata_fixture(image_metadata_fixture,
     for pair in z_to_stack_path_fixture:
         this_path = z_to_stack_path_fixture[pair]
         this_metadata = copy.deepcopy(image_metadata_fixture)
-        rois = this_metadata[1]['RoiGroups']['imagingRoiGroup']['rois']
+        rois = this_metadata[1]["RoiGroups"]["imagingRoiGroup"]["rois"]
         if n_rois > 1:
             for ii in range(len(rois)):
-                rois[ii]['discretePlaneMode'] = 1
+                rois[ii]["discretePlaneMode"] = 1
             roi_index = z_to_roi_index_fixture[tuple(pair)]
-            rois[roi_index]['discretePlaneMode'] = 0
+            rois[roi_index]["discretePlaneMode"] = 0
         else:
-            rois['discretePlaneMode'] = 0
-        z0_list = np.linspace(pair[0]-1, pair[0]+1, n_z)
-        z1_list = np.linspace(pair[1]-1, pair[1]+1, n_z)
+            rois["discretePlaneMode"] = 0
+        z0_list = np.linspace(pair[0] - 1, pair[0] + 1, n_z)
+        z1_list = np.linspace(pair[1] - 1, pair[1] + 1, n_z)
         z_list = []
         for z0, z1 in zip(z0_list, z1_list):
             z_list.append([z0, z1])
-        this_metadata[0]['SI.hStackManager.zsAllActuators'] = z_list
+        this_metadata[0]["SI.hStackManager.zsAllActuators"] = z_list
         result[this_path] = this_metadata
 
     return result
 
 
 @pytest.fixture
-def zstack_fixture(zstack_metadata_fixture,
-                   z_to_exp_id_fixture,
-                   upload_directory_fixture,
-                   float_resolution_fixture):
+def zstack_fixture(
+    zstack_metadata_fixture,
+    z_to_exp_id_fixture,
+    upload_directory_fixture,
+    float_resolution_fixture,
+):
     """
     Create z-stack tiff files at paths specified in
     zstack_metadata_fixture
@@ -286,14 +286,16 @@ def zstack_fixture(zstack_metadata_fixture,
     for tiff_path in zstack_metadata_fixture.keys():
         raw_data = dict()
         this_metadata = zstack_metadata_fixture[tiff_path]
-        z_array = np.array(this_metadata[0]['SI.hStackManager.zsAllActuators'])
+        z_array = np.array(this_metadata[0]["SI.hStackManager.zsAllActuators"])
         z_array = z_array.transpose()
         z0 = np.mean(z_array[0, :])
         z1 = np.mean(z_array[1, :])
         for zz in (z0, z1):
             if float_resolution_fixture > 0:
-                z_pair = (np.round(z0, decimals=float_resolution_fixture),
-                          np.round(z1, decimals=float_resolution_fixture))
+                z_pair = (
+                    np.round(z0, decimals=float_resolution_fixture),
+                    np.round(z1, decimals=float_resolution_fixture),
+                )
                 zz = np.round(zz, decimals=float_resolution_fixture)
             else:
                 z0 = np.round(z0).astype(int)
@@ -301,12 +303,12 @@ def zstack_fixture(zstack_metadata_fixture,
                 z_pair = (z0, z1)
                 zz = np.round(zz).astype(int)
             exp_id = z_to_exp_id_fixture[z_pair][zz]
-            expected_path = tmp_dir / f'{exp_id}_expected_z_stack.h5'
-            data = rng.integers(0, 10*zz, (n_pages, *page_shape))
+            expected_path = tmp_dir / f"{exp_id}_expected_z_stack.h5"
+            data = rng.integers(0, 10 * zz, (n_pages, *page_shape))
             raw_data[zz] = data
-            exp_id_to_expected[f'expected_{exp_id}'] = expected_path
-            with h5py.File(expected_path, 'w') as out_file:
-                out_file.create_dataset('data', data=data)
+            exp_id_to_expected[f"expected_{exp_id}"] = expected_path
+            with h5py.File(expected_path, "w") as out_file:
+                out_file.create_dataset("data", data=data)
 
         tiff_data = []
         for i_page in range(n_pages):
@@ -326,9 +328,11 @@ def zstack_fixture(zstack_metadata_fixture,
 
 
 @pytest.fixture
-def surface_fixture(upload_directory_fixture,
-                    roi_index_to_z_fixture,
-                    surface_roi_resolutionxy_fixture):
+def surface_fixture(
+    upload_directory_fixture,
+    roi_index_to_z_fixture,
+    surface_roi_resolutionxy_fixture,
+):
     """
     Create the raw surface TIFF file as well as the
     expected TIFFs associated with individual experiments.
@@ -341,11 +345,10 @@ def surface_fixture(upload_directory_fixture,
     """
     n_rois = len(roi_index_to_z_fixture)
     tmp_dir = upload_directory_fixture
-    raw_tiff_path = mkstemp_clean(dir=tmp_dir,
-                                  suffix='_surface.tiff')
+    raw_tiff_path = mkstemp_clean(dir=tmp_dir, suffix="_surface.tiff")
     expected_path_list = []
     for ii in range(n_rois):
-        expected_path = tmp_dir / f'expected_surface_{ii}.tiff'
+        expected_path = tmp_dir / f"expected_surface_{ii}.tiff"
         expected_path_list.append(expected_path)
     n_pages = 7
 
@@ -355,10 +358,15 @@ def surface_fixture(upload_directory_fixture,
     rng = np.random.default_rng(554433)
     for ii in range(n_rois):
 
-        this_data = rng.integers(0, 100,
-                                 (n_pages,
-                                  surface_roi_resolutionxy_fixture[0],
-                                  surface_roi_resolutionxy_fixture[1]))
+        this_data = rng.integers(
+            0,
+            100,
+            (
+                n_pages,
+                surface_roi_resolutionxy_fixture[0],
+                surface_roi_resolutionxy_fixture[1],
+            ),
+        )
 
         this_expected = normalize_array(this_data.mean(axis=0))
         data_list.append(this_data)
@@ -370,22 +378,23 @@ def surface_fixture(upload_directory_fixture,
             tiff_data.append(data_list[ii][i_page, :, :])
 
     tifffile.imwrite(raw_tiff_path, tiff_data)
-    for expected_path, expected_img in zip(expected_path_list,
-                                           expected_img_list):
+    for expected_path, expected_img in zip(
+        expected_path_list, expected_img_list
+    ):
         tifffile.imwrite(expected_path, expected_img)
 
     result = dict()
-    result['raw'] = raw_tiff_path
+    result["raw"] = raw_tiff_path
     for ii in range(n_rois):
         str_path = str(expected_path_list[ii].resolve().absolute())
-        result[f'expected_{ii}'] = str_path
+        result[f"expected_{ii}"] = str_path
     yield result
 
 
 @pytest.fixture
-def timeseries_fixture(upload_directory_fixture,
-                       image_metadata_fixture,
-                       z_to_exp_id_fixture):
+def timeseries_fixture(
+    upload_directory_fixture, image_metadata_fixture, z_to_exp_id_fixture
+):
     """
     Create the raw timeseries TIFF as well as HDF5 files
     containing the expected videos for individual experiments.
@@ -398,7 +407,7 @@ def timeseries_fixture(upload_directory_fixture,
     """
     rng = np.random.default_rng(6123512)
     tmp_dir = upload_directory_fixture
-    z_list = image_metadata_fixture[0]['SI.hStackManager.zsAllActuators']
+    z_list = image_metadata_fixture[0]["SI.hStackManager.zsAllActuators"]
     z_to_data = dict()
     n_pages = 13
 
@@ -418,26 +427,26 @@ def timeseries_fixture(upload_directory_fixture,
             z_pair = tuple(z_pair)
             for zz in z_pair:
                 tiff_data.append(z_to_data[z_pair][zz][i_page, :, :])
-    raw_path = mkstemp_clean(dir=tmp_dir, suffix='_timeseries.tiff')
+    raw_path = mkstemp_clean(dir=tmp_dir, suffix="_timeseries.tiff")
     tifffile.imwrite(raw_path, tiff_data)
     result = dict()
-    result['raw'] = raw_path
+    result["raw"] = raw_path
     for z_pair in z_list:
         z_pair = tuple(z_pair)
         for zz in z_pair:
             exp_id = z_to_exp_id_fixture[z_pair][zz]
-            expected_path = tmp_dir / f'expected_{exp_id}_timeseries.h5'
-            with h5py.File(expected_path, 'w') as out_file:
-                out_file.create_dataset('data', data=z_to_data[z_pair][zz])
+            expected_path = tmp_dir / f"expected_{exp_id}_timeseries.h5"
+            with h5py.File(expected_path, "w") as out_file:
+                out_file.create_dataset("data", data=z_to_data[z_pair][zz])
             str_path = str(expected_path.resolve().absolute())
-            result[f'expected_{exp_id}'] = str_path
+            result[f"expected_{exp_id}"] = str_path
     yield result
 
 
 @pytest.fixture
-def depth_fixture(upload_directory_fixture,
-                  image_metadata_fixture,
-                  z_to_exp_id_fixture):
+def depth_fixture(
+    upload_directory_fixture, image_metadata_fixture, z_to_exp_id_fixture
+):
     """
     Create the raw depth TIFF file as well as the
     expected TIFFs associated with individual experiments.
@@ -450,14 +459,14 @@ def depth_fixture(upload_directory_fixture,
     """
     rng = np.random.default_rng(334422)
     tmp_dir = upload_directory_fixture
-    z_list = image_metadata_fixture[0]['SI.hStackManager.zsAllActuators']
+    z_list = image_metadata_fixture[0]["SI.hStackManager.zsAllActuators"]
     z_to_data = dict()
     n_pages = 11
     for z_pair in z_list:
         z_pair = tuple(z_pair)
         z_to_data[z_pair] = dict()
         for zz in z_pair:
-            data = rng.integers(zz, 2*zz, (n_pages, 25, 24))
+            data = rng.integers(zz, 2 * zz, (n_pages, 25, 24))
             z_to_data[z_pair][zz] = data
     tiff_data = []
     for i_page in range(n_pages):
@@ -465,20 +474,20 @@ def depth_fixture(upload_directory_fixture,
             z_pair = tuple(z_pair)
             for zz in z_pair:
                 tiff_data.append(z_to_data[z_pair][zz][i_page, :, :])
-    raw_path = mkstemp_clean(dir=tmp_dir, suffix='_depth.tiff')
+    raw_path = mkstemp_clean(dir=tmp_dir, suffix="_depth.tiff")
     tifffile.imwrite(raw_path, tiff_data)
     result = dict()
-    result['raw'] = raw_path
+    result["raw"] = raw_path
     for z_pair in z_list:
         z_pair = tuple(z_pair)
         for zz in z_pair:
             exp_id = z_to_exp_id_fixture[z_pair][zz]
-            expected_path = tmp_dir / f'expected_{exp_id}_depth.tiff'
+            expected_path = tmp_dir / f"expected_{exp_id}_depth.tiff"
             expected_data = np.mean(z_to_data[z_pair][zz], axis=0)
             expected_data = normalize_array(array=expected_data)
             tifffile.imwrite(expected_path, expected_data)
             str_path = str(expected_path.resolve().absolute())
-            result[f'expected_{exp_id}'] = str_path
+            result[f"expected_{exp_id}"] = str_path
     yield result
 
     for key in result:
@@ -489,11 +498,12 @@ def depth_fixture(upload_directory_fixture,
 
 @pytest.fixture
 def full_field_2p_tiff_fixture(
-        upload_directory_fixture,
-        storage_directory_fixture,
-        surface_roi_sizexy_fixture,
-        full_field_roi_size_fixture,
-        request):
+    upload_directory_fixture,
+    storage_directory_fixture,
+    surface_roi_sizexy_fixture,
+    full_field_roi_size_fixture,
+    request,
+):
     """
     Create a test full field TIFF image
 
@@ -514,53 +524,52 @@ def full_field_2p_tiff_fixture(
     job passed, anyway)
     """
     corrupt_metadata = False
-    if request.param == 'storage':
+    if request.param == "storage":
         output_dir = storage_directory_fixture
-    elif request.param == 'upload':
+    elif request.param == "upload":
         output_dir = upload_directory_fixture
-    elif request.param == 'corrupt':
+    elif request.param == "corrupt":
         output_dir = storage_directory_fixture
         corrupt_metadata = True
     else:
         raise RuntimeError(
-            "not sure how to handle request.param "
-            f"{request.param}")
+            "not sure how to handle request.param " f"{request.param}"
+        )
 
     gap = 1
     nrois = 3
     roix = 24
     roiy = 24
 
-    nrows = gap*(nrois-1)+roiy*nrois
+    nrows = gap * (nrois - 1) + roiy * nrois
     ncols = roix
 
-    (tiff_path,
-     _,
-     metadata) = _create_full_field_tiff(
+    (tiff_path, _, metadata) = _create_full_field_tiff(
         numVolumes=4,
         numSlices=3,
         seed=1123,
         output_dir=output_dir,
         nrows=nrows,
-        ncols=ncols)
+        ncols=ncols,
+    )
 
     if corrupt_metadata:
-        metadata[0]['SI.hStackManager.actualNumVolumes'] = 13
-        metadata[0]['is_corrupt'] = True
+        metadata[0]["SI.hStackManager.actualNumVolumes"] = 13
+        metadata[0]["is_corrupt"] = True
     else:
-        metadata[0]['is_corrupt'] = False
+        metadata[0]["is_corrupt"] = False
 
     roi_metadata = _create_roi_metadata(
-            nrois=nrois,
-            roix=roix,
-            roiy=roiy,
-            sizex=full_field_roi_size_fixture[0],
-            sizey=full_field_roi_size_fixture[1])
+        nrois=nrois,
+        roix=roix,
+        roiy=roiy,
+        sizex=full_field_roi_size_fixture[0],
+        sizey=full_field_roi_size_fixture[1],
+    )
 
     metadata.append(roi_metadata)
 
-    result = {'raw': str(tiff_path.resolve().absolute()),
-              'metadata': metadata}
+    result = {"raw": str(tiff_path.resolve().absolute()), "metadata": metadata}
 
     yield result
 
@@ -573,25 +582,25 @@ def platform_json_fixture(tmp_path_factory):
     """
     Create a platform.json file for testing
     """
-    platform_json_dir = tmp_path_factory.mktemp('platform_json')
-    platform_json_path = platform_json_dir / 'platform.json'
-    
+    platform_json_dir = tmp_path_factory.mktemp("platform_json")
+    platform_json_path = platform_json_dir / "platform.json"
+
     # Create a simple platform config with required fields
     platform_data = {
         "microscope": "Test Microscope",
         "rig_id": "test_rig",
-        "version": "1.0.0"
+        "version": "1.0.0",
     }
-    
-    with open(platform_json_path, 'w') as f:
+
+    with open(platform_json_path, "w") as f:
         json.dump(platform_data, f)
-    
+
     yield platform_json_path
-    
+
     # Clean up
     if platform_json_path.exists():
         platform_json_path.unlink()
-    
+
 
 @pytest.fixture
 def session_dir(upload_directory_fixture):
@@ -604,20 +613,19 @@ def session_dir(upload_directory_fixture):
 
 @pytest.fixture
 def session_json_fixture(
-        upload_directory_fixture,
-        full_field_2p_tiff_fixture,
-        request):
+    upload_directory_fixture, full_field_2p_tiff_fixture, request
+):
     """
     Write out a session.json file; return the path to it
 
     If request.param is True, include the fullfield_2p_image path
     in the input json. If not, do not.
     """
-    session_path = upload_directory_fixture / 'session.json'
+    session_path = upload_directory_fixture / "session.json"
 
-    json_data = {'nonsense': 1}
+    json_data = {"nonsense": 1}
 
-    with open(session_path, 'w') as out_file:
+    with open(session_path, "w") as out_file:
         out_file.write(json.dumps(json_data))
 
     yield session_path
@@ -628,86 +636,91 @@ def session_json_fixture(
 
 @pytest.fixture
 def input_json_fixture(
-        storage_directory_fixture,
-        upload_directory_fixture,
-        depth_fixture,
-        surface_fixture,
-        timeseries_fixture,
-        zstack_metadata_fixture,
-        image_metadata_fixture,
-        z_to_exp_id_fixture,
-        z_to_stack_path_fixture,
-        roi_index_to_z_fixture,
-        tmp_path_factory,
-        z_to_roi_index_fixture,
-        zstack_fixture,
-        platform_json_fixture):
+    storage_directory_fixture,
+    upload_directory_fixture,
+    depth_fixture,
+    surface_fixture,
+    timeseries_fixture,
+    zstack_metadata_fixture,
+    image_metadata_fixture,
+    z_to_exp_id_fixture,
+    z_to_stack_path_fixture,
+    roi_index_to_z_fixture,
+    tmp_path_factory,
+    z_to_roi_index_fixture,
+    zstack_fixture,
+    platform_json_fixture,
+):
     """
     Return dict of input data for Mesoscope TIFF splitting CLI
     """
     timeseries_tmp_dir = pathlib.Path(
-            tmp_path_factory.mktemp('splitter_timeseries_temps'))
+        tmp_path_factory.mktemp("splitter_timeseries_temps")
+    )
     params = dict()
-    params['dump_every'] = 5  # timeseries all have 13 frames
-    params['depths_tif'] = depth_fixture['raw']
-    params['surface_tif'] = surface_fixture['raw']
-    params['timeseries_tif'] = timeseries_fixture['raw']
-    params['storage_directory'] = str(
-            storage_directory_fixture.resolve().absolute())
-    params['tmp_dir'] = str(timeseries_tmp_dir.resolve().absolute())
-    params['platform_json_path'] = str(
-            platform_json_fixture.resolve().absolute())
-    params['data_upload_dir'] = str(
-            upload_directory_fixture.resolve().absolute())
+    params["dump_every"] = 5  # timeseries all have 13 frames
+    params["depths_tif"] = depth_fixture["raw"]
+    params["surface_tif"] = surface_fixture["raw"]
+    params["timeseries_tif"] = timeseries_fixture["raw"]
+    params["storage_directory"] = str(
+        storage_directory_fixture.resolve().absolute()
+    )
+    params["tmp_dir"] = str(timeseries_tmp_dir.resolve().absolute())
+    params["platform_json_path"] = str(
+        platform_json_fixture.resolve().absolute()
+    )
+    params["data_upload_dir"] = str(
+        upload_directory_fixture.resolve().absolute()
+    )
 
     plane_groups = []
     for z_pair in z_to_stack_path_fixture:
         this_group = dict()
         z_stack_path = z_to_stack_path_fixture[z_pair]
-        this_group['local_z_stack_tif'] = z_stack_path
+        this_group["local_z_stack_tif"] = z_stack_path
         experiments = []
         z_pair = tuple(z_pair)
         for zz in z_pair:
             this_experiment = dict()
             exp_id = z_to_exp_id_fixture[z_pair][zz]
-            exp_dir = storage_directory_fixture / f'{exp_id}_dir'
+            exp_dir = storage_directory_fixture / f"{exp_id}_dir"
             if not exp_dir.exists():
                 exp_dir.mkdir()
             exp_dir = str(exp_dir.resolve().absolute())
-            this_experiment['experiment_id'] = exp_id
-            this_experiment['storage_directory'] = exp_dir
-            this_experiment['roi_index'] = z_to_roi_index_fixture[z_pair]
-            this_experiment['scanfield_z'] = zz
-            this_experiment['offset_x'] = 0
-            this_experiment['offset_y'] = 0
-            this_experiment['rotation'] = 22.1*zz
-            this_experiment['resolution'] = 0.001*zz
+            this_experiment["experiment_id"] = exp_id
+            this_experiment["storage_directory"] = exp_dir
+            this_experiment["roi_index"] = z_to_roi_index_fixture[z_pair]
+            this_experiment["scanfield_z"] = zz
+            this_experiment["offset_x"] = 0
+            this_experiment["offset_y"] = 0
+            this_experiment["rotation"] = 22.1 * zz
+            this_experiment["resolution"] = 0.001 * zz
             experiments.append(this_experiment)
-        this_group['ophys_experiments'] = experiments
+        this_group["ophys_experiments"] = experiments
         plane_groups.append(this_group)
-    params['plane_groups'] = plane_groups
-    params['log_level'] = 'WARNING'
+    params["plane_groups"] = plane_groups
+    params["log_level"] = "WARNING"
     yield params
 
-    ts_path = pathlib.Path(params['timeseries_tif'])
+    ts_path = pathlib.Path(params["timeseries_tif"])
     if ts_path.is_file():
         ts_path.unlink()
-    depth_path = pathlib.Path(params['depths_tif'])
+    depth_path = pathlib.Path(params["depths_tif"])
     if depth_path.is_file():
         depth_path.unlink()
-    surface_path = pathlib.Path(params['surface_tif'])
+    surface_path = pathlib.Path(params["surface_tif"])
     if surface_path.is_file():
         surface_path.unlink()
 
-    for plane_group in params['plane_groups']:
-        zstack_path = pathlib.Path(plane_group['local_z_stack_tif'])
+    for plane_group in params["plane_groups"]:
+        zstack_path = pathlib.Path(plane_group["local_z_stack_tif"])
         if zstack_path.is_file():
             zstack_path.unlink()
-        for experiment in plane_group['ophys_experiments']:
-            this_dir = pathlib.Path(experiment['storage_directory'])
-            path_list = [n for n in this_dir.rglob('*')]
+        for experiment in plane_group["ophys_experiments"]:
+            this_dir = pathlib.Path(experiment["storage_directory"])
+            path_list = [n for n in this_dir.rglob("*")]
             for this_path in path_list:
                 suffix = this_path.suffix
-                if suffix == '.h5' or suffix == '.tiff' or suffix == '.tif':
+                if suffix == ".h5" or suffix == ".tiff" or suffix == ".tif":
                     if this_path.is_file():
                         this_path.unlink()

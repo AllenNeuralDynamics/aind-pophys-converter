@@ -424,7 +424,7 @@ def _gather_timeseries_caches(
         for file_path in file_path_list:
             with h5.File(file_path, "r") as in_file:
                 chunk = in_file["data"][()]
-                out_file["data"][i0: i0 + chunk.shape[0], :, :] = chunk
+                out_file["data"][i0 : i0 + chunk.shape[0], :, :] = chunk
                 i0 += chunk.shape[0]
             os.unlink(file_path)
 
@@ -684,7 +684,7 @@ class TiffSplitterBase(IntFromZMapperMixin):
             these_z_ints = set(
                 [
                     self._int_from_z(z_value=zz)
-                    for zz in z_value_array[offset: offset + n_z_per_roi]
+                    for zz in z_value_array[offset : offset + n_z_per_roi]
                 ]
             )
             if these_z_ints != roi_z_ints:

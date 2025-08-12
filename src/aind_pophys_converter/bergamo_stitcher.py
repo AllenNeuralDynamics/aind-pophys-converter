@@ -58,7 +58,7 @@ class BaseStitcher:
         with h5.File(cache_filepath, "a") as f:
             f["data"].resize(initial_frame + len(image_data_to_cache), axis=0)
             f["data"][
-                initial_frame: initial_frame + len(image_data_to_cache)
+                initial_frame : initial_frame + len(image_data_to_cache)
             ] = image_data_to_cache
 
     def write_final_output(
@@ -320,11 +320,17 @@ class BergamoTiffStitcher(BaseStitcher):
             ),
         )
         job_args = parser.parse_args(args)
-        
-        # Provide default values for optional arguments  
-        output_dir = Path(job_args.output_dir) if job_args.output_dir else Path(job_args.input_dir)
-        unique_id = job_args.unique_id if job_args.unique_id else "bergamo_stitched"
-        
+
+        # Provide default values for optional arguments
+        output_dir = (
+            Path(job_args.output_dir)
+            if job_args.output_dir
+            else Path(job_args.input_dir)
+        )
+        unique_id = (
+            job_args.unique_id if job_args.unique_id else "bergamo_stitched"
+        )
+
         job_settings = BergamoSettings(
             input_dir=Path(job_args.input_dir),
             output_dir=output_dir,

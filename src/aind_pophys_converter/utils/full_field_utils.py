@@ -534,14 +534,14 @@ def _stitch_full_field_tiff(
         pix_col0 = pix_col0.astype(int)
 
         sub_img = avg_img[
-            i_roi * (resolution[1] + pixel_gap): i_roi * pixel_gap
+            i_roi * (resolution[1] + pixel_gap) : i_roi * pixel_gap
             + (i_roi + 1) * resolution[1],
             :,
         ]
 
         stitched_img[
-            pix_row0: pix_row0 + resolution[1],
-            pix_col0: pix_col0 + resolution[0],
+            pix_row0 : pix_row0 + resolution[1],
+            pix_col0 : pix_col0 + resolution[0],
         ] = sub_img
 
     return stitched_img
