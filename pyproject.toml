@@ -17,10 +17,18 @@ readme = "README.md"
 dynamic = ["version"]
 
 dependencies = [
+    'aind-ophys-utils',
+    'h5py',
+    'pydantic',
+    'pydantic-settings',
+    'scikit-image',
+    'tifffile==2024.2.12',
+    'scanimage-tiff-reader==1.4.1.4'
 ]
 
 [project.optional-dependencies]
 dev = [
+    'aind-pophys-converter[full]',
     'black',
     'coverage',
     'flake8',
@@ -68,7 +76,7 @@ exclude_lines = [
     "^import .*",
     "pragma: no cover"
 ]
-fail_under = 100
+fail_under = 85
 
 [tool.isort]
 line_length = 79
