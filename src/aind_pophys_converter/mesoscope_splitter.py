@@ -1656,9 +1656,18 @@ class TiffSplitterCLI:
             msg += "the TIFF splitting code no longer handles that file."
             logging.warning(msg)
 
-    def _create_experiment_metadata(self, fov: dict) -> dict:
+    def _create_experiment_metadata(self, fov: dict) -> (dict, str):
         """Create experiment metadata structure for a given FOV."""
-        fov_id = fov["targeted_structure"] + "_" + str(fov["index"])
+        if isinstance(fov["targeted_structure"], dict):
+            targeted_structure = fov["targeted_structure"]["acronym"]
+        elif isinstance(fov["targeted_structure"], str):
+            targeted_structure = fov["targeted_structure"]
+        else:
+            raise ValueError(
+                "expected fov['targeted_structure'] to be "
+                "a dict or a str"
+            )
+        fov_id = targeted_structure + "_" + str(fov["index"])
         this_exp_metadata = {"fov": fov_id}
 
         for file_key in (
@@ -1788,7 +1797,7 @@ class TiffSplitterCLI:
         for data_stream in self.session_data["data_streams"]:
             if data_stream.get("ophys_fovs"):
                 for fov in data_stream["ophys_fovs"]:
-                    fov_id = f'{fov["targeted_structure"]}_{fov["index"]}'
+                    _, fov_id = self._create_experiment_metadata(fov)
                     scanfield_z = fov["scanfield_z"]
                     roi_index = fov["scanimage_roi_index"]
                     fname = f"{fov_id}.h5"
