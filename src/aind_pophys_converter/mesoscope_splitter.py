@@ -1656,7 +1656,7 @@ class TiffSplitterCLI:
             msg += "the TIFF splitting code no longer handles that file."
             logging.warning(msg)
 
-    def _create_experiment_metadata(self, fov: dict) -> dict:
+    def _create_experiment_metadata(self, fov: dict) -> (dict, str):
         """Create experiment metadata structure for a given FOV."""
         if isinstance(fov["targeted_structure"], dict):
             targeted_structure = fov["targeted_structure"]["acronym"]
