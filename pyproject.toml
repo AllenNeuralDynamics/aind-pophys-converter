@@ -17,11 +17,18 @@ readme = "README.md"
 dynamic = ["version"]
 
 dependencies = [
-    'aind-ophys-utils',
-    'h5py',
-    'pydantic',
-    'pydantic-settings',
-    'scikit-image',
+    'aind-data-schema==2.6.0',
+    'aind-data-schema-models==5.4.1',
+    'aind-ophys-utils==0.0.8',
+    'aind-qcportal-schema==0.6.4',
+    'h5py==3.16.0',
+    'numpy==2.4.3',
+    'Pillow==12.1.1',
+    'pydantic==2.11.10',
+    'pydantic-settings==2.8.1',
+    'python-dateutil==2.9.0.post0',
+    'pytz==2025.2',
+    'scikit-image==0.26.0',
     'tifffile==2024.2.12',
     'scanimage-tiff-reader==1.4.1.4'
 ]
