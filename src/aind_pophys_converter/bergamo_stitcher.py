@@ -11,6 +11,7 @@ from typing import List
 import dateutil
 import h5py as h5
 import numpy as np
+from aind_data_schema.core.acquisition import Acquisition
 from pydantic import BaseModel, Field
 from ScanImageTiffReader import ScanImageTiffReader
 
@@ -25,7 +26,7 @@ class BergamoSettings(BaseModel):
     unique_id: str = Field(
         description="name for data (how it relates to the experiment)"
     )
-    session_fp: Path = Field(description="path to the session file")
+    acquisition_fp: Path = Field(description="path to the acquisition file")
 
 
 class BaseStitcher:
@@ -35,7 +36,7 @@ class BaseStitcher:
         self.input_dir = bergamo_settings.input_dir
         self.output_dir = bergamo_settings.output_dir
         self.unique_id = bergamo_settings.unique_id
-        self.session_fp = bergamo_settings.session_fp
+        self.acquisition_fp = bergamo_settings.acquisition_fp
 
     def write_images(
         self,
@@ -110,17 +111,19 @@ class BergamoTiffStitcher(BaseStitcher):
         """Initialize the BergamoTiffStitcher with settings"""
         super().__init__(bergamo_settings)
 
-    def _load_session(self) -> dict:
-        """Loads the session file
+    def _load_acquisition(self) -> Acquisition:
+        """Loads the acquisition file.
+
         Returns
         -------
-        dict
-            The session dictionary
+        Acquisition
+            The validated acquisition object.
         """
-        with open(self.session_fp, "r") as f:
-            return json.load(f)
+        return Acquisition.model_validate_json(
+            self.acquisition_fp.read_text()
+        )
 
-    def _extract_tiff_from_session(self, session_data: dict) -> dict:
+    def _extract_tiff_from_acquisition(self, acquisition_data: Acquisition) -> dict:
         """Builds tiff data structures used for the header data later
         Parameters
         ----------
@@ -133,13 +136,13 @@ class BergamoTiffStitcher(BaseStitcher):
             A dictionary containing the tiff data structure
         """
 
-        # Extract the tiff file names from the session file
+        # Extract the tiff file names from the acquisition file
         stimulus_epochs = sorted(
-            session_data.get("stimulus_epochs", {}),
-            key=lambda x: dateutil.parser.parse(x["stimulus_start_time"]),
+            acquisition_data.stimulus_epochs,
+            key=lambda x: x.stimulus_start_time,
         )
         if not stimulus_epochs:
-            raise ValueError("No stimulus epochs found in session file")
+            raise ValueError("No stimulus epochs found in acquisition file")
         native_tiffs = [i for i in self.input_dir.rglob("*.tif")]
         native_tiffs_dict = dict(
             zip([i.name for i in native_tiffs], native_tiffs)
@@ -147,13 +150,19 @@ class BergamoTiffStitcher(BaseStitcher):
         epochs = {}
         for epoch in stimulus_epochs:
             epoch_files = []
-            if not epoch.get("output_parameters", {}):
+            # output_parameters was a v1 custom field; in v2 it is expected
+            # to be serialized as JSON in the notes field by the auto-upgrader.
+            try:
+                output_parameters = json.loads(epoch.notes or "")
+            except (json.JSONDecodeError, TypeError):
                 continue
-            tiff_stem = epoch["output_parameters"]["tiff_stem"]
-            for stim in epoch["output_parameters"]["tiff_files"]:
+            if not output_parameters:
+                continue
+            tiff_stem = output_parameters["tiff_stem"]
+            for stim in output_parameters["tiff_files"]:
                 epoch_files.append(str(native_tiffs_dict[stim]))
             epochs[tiff_stem] = {"tiff_files": epoch_files}
-            epochs[tiff_stem]["stimulus_name"] = epoch["stimulus_name"]
+            epochs[tiff_stem]["stimulus_name"] = epoch.stimulus_name
         return epochs
 
     def _get_image_dim(self) -> tuple:
@@ -252,8 +261,8 @@ class BergamoTiffStitcher(BaseStitcher):
         """
 
         # Convert the file and build the final metadata structure
-        session_meta = self._load_session()
-        epochs = self._extract_tiff_from_session(session_meta)
+        acquisition_meta = self._load_acquisition()
+        epochs = self._extract_tiff_from_acquisition(acquisition_meta)
         shape = self._get_image_dim()
         # metadata dictionary where the keys are the image filename and the
         # values are the index of the order in which the image was read, which
@@ -315,12 +324,12 @@ class BergamoTiffStitcher(BaseStitcher):
         )
         parser.add_argument(
             "-s",
-            "--session-file",
+            "--acquisition-file",
             required=True,
             type=str,
             help=(
                 """
-                path to the session file
+                path to the acquisition file
                 """
             ),
         )
@@ -340,7 +349,7 @@ class BergamoTiffStitcher(BaseStitcher):
             input_dir=Path(job_args.input_dir),
             output_dir=output_dir,
             unique_id=unique_id,
-            session_fp=Path(job_args.session_file),
+            acquisition_fp=Path(job_args.acquisition_file),
         )
         return cls(
             job_settings,

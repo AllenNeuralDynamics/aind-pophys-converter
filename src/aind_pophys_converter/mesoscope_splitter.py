@@ -16,6 +16,8 @@ from typing import Dict, List, Optional, Tuple, Union
 import h5py as h5
 import numpy as np
 import tifffile
+from aind_data_schema.components.configs import ImagingConfig, PlanarImage
+from aind_data_schema.core.acquisition import Acquisition
 from aind_ophys_utils.array_utils import normalize_array
 from pydantic import BaseModel, Field
 
@@ -1582,6 +1584,10 @@ class JobSettings(BaseModel):
     debug: Optional[bool] = Field(
         default=False, description="clip movie - run in debug"
     )
+    dump_every: int = Field(
+        default=1000,
+        description="frames per plane buffered in memory before flushing to disk",
+    )
 
 
 class TiffSplitterCLI:
@@ -1603,11 +1609,14 @@ class TiffSplitterCLI:
         self.output_dir = job_settings.output_dir
         if isinstance(self.output_dir, str):
             self.output_dir = Path(self.output_dir)
-        session_json = next(self.input_dir.parent.glob("*session.json"), None)
-        if not session_json:
-            raise ValueError("No session.json file found")
-        with open(session_json, "r") as f:
-            self.session_data = json.load(f)
+        acquisition_json = next(
+            self.input_dir.parent.glob("*acquisition.json"), None
+        )
+        if not acquisition_json:
+            raise ValueError("No acquisition.json file found")
+        self.acquisition_data = Acquisition.model_validate_json(
+            acquisition_json.read_text()
+        )
         self.timeseries_tif = next(
             self.input_dir.glob("*timeseries.tiff"), None
         )
@@ -1625,6 +1634,7 @@ class TiffSplitterCLI:
             raise ValueError("No averaged_surface.tiff file found")
         self.temp_dir = job_settings.temp_dir
         self.debug = job_settings.debug
+        self.dump_every = job_settings.dump_every
 
     def _initialize_splitters(self) -> Tuple:
         """Initialize all the splitters needed for processing."""
@@ -1666,18 +1676,39 @@ class TiffSplitterCLI:
             msg += "the TIFF splitting code no longer handles that file."
             logging.warning(msg)
 
-    def _create_experiment_metadata(self, fov: dict) -> (dict, str):
-        """Create experiment metadata structure for a given FOV."""
-        if isinstance(fov["targeted_structure"], dict):
-            targeted_structure = fov["targeted_structure"]["acronym"]
-        elif isinstance(fov["targeted_structure"], str):
-            targeted_structure = fov["targeted_structure"]
-        else:
-            raise ValueError(
-                "expected fov['targeted_structure'] to be "
-                "a dict or a str"
-            )
-        fov_id = targeted_structure + "_" + str(fov["index"])
+    def _get_imaging_planes(self) -> List:
+        """Extract all imaging planes from the acquisition, sorted by plane_index.
+
+        Returns
+        -------
+        List
+            Plane objects (Plane or CoupledPlane) sorted by plane_index.
+        """
+        planes = []
+        for data_stream in self.acquisition_data.data_streams:
+            for config in data_stream.configurations:
+                if isinstance(config, ImagingConfig):
+                    for image in config.images:
+                        if isinstance(image, PlanarImage):
+                            for plane in image.planes:
+                                planes.append(plane)
+        return sorted(planes, key=lambda p: p.plane_index)
+
+    def _create_experiment_metadata(self, plane) -> (dict, str):
+        """Create experiment metadata structure for a given imaging plane.
+
+        Parameters
+        ----------
+        plane : Plane or CoupledPlane
+            Imaging plane from the v2 acquisition data.
+
+        Returns
+        -------
+        tuple[dict, str]
+            Metadata dict and the fov_id string.
+        """
+        targeted_structure = plane.targeted_structure.acronym
+        fov_id = targeted_structure + "_" + str(plane.plane_index)
         this_exp_metadata = {"fov": fov_id}
 
         for file_key in (
@@ -1686,31 +1717,24 @@ class TiffSplitterCLI:
             "surface_2p",
             "local_z_stack",
         ):
-            this_metadata = {}
-            for data_key in (
-                "fov_coordinate_ml",
-                "fov_coordinate_ap",
-                "fov_reference",
-                "fov_scale_factor",
-            ):
-                this_metadata[data_key] = fov[data_key]
-            this_exp_metadata[file_key] = this_metadata
+            this_exp_metadata[file_key] = {}
 
         return this_exp_metadata, fov_id
 
     def _process_single_fov(
         self,
-        fov: dict,
+        plane,
+        roi_index: int,
+        z_value: float,
         depth_splitter,
         surface_splitter,
         zstack_splitter,
         valid_roi_centers: List,
         t0: float,
     ) -> dict:
-        """Process a single FOV and return its metadata."""
-        this_exp_metadata, fov_id = self._create_experiment_metadata(fov)
-        roi_index = fov["scanimage_roi_index"]
-        scanfield_z = fov["scanfield_z"]
+        """Process a single imaging plane and return its metadata."""
+        this_exp_metadata, fov_id = self._create_experiment_metadata(plane)
+        scanfield_z = z_value
         baseline_center = None
 
         for splitter, z_value, output_name, metadata_tag in zip(
@@ -1804,27 +1828,33 @@ class TiffSplitterCLI:
         """Process timeseries data and return output path lookup."""
         output_path_lookup = {}
 
-        for data_stream in self.session_data["data_streams"]:
-            if data_stream.get("ophys_fovs"):
-                for fov in data_stream["ophys_fovs"]:
-                    _, fov_id = self._create_experiment_metadata(fov)
-                    scanfield_z = fov["scanfield_z"]
-                    roi_index = fov["scanimage_roi_index"]
-                    fname = f"{fov_id}.h5"
-                    output_path = self.output_dir / fov_id / fname
-                    output_path_lookup[(roi_index, scanfield_z)] = output_path
+        for plane in self._get_imaging_planes():
+            # Assumes plane_index order in the v2 acquisition schema matches
+            # the sequential scan order encoded in the TIFF's zsAllActuators.
+            # In v1, session.json carried scanfield_z explicitly (the raw
+            # ScanImage actuator coordinate) providing a direct lookup. In v2,
+            # depth is stored in physical micrometers and cannot be matched to
+            # the TIFF z-values, so we rely on ordering being preserved by the
+            # metadata auto-upgrader.
+            roi_z = timeseries_splitter.roi_z_int_manifest[plane.plane_index]
+            roi_index, z_int = roi_z
+            z_value = timeseries_splitter._z_from_int(z_int)
+            _, fov_id = self._create_experiment_metadata(plane)
+            fname = f"{fov_id}.h5"
+            output_path = self.output_dir / fov_id / fname
+            output_path_lookup[(roi_index, z_value)] = output_path
 
-                    frame_shape = timeseries_splitter.frame_shape(
-                        i_roi=roi_index, z_value=scanfield_z
-                    )
+            frame_shape = timeseries_splitter.frame_shape(
+                i_roi=roi_index, z_value=z_value
+            )
 
-                    str_path = str(output_path.resolve().absolute())
+            str_path = str(output_path.resolve().absolute())
 
-                    for metadata in experiment_metadata:
-                        if metadata["fov"] == fov_id:
-                            metadata["timeseries"]["height"] = frame_shape[0]
-                            metadata["timeseries"]["width"] = frame_shape[1]
-                            metadata["timeseries"]["filename"] = str_path
+            for metadata in experiment_metadata:
+                if metadata["fov"] == fov_id:
+                    metadata["timeseries"]["height"] = frame_shape[0]
+                    metadata["timeseries"]["width"] = frame_shape[1]
+                    metadata["timeseries"]["filename"] = str_path
 
         return output_path_lookup
 
@@ -1886,20 +1916,24 @@ class TiffSplitterCLI:
             timeseries_splitter=timeseries_splitter
         )
 
-        # Process experiment metadata for each FOV
+        # Process experiment metadata for each imaging plane
         experiment_metadata = []
-        for data_stream in self.session_data["data_streams"]:
-            if data_stream.get("ophys_fovs"):
-                for fov in data_stream["ophys_fovs"]:
-                    this_exp_metadata = self._process_single_fov(
-                        fov,
-                        depth_splitter,
-                        surface_splitter,
-                        zstack_splitter,
-                        valid_roi_centers,
-                        t0,
-                    )
-                    experiment_metadata.append(this_exp_metadata)
+        for plane in self._get_imaging_planes():
+            # See ordering assumption comment in _process_timeseries_data.
+            roi_z = timeseries_splitter.roi_z_int_manifest[plane.plane_index]
+            roi_index, z_int = roi_z
+            z_value = timeseries_splitter._z_from_int(z_int)
+            this_exp_metadata = self._process_single_fov(
+                plane,
+                roi_index,
+                z_value,
+                depth_splitter,
+                surface_splitter,
+                zstack_splitter,
+                valid_roi_centers,
+                t0,
+            )
+            experiment_metadata.append(this_exp_metadata)
 
         # Process timeseries data separately for efficiency
         output_path_lookup = self._process_timeseries_data(
@@ -1909,7 +1943,7 @@ class TiffSplitterCLI:
         timeseries_splitter.write_output_files(
             output_path_map=output_path_lookup,
             tmp_dir=self.temp_dir,
-            dump_every=self.session_data.get("dump_every", 1000),
+            dump_every=self.dump_every,
             logger=logging,
             debug=self.debug,
         )
