@@ -346,6 +346,11 @@ def _split_timeseries_tiff(
         current_offset = -1
         cache_ct = 0
 
+        if debug:
+            print(
+                f"Debug mode active: clipping timeseries to "
+                f"{DEBUG_N_FRAMES} frames per plane."
+            )
         for page in tiff_file.pages:
             if debug and page_ct >= (max_offset + 1) * DEBUG_N_FRAMES:
                 break
@@ -1633,6 +1638,9 @@ class TiffSplitterCLI:
         if not self.surface_tif:
             raise ValueError("No averaged_surface.tiff file found")
         self.temp_dir = job_settings.temp_dir
+        if self.temp_dir is not None:
+            # Ensure temp directory exists before mkdtemp is called downstream
+            Path(self.temp_dir).mkdir(parents=True, exist_ok=True)
         self.debug = job_settings.debug
         self.dump_every = job_settings.dump_every
 
