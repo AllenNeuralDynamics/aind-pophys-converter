@@ -145,37 +145,44 @@ class TestMesoscopeSplitter(unittest.TestCase):
             with self.subTest(value=value):
                 self.assertFalse(TiffSplitterCLI.str2bool(value))
 
+    def _make_splitter_cli(self, input_dir, output_dir, temp_dir, str_args=False):
+        """Helper: build a TiffSplitterCLI with mocked Acquisition loading."""
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock, patch
+
+        job_settings = SimpleNamespace()
+        job_settings.input_dir = str(input_dir) if str_args else input_dir
+        job_settings.output_dir = str(output_dir) if str_args else output_dir
+        job_settings.temp_dir = str(temp_dir) if str_args else temp_dir
+        job_settings.debug = False
+        job_settings.dump_every = 1000
+
+        mock_acq = MagicMock()
+        with patch(
+            "aind_pophys_converter.mesoscope_splitter.Acquisition"
+            ".model_validate_json",
+            return_value=mock_acq,
+        ):
+            return TiffSplitterCLI(job_settings)
+
     def test_tiff_splitter_cli_init_with_strings(self):
         """Test TiffSplitterCLI initialization converts strings to Paths."""
-        # Create a temporary directory structure with required files
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             input_dir = temp_path / "input_data"
             input_dir.mkdir()
 
-            # Create required files
-            session_file = temp_path / "test_session.json"
-            session_file.write_text('{"test": "data"}')
+            (temp_path / "test_acquisition.json").write_text("{}")
+            (input_dir / "test_timeseries.tiff").touch()
+            (input_dir / "test_averaged_depth.tiff").touch()
+            (input_dir / "test_averaged_surface.tiff").touch()
 
-            timeseries_file = input_dir / "test_timeseries.tiff"
-            timeseries_file.touch()
-
-            depth_file = input_dir / "test_averaged_depth.tiff"
-            depth_file.touch()
-
-            surface_file = input_dir / "test_averaged_surface.tiff"
-            surface_file.touch()
-
-            # Mock JobSettings class since we can't import it
-            from types import SimpleNamespace
-
-            job_settings = SimpleNamespace()
-            job_settings.input_dir = str(input_dir)
-            job_settings.output_dir = str(temp_path / "output")
-            job_settings.temp_dir = str(temp_path / "temp")
-            job_settings.debug = False
-
-            cli = TiffSplitterCLI(job_settings)
+            cli = self._make_splitter_cli(
+                input_dir,
+                temp_path / "output",
+                temp_path / "temp",
+                str_args=True,
+            )
 
             self.assertIsInstance(cli.input_dir, Path)
             self.assertIsInstance(cli.output_dir, Path)
@@ -183,34 +190,22 @@ class TestMesoscopeSplitter(unittest.TestCase):
 
     def test_tiff_splitter_cli_init_with_paths(self):
         """Test TiffSplitterCLI initialization with Path objects."""
-        # Create a temporary directory structure with required files
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             input_dir = temp_path / "input_data"
             input_dir.mkdir()
 
-            # Create required files
-            session_file = temp_path / "test_session.json"
-            session_file.write_text('{"test": "data"}')
+            (temp_path / "test_acquisition.json").write_text("{}")
+            (input_dir / "test_timeseries.tiff").touch()
+            (input_dir / "test_averaged_depth.tiff").touch()
+            (input_dir / "test_averaged_surface.tiff").touch()
 
-            timeseries_file = input_dir / "test_timeseries.tiff"
-            timeseries_file.touch()
-
-            depth_file = input_dir / "test_averaged_depth.tiff"
-            depth_file.touch()
-
-            surface_file = input_dir / "test_averaged_surface.tiff"
-            surface_file.touch()
-
-            from types import SimpleNamespace
-
-            job_settings = SimpleNamespace()
-            job_settings.input_dir = input_dir
-            job_settings.output_dir = temp_path / "output"
-            job_settings.temp_dir = temp_path / "temp"
-            job_settings.debug = False
-
-            cli = TiffSplitterCLI(job_settings)
+            cli = self._make_splitter_cli(
+                input_dir,
+                temp_path / "output",
+                temp_path / "temp",
+                str_args=False,
+            )
 
             self.assertIsInstance(cli.input_dir, Path)
             self.assertIsInstance(cli.output_dir, Path)
@@ -220,53 +215,56 @@ class TestMesoscopeSplitter(unittest.TestCase):
         """Test TiffSplitterCLI raises appropriate errors when files
         are missing.
         """
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock, patch
+
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             input_dir = temp_path / "input_data"
             input_dir.mkdir()
-
-            from types import SimpleNamespace
 
             job_settings = SimpleNamespace()
             job_settings.input_dir = input_dir
             job_settings.output_dir = temp_path / "output"
             job_settings.temp_dir = temp_path / "temp"
             job_settings.debug = False
-            job_settings.temp_dir = temp_path / "temp"
-            job_settings.debug = False
+            job_settings.dump_every = 1000
 
-            # Test missing session.json
+            # Test missing acquisition.json
             with self.assertRaises(ValueError) as cm:
                 TiffSplitterCLI(job_settings)
-            self.assertIn("No session.json file found", str(cm.exception))
+            self.assertIn("No acquisition.json file found", str(cm.exception))
 
-            # Create session.json but leave timeseries.tiff missing
-            session_file = temp_path / "test_session.json"
-            session_file.write_text('{"test": "data"}')
+            # Create acquisition.json; subsequent checks need mocked validation
+            (temp_path / "test_acquisition.json").write_text("{}")
 
-            with self.assertRaises(ValueError) as cm:
-                TiffSplitterCLI(job_settings)
-            self.assertIn("No timeseries.tiff file found", str(cm.exception))
+            mock_acq = MagicMock()
+            with patch(
+                "aind_pophys_converter.mesoscope_splitter.Acquisition"
+                ".model_validate_json",
+                return_value=mock_acq,
+            ):
+                with self.assertRaises(ValueError) as cm:
+                    TiffSplitterCLI(job_settings)
+                self.assertIn(
+                    "No timeseries.tiff file found", str(cm.exception)
+                )
 
-            # Create timeseries.tiff but leave depth file missing
-            timeseries_file = input_dir / "test_timeseries.tiff"
-            timeseries_file.touch()
+                # Create timeseries.tiff but leave depth file missing
+                (input_dir / "test_timeseries.tiff").touch()
+                with self.assertRaises(ValueError) as cm:
+                    TiffSplitterCLI(job_settings)
+                self.assertIn(
+                    "No averaged_depth.tiff file found", str(cm.exception)
+                )
 
-            with self.assertRaises(ValueError) as cm:
-                TiffSplitterCLI(job_settings)
-            self.assertIn(
-                "No averaged_depth.tiff file found", str(cm.exception)
-            )
-
-            # Create depth file but leave surface file missing
-            depth_file = input_dir / "test_averaged_depth.tiff"
-            depth_file.touch()
-
-            with self.assertRaises(ValueError) as cm:
-                TiffSplitterCLI(job_settings)
-            self.assertIn(
-                "No averaged_surface.tiff file found", str(cm.exception)
-            )
+                # Create depth file but leave surface file missing
+                (input_dir / "test_averaged_depth.tiff").touch()
+                with self.assertRaises(ValueError) as cm:
+                    TiffSplitterCLI(job_settings)
+                self.assertIn(
+                    "No averaged_surface.tiff file found", str(cm.exception)
+                )
 
     def test_split_timeseries_tiff_logger_messages(self):
         """Test that split_timeseries_tiff calls logger with
