@@ -3,7 +3,9 @@ import argparse
 import json
 import logging
 import os
+import re
 import sys
+from collections import defaultdict
 from datetime import datetime as dt
 from pathlib import Path
 from typing import List
@@ -11,7 +13,6 @@ from typing import List
 import dateutil
 import h5py as h5
 import numpy as np
-from aind_data_schema.core.acquisition import Acquisition
 from pydantic import BaseModel, Field
 from ScanImageTiffReader import ScanImageTiffReader
 
@@ -27,6 +28,13 @@ class BergamoSettings(BaseModel):
         description="name for data (how it relates to the experiment)"
     )
     acquisition_fp: Path = Field(description="path to the acquisition file")
+    debug: bool = Field(
+        default=False,
+        description=(
+            "If True, process only the first tiff file per epoch "
+            "instead of the full dataset."
+        ),
+    )
 
 
 class BaseStitcher:
@@ -37,6 +45,7 @@ class BaseStitcher:
         self.output_dir = bergamo_settings.output_dir
         self.unique_id = bergamo_settings.unique_id
         self.acquisition_fp = bergamo_settings.acquisition_fp
+        self.debug = bergamo_settings.debug
 
     def write_images(
         self,
@@ -111,58 +120,62 @@ class BergamoTiffStitcher(BaseStitcher):
         """Initialize the BergamoTiffStitcher with settings"""
         super().__init__(bergamo_settings)
 
-    def _load_acquisition(self) -> Acquisition:
-        """Loads the acquisition file.
+    def _discover_tiff_epochs(self) -> dict:
+        """Discover tiff epochs by grouping *.tif files in input_dir by stem.
 
-        Returns
-        -------
-        Acquisition
-            The validated acquisition object.
-        """
-        return Acquisition.model_validate_json(
-            self.acquisition_fp.read_text()
-        )
-
-    def _extract_tiff_from_acquisition(self, acquisition_data: Acquisition) -> dict:
-        """Builds tiff data structures used for the header data later
-        Parameters
-        ----------
-        session_data : dict
-            The session data dictionary
+        Groups files by their filename stem (everything before the trailing
+        ``_NNNNN`` numeric suffix). Files whose stem is ``stack`` are
+        excluded as z-stack calibration scans. Within each group files
+        are sorted by their numeric suffix.
 
         Returns
         -------
         dict
-            A dictionary containing the tiff data structure
-        """
+            ``{stem: {"tiff_files": [sorted absolute path strings]}}``
 
-        # Extract the tiff file names from the acquisition file
-        stimulus_epochs = sorted(
-            acquisition_data.stimulus_epochs,
-            key=lambda x: x.stimulus_start_time,
-        )
-        if not stimulus_epochs:
-            raise ValueError("No stimulus epochs found in acquisition file")
-        native_tiffs = [i for i in self.input_dir.rglob("*.tif")]
-        native_tiffs_dict = dict(
-            zip([i.name for i in native_tiffs], native_tiffs)
-        )
-        epochs = {}
-        for epoch in stimulus_epochs:
-            epoch_files = []
-            # output_parameters was a v1 custom field; in v2 it is expected
-            # to be serialized as JSON in the notes field by the auto-upgrader.
-            try:
-                output_parameters = json.loads(epoch.notes or "")
-            except (json.JSONDecodeError, TypeError):
+        Raises
+        ------
+        ValueError
+            If no eligible tiff files are found in input_dir.
+        """
+        _suffix = re.compile(r"^(.+)_(\d+)$")
+        groups: dict = defaultdict(list)
+
+        for tif in self.input_dir.glob("*.tif"):
+            m = _suffix.match(tif.stem)
+            stem = m.group(1) if m else tif.stem
+            if stem == "stack":
                 continue
-            if not output_parameters:
-                continue
-            tiff_stem = output_parameters["tiff_stem"]
-            for stim in output_parameters["tiff_files"]:
-                epoch_files.append(str(native_tiffs_dict[stim]))
-            epochs[tiff_stem] = {"tiff_files": epoch_files}
-            epochs[tiff_stem]["stimulus_name"] = epoch.stimulus_name
+            groups[stem].append(tif)
+
+        if not groups:
+            raise ValueError(
+                f"No tiff files found in {self.input_dir} "
+                "(excluding 'stack')"
+            )
+
+        def _sort_key(p: Path) -> int:
+            m = _suffix.match(p.stem)
+            return int(m.group(2)) if m else 0
+
+        epochs = {
+            stem: {
+                "tiff_files": [
+                    str(p) for p in sorted(files, key=_sort_key)
+                ]
+            }
+            for stem, files in sorted(groups.items())
+        }
+        if self.debug:
+            logging.info(
+                "Debug mode: limiting to 1 file per epoch "
+                "(was %s files total).",
+                sum(len(v["tiff_files"]) for v in epochs.values()),
+            )
+            epochs = {
+                stem: {"tiff_files": v["tiff_files"][:1]}
+                for stem, v in epochs.items()
+            }
         return epochs
 
     def _get_image_dim(self) -> tuple:
@@ -215,6 +228,7 @@ class BergamoTiffStitcher(BaseStitcher):
         # location of the epoch image in the stack
         epoch_location = {}
         trial_locations = {}
+        image_shape = None
         for epoch in epochs.keys():
             header_count = 0
             for filename in epochs[epoch]["tiff_files"]:
@@ -246,6 +260,8 @@ class BergamoTiffStitcher(BaseStitcher):
         )
         total_time = dt.now() - start_time
         logging.info("Time to cache %s seconds", total_time.total_seconds())
+        if image_shape is None:
+            raise ValueError("No tiff files were processed")
         return self.output_dir / f"{self.unique_id}.h5", image_shape
 
     def run_converter(self) -> Path:
@@ -261,8 +277,7 @@ class BergamoTiffStitcher(BaseStitcher):
         """
 
         # Convert the file and build the final metadata structure
-        acquisition_meta = self._load_acquisition()
-        epochs = self._extract_tiff_from_acquisition(acquisition_meta)
+        epochs = self._discover_tiff_epochs()
         shape = self._get_image_dim()
         # metadata dictionary where the keys are the image filename and the
         # values are the index of the order in which the image was read, which

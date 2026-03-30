@@ -16,40 +16,16 @@ from aind_pophys_converter.bergamo_stitcher import (
 )
 
 
-def _minimal_acquisition_json(stimulus_epochs):
-    """Return a minimal valid v2 Acquisition JSON string."""
-    return json.dumps(
-        {
-            "subject_id": "000000",
-            "acquisition_start_time": "2025-05-17T10:00:00-07:00",
-            "acquisition_end_time": "2025-05-17T12:00:00-07:00",
-            "instrument_id": "test_instrument",
-            "acquisition_type": "Other",
-            "data_streams": [],
-            "stimulus_epochs": stimulus_epochs,
-        }
+def _make_settings(input_dir, output_dir, acquisition_fp=None):
+    """Return a BergamoSettings with sensible defaults for testing."""
+    if acquisition_fp is None:
+        acquisition_fp = input_dir / "acquisition.json"
+    return BergamoSettings(
+        input_dir=input_dir,
+        output_dir=output_dir,
+        unique_id="test_data",
+        acquisition_fp=acquisition_fp,
     )
-
-
-def _make_acquisition_json(tiff_stem, tiff_files):
-    """Return a minimal v2 Acquisition JSON string for testing.
-
-    output_parameters are serialized as JSON in epoch.notes, matching
-    the auto-upgrader behaviour for the v1 custom field.
-    """
-    output_params = json.dumps(
-        {"tiff_stem": tiff_stem, "tiff_files": tiff_files}
-    )
-    epochs = [
-        {
-            "stimulus_start_time": "2025-05-17T10:00:00-07:00",
-            "stimulus_end_time": "2025-05-17T10:30:00-07:00",
-            "stimulus_name": "test_stimulus",
-            "stimulus_modalities": ["Visual"],
-            "notes": output_params,
-        }
-    ]
-    return _minimal_acquisition_json(epochs)
 
 
 class TestBergamoTiffStitcher(unittest.TestCase):
@@ -64,19 +40,23 @@ class TestBergamoTiffStitcher(unittest.TestCase):
         self.output_dir.mkdir(exist_ok=True)
 
         self.acquisition_file = self.input_dir / "acquisition.json"
-        self.unique_id = "test_data"
-        self.tiff_stem = "test_stem"
-        self.tiff_files = ["test_tiff_1.tif", "test_tiff_2.tif"]
-
         self.acquisition_file.write_text(
-            _make_acquisition_json(self.tiff_stem, self.tiff_files)
+            json.dumps(
+                {
+                    "subject_id": "000000",
+                    "acquisition_start_time": "2025-05-17T10:00:00-07:00",
+                    "acquisition_end_time": "2025-05-17T12:00:00-07:00",
+                    "instrument_id": "test_instrument",
+                    "acquisition_type": "Other",
+                    "data_streams": [],
+                    "stimulus_epochs": [],
+                }
+            )
         )
 
-        self.settings = BergamoSettings(
-            input_dir=self.input_dir,
-            output_dir=self.output_dir,
-            unique_id=self.unique_id,
-            acquisition_fp=self.acquisition_file,
+        self.tiff_files = ["test_tiff_00001.tif", "test_tiff_00002.tif"]
+        self.settings = _make_settings(
+            self.input_dir, self.output_dir, self.acquisition_file
         )
 
     def tearDown(self):
@@ -142,46 +122,82 @@ class TestBergamoTiffStitcher(unittest.TestCase):
         self.assertEqual(stitcher.output_dir, self.output_dir)
         self.assertEqual(stitcher.unique_id, "test_unique_id")
 
-    def test_no_stimulus_epochs_raises_error(self):
-        """Test that missing stimulus epochs raises ValueError."""
-        self.acquisition_file.write_text(_minimal_acquisition_json([]))
-        stitcher = BergamoTiffStitcher(self.settings)
-        with self.assertRaises(ValueError) as context:
-            stitcher.run_converter()
-        self.assertIn("No stimulus epochs found", str(context.exception))
-
-    def test_epoch_without_notes_is_skipped(self):
-        """Test that epochs whose notes don't parse as JSON are skipped."""
-        epochs = [
-            {
-                # No notes field — no output_parameters
-                "stimulus_start_time": "2025-05-17T10:00:00-07:00",
-                "stimulus_end_time": "2025-05-17T10:15:00-07:00",
-                "stimulus_name": "no_params_epoch",
-                "stimulus_modalities": ["Visual"],
-            },
-            {
-                "stimulus_start_time": "2025-05-17T10:15:00-07:00",
-                "stimulus_end_time": "2025-05-17T10:30:00-07:00",
-                "stimulus_name": "with_params_epoch",
-                "stimulus_modalities": ["Visual"],
-                "notes": json.dumps(
-                    {
-                        "tiff_stem": self.tiff_stem,
-                        "tiff_files": self.tiff_files,
-                    }
-                ),
-            },
+    def test_discover_tiff_epochs_groups_by_stem(self):
+        """Test that tiff files are grouped by stem and sorted numerically."""
+        files = [
+            "spont_00003.tif",
+            "spont_00001.tif",
+            "spont_00002.tif",
+            "spontpost_00001.tif",
         ]
-        self.acquisition_file.write_text(_minimal_acquisition_json(epochs))
-        for fname in self.tiff_files:
+        for fname in files:
             (self.input_dir / fname).touch()
+
         stitcher = BergamoTiffStitcher(self.settings)
-        acquisition_data = stitcher._load_acquisition()
-        result = stitcher._extract_tiff_from_acquisition(acquisition_data)
-        # Only the epoch with valid notes is returned
-        self.assertEqual(len(result), 1)
-        self.assertIn(self.tiff_stem, result)
+        result = stitcher._discover_tiff_epochs()
+
+        self.assertIn("spont", result)
+        self.assertIn("spontpost", result)
+        self.assertEqual(len(result["spont"]["tiff_files"]), 3)
+        self.assertEqual(len(result["spontpost"]["tiff_files"]), 1)
+        # Sorted by numeric suffix
+        basenames = [
+            os.path.basename(f) for f in result["spont"]["tiff_files"]
+        ]
+        self.assertEqual(
+            basenames,
+            ["spont_00001.tif", "spont_00002.tif", "spont_00003.tif"],
+        )
+
+    def test_discover_tiff_epochs_excludes_stack(self):
+        """Test that files with the 'stack' stem are excluded."""
+        (self.input_dir / "spont_00001.tif").touch()
+        (self.input_dir / "stack_00001.tif").touch()
+        (self.input_dir / "stack_00002.tif").touch()
+
+        stitcher = BergamoTiffStitcher(self.settings)
+        result = stitcher._discover_tiff_epochs()
+
+        self.assertIn("spont", result)
+        self.assertNotIn("stack", result)
+
+    def test_discover_tiff_epochs_no_tiffs_raises(self):
+        """Test that an empty directory raises ValueError."""
+        stitcher = BergamoTiffStitcher(self.settings)
+        with self.assertRaises(ValueError):
+            stitcher._discover_tiff_epochs()
+
+    def test_discover_tiff_epochs_only_stack_raises(self):
+        """Test that only stack files (no eligible tiffs) raises ValueError."""
+        (self.input_dir / "stack_00001.tif").touch()
+        stitcher = BergamoTiffStitcher(self.settings)
+        with self.assertRaises(ValueError):
+            stitcher._discover_tiff_epochs()
+
+    def test_discover_tiff_epochs_debug_limits_to_one_file(self):
+        """Test that debug=True clips each epoch to its first tiff file."""
+        for stem in ("spont", "spontpost"):
+            for i in range(1, 4):
+                (self.input_dir / f"{stem}_0000{i}.tif").touch()
+
+        debug_settings = _make_settings(self.input_dir, self.output_dir)
+        debug_settings = BergamoSettings(
+            input_dir=self.input_dir,
+            output_dir=self.output_dir,
+            unique_id="test_data",
+            acquisition_fp=self.acquisition_file,
+            debug=True,
+        )
+        stitcher = BergamoTiffStitcher(debug_settings)
+        result = stitcher._discover_tiff_epochs()
+
+        self.assertEqual(len(result["spont"]["tiff_files"]), 1)
+        self.assertEqual(len(result["spontpost"]["tiff_files"]), 1)
+        # First file of each epoch is kept
+        self.assertIn("spont_00001.tif", result["spont"]["tiff_files"][0])
+        self.assertIn(
+            "spontpost_00001.tif", result["spontpost"]["tiff_files"][0]
+        )
 
 
 if __name__ == "__main__":

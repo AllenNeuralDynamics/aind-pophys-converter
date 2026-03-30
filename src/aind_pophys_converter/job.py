@@ -295,6 +295,8 @@ def run() -> None:
     )
     pophys_dir = next(input_dir.rglob("pophys/"))
     if "Bergamo" in acquisition.instrument_id:
+        # pull this from targetted structure in acquisition
+        
         unique_id = "MOp2_3_0"  # TODO: read from CCF when available
         output_dir = output_dir / unique_id
         output_dir.mkdir(exist_ok=True)
@@ -303,6 +305,7 @@ def run() -> None:
             output_dir=output_dir,
             unique_id=unique_id,
             acquisition_fp=acquisition_fp,
+            debug=job_settings.debug,
         )
         bergamo_stitcher = BergamoTiffStitcher(bergamo_settings)
         bergamo_stitcher.run_converter()
