@@ -10,7 +10,6 @@ from datetime import datetime as dt
 from pathlib import Path
 from typing import List, Tuple
 
-import dateutil
 import h5py as h5
 import numpy as np
 from pydantic import BaseModel, Field
@@ -155,6 +154,7 @@ class BergamoTiffStitcher(BaseStitcher):
             )
 
         def _sort_key(p: Path) -> int:
+            """Extract numeric suffix for sorting."""
             m = _suffix.match(p.stem)
             return int(m.group(2)) if m else 0
 

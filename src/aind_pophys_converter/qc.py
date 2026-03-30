@@ -161,9 +161,7 @@ def write_vasculature_metric(
     print(f"Saved QC metric -> {metric_out_path}")
 
 
-def write_avg_depth_slices(
-    splitter: "AvgImageTiffSplitter", output_dir: Path
-) -> None:
+def write_avg_depth_slices(splitter, output_dir: Path) -> None:
     """Write per-ROI averaged-depth slices as float32 TIF files.
 
     Parameters
@@ -276,6 +274,7 @@ def pair_depth_tifs_with_avg_depth_pngs(
             child_array = tif.asarray().astype(np.float64)
 
         def _to_uint8(arr: np.ndarray) -> np.ndarray:
+            """Normalize array to uint8 using 5th/95th percentiles."""
             lo, hi = np.percentile(arr, 5), np.percentile(arr, 95)
             if hi > lo:
                 return np.clip(

@@ -145,7 +145,9 @@ class TestMesoscopeSplitter(unittest.TestCase):
             with self.subTest(value=value):
                 self.assertFalse(TiffSplitterCLI.str2bool(value))
 
-    def _make_splitter_cli(self, input_dir, output_dir, temp_dir, str_args=False):
+    def _make_splitter_cli(
+        self, input_dir, output_dir, temp_dir, str_args=False
+    ):
         """Helper: build a TiffSplitterCLI with mocked Acquisition loading."""
         from types import SimpleNamespace
         from unittest.mock import MagicMock, patch

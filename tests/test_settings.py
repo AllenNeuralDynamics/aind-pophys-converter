@@ -45,7 +45,7 @@ class TestJobSettings(unittest.TestCase):
         self.assertEqual(s.temp_dir, Path("/tmp/mytemp"))
 
     def test_input_dir_mutation(self):
-        """input_dir can be reassigned (used in run() to point at pophys_dir)."""
+        """input_dir can be reassigned (used in run())."""
         s = self._make_settings()
         new_path = Path("/scratch/data/pophys")
         s.input_dir = new_path

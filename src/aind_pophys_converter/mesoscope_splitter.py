@@ -1595,7 +1595,6 @@ def get_nearest_roi_center(
     return ans
 
 
-
 class TiffSplitterCLI:
     """A command line interface for splitting TIFF files"""
 
@@ -1725,7 +1724,7 @@ class TiffSplitterCLI:
     def _get_imaging_planes(
         self,
     ) -> List[CoupledPlane]:
-        """Extract all imaging planes from the acquisition, sorted by plane_index.
+        """Extract imaging planes from acquisition, sorted by plane_index.
 
         Returns
         -------

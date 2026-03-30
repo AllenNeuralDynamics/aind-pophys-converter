@@ -2,7 +2,7 @@
 import json
 import tempfile
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 from aind_data_schema.core.quality_control import QCMetric, QCStatus, Status

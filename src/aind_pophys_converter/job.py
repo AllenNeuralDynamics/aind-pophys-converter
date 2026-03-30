@@ -1,5 +1,4 @@
 """Top-level job orchestration for aind-pophys-converter."""
-import logging
 from pathlib import Path
 
 from aind_data_schema.core.acquisition import Acquisition

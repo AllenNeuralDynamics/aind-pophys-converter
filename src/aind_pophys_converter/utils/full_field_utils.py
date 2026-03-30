@@ -214,7 +214,7 @@ def stitch_full_field_tiff(tiff_path: pathlib.Path) -> np.ndarray:
 def _insert_rois_into_surface_img(
     full_field_img: np.ndarray,
     full_field_metadata: ScanImageMetadata,
-    avg_image_splitter: "AvgImageTiffSplitter",
+    avg_image_splitter,  # AvgImageTiffSplitter (circular import)
 ) -> np.ndarray:
     """
     Insert thumbnails from avg_image_splitter into a stitched

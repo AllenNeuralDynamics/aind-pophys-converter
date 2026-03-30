@@ -3,7 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import numpy as np
 from PIL import Image
@@ -14,7 +14,9 @@ class TestAddBorderAndLabel(unittest.TestCase):
 
     def setUp(self):
         """Import here to avoid top-level side effects."""
-        from aind_pophys_converter.utils.image_utils import add_border_and_label
+        from aind_pophys_converter.utils.image_utils import (
+            add_border_and_label,
+        )
 
         self.fn = add_border_and_label
 
@@ -48,7 +50,9 @@ class TestIsChildSessionViaPlatformJson(unittest.TestCase):
 
     def setUp(self):
         """Import and set up temp dir."""
-        from aind_pophys_converter.utils.platform_utils import is_child_session_via_platform_json
+        from aind_pophys_converter.utils.platform_utils import (
+            is_child_session_via_platform_json,
+        )
 
         self.fn = is_child_session_via_platform_json
         self.tmpdir = tempfile.TemporaryDirectory()
@@ -124,7 +128,9 @@ class TestPairDepthTifsWithAvgDepthPngs(unittest.TestCase):
 
     def setUp(self):
         """Set up temp directories and import."""
-        from aind_pophys_converter.qc import pair_depth_tifs_with_avg_depth_pngs
+        from aind_pophys_converter.qc import (
+            pair_depth_tifs_with_avg_depth_pngs,
+        )
 
         self.fn = pair_depth_tifs_with_avg_depth_pngs
         self.tmpdir = tempfile.TemporaryDirectory()
@@ -142,7 +148,8 @@ class TestPairDepthTifsWithAvgDepthPngs(unittest.TestCase):
     def _write_platform(self, planes):
         fp = self.tmp_path / "platform.json"
         with open(fp, "w") as f:
-            json.dump({"imaging_plane_groups": [{"imaging_planes": planes}]}, f)
+            data = {"imaging_plane_groups": [{"imaging_planes": planes}]}
+            json.dump(data, f)
         return fp
 
     def test_skips_when_no_imaging_planes(self):
@@ -192,7 +199,8 @@ class TestPairDepthTifsWithAvgDepthPngs(unittest.TestCase):
         self.fn(self.pophys_dir, self.avg_dir, fp, self.output_dir)
 
         # Metric written
-        self.assertTrue((self.output_dir / "VISp_200_fov_metric.json").exists())
+        metric_fp = self.output_dir / "VISp_200_fov_metric.json"
+        self.assertTrue(metric_fp.exists())
         # Merged PNG written
         pngs = list(self.output_dir.glob("*_merged.png"))
         self.assertEqual(len(pngs), 1)
