@@ -34,20 +34,10 @@ class TestJobSettings(unittest.TestCase):
         s = self._make_settings()
         self.assertFalse(s.debug)
 
-    def test_default_dump_every(self):
-        """dump_every defaults to 1000."""
-        s = self._make_settings()
-        self.assertEqual(s.dump_every, 1000)
-
     def test_debug_flag(self):
         """debug is set from argv."""
         s = self._make_settings(["--debug", "True"])
         self.assertTrue(s.debug)
-
-    def test_dump_every_override(self):
-        """dump_every is set from argv."""
-        s = self._make_settings(["--dump_every", "500"])
-        self.assertEqual(s.dump_every, 500)
 
     def test_temp_dir_set(self):
         """temp_dir is converted to Path when provided."""

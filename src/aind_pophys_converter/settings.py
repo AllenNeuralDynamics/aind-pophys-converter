@@ -19,8 +19,6 @@ class JobSettings(BaseSettings, cli_parse_args=True):
         Temporary directory for intermediate files.
     debug : bool
         Clip movie to DEBUG_N_FRAMES per plane when True.
-    dump_every : int
-        Frames per plane buffered in memory before flushing to disk.
     """
 
     input_dir: Union[Path, str] = Field(
@@ -36,11 +34,4 @@ class JobSettings(BaseSettings, cli_parse_args=True):
     debug: bool = Field(
         default=False,
         description="clip movie to DEBUG_N_FRAMES per plane when True",
-    )
-    dump_every: int = Field(
-        default=1000,
-        description=(
-            "frames per plane buffered in memory"
-            " before flushing to disk"
-        ),
     )

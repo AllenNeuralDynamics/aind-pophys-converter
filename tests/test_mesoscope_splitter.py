@@ -155,7 +155,6 @@ class TestMesoscopeSplitter(unittest.TestCase):
         job_settings.output_dir = str(output_dir) if str_args else output_dir
         job_settings.temp_dir = str(temp_dir) if str_args else temp_dir
         job_settings.debug = False
-        job_settings.dump_every = 1000
 
         mock_acq = MagicMock()
         with patch(
@@ -228,7 +227,6 @@ class TestMesoscopeSplitter(unittest.TestCase):
             job_settings.output_dir = temp_path / "output"
             job_settings.temp_dir = temp_path / "temp"
             job_settings.debug = False
-            job_settings.dump_every = 1000
 
             # Test missing acquisition.json
             with self.assertRaises(ValueError) as cm:
