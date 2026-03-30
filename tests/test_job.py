@@ -63,6 +63,7 @@ class TestIsChildSessionViaPlatformJson(unittest.TestCase):
         self.tmpdir.cleanup()
 
     def _write_platform(self, data):
+        """Write a platform.json file and return its path."""
         fp = self.tmp_path / "platform.json"
         with open(fp, "w") as f:
             json.dump(data, f)
@@ -146,6 +147,7 @@ class TestPairDepthTifsWithAvgDepthPngs(unittest.TestCase):
         self.tmpdir.cleanup()
 
     def _write_platform(self, planes):
+        """Write a platform.json with imaging planes."""
         fp = self.tmp_path / "platform.json"
         with open(fp, "w") as f:
             data = {"imaging_plane_groups": [{"imaging_planes": planes}]}
@@ -234,6 +236,7 @@ class TestWriteAvgDepthSlices(unittest.TestCase):
         fake_arr = np.zeros((64, 64), dtype=np.float32)
 
         def fake_write(i_roi, z_value, output_path):
+            """Stub that writes a blank TIFF."""
             tifffile.imwrite(output_path, fake_arr)
 
         mock_splitter.write_output_file.side_effect = fake_write
