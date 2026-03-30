@@ -1,9 +1,12 @@
 """Logging configuration"""
 
 import logging
+from typing import Optional
 
 
-def setup_logging(log_file=None, log_level=logging.INFO):
+def setup_logging(
+    log_file: Optional[str] = None, log_level: int = logging.INFO
+) -> None:
     """Create log handler
 
     Parameters

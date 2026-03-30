@@ -11,7 +11,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import h5py as h5
 import numpy as np
@@ -238,8 +238,11 @@ def split_timeseries_tiff(
 
 
 def _initialize_caches(
-    offset_to_path: Dict, fov_shape: tuple, video_dtype, dump_every: int
-):
+    offset_to_path: Dict,
+    fov_shape: Tuple[int, int],
+    video_dtype: np.dtype,
+    dump_every: int,
+) -> Dict[int, np.ndarray]:
     """Initialize caches for all offsets."""
     offset_to_cache = dict()
     for offset in offset_to_path:
@@ -251,7 +254,9 @@ def _initialize_caches(
     return offset_to_cache
 
 
-def _log_progress(logger, message: str, t0: float, page_ct: int):
+def _log_progress(
+    logger: Optional[Any], message: str, t0: float, page_ct: int
+) -> None:
     """Log progress with timing information."""
     if logger is not None:
         duration = time.time() - t0
@@ -265,7 +270,7 @@ def _finalize_output_files(
     metadata: Optional[dict],
     logger: Optional[callable],
     t0: float,
-):
+) -> None:
     """Write final output files from temporary caches."""
     for offset in offset_to_tmp_files:
         _gather_timeseries_caches(
@@ -644,7 +649,7 @@ class TiffSplitterBase(IntFromZMapperMixin):
         Path to the TIFF file whose metadata we are parsing
     """
 
-    def __init__(self, tiff_path: Path):
+    def __init__(self, tiff_path: Path) -> None:
         """Initialize the TiffSplitterBase with a path to a TIFF file."""
         self._file_path = tiff_path
         self._metadata = ScanImageMetadata(tiff_path=tiff_path)
@@ -654,13 +659,13 @@ class TiffSplitterBase(IntFromZMapperMixin):
         self._frame_shape = dict()
 
     @property
-    def raw_metadata(self):
+    def raw_metadata(self) -> tuple:
         """
         The ScanImage metadata as a dict
         """
         return self._metadata.raw_metadata
 
-    def _validate_channel_save(self):
+    def _validate_channel_save(self) -> None:
         """Validate that channelSave is in expected format."""
         if self._metadata.channelSave not in (1, [1, 2]):
             raise RuntimeError(
@@ -668,7 +673,7 @@ class TiffSplitterBase(IntFromZMapperMixin):
                 f"{self._metadata.channelSave}\n{self._file_path}"
             )
 
-    def _process_z_value_array(self):
+    def _process_z_value_array(self) -> np.ndarray:
         """Process and validate the z value array."""
         z_value_array = self._metadata.all_zs()
 
@@ -684,7 +689,9 @@ class TiffSplitterBase(IntFromZMapperMixin):
 
         return z_value_array
 
-    def _filter_z_values_for_single_channel(self, z_value_array):
+    def _filter_z_values_for_single_channel(
+        self, z_value_array: np.ndarray
+    ) -> np.ndarray:
         """Filter z values for single channel case."""
         if isinstance(self._metadata.channelSave, int):
             if self._metadata.channelSave != 1:
@@ -705,7 +712,7 @@ class TiffSplitterBase(IntFromZMapperMixin):
             self._validate_dual_channel()
             return z_value_array
 
-    def _validate_dual_channel(self):
+    def _validate_dual_channel(self) -> None:
         """Validate dual channel configuration."""
         valid_channel = isinstance(self._metadata.channelSave, list)
         if valid_channel:
@@ -717,7 +724,9 @@ class TiffSplitterBase(IntFromZMapperMixin):
                 f"{self._metadata.channelSave}\n{self._file_path}"
             )
 
-    def _validate_roi_z_duplicates(self, defined_rois):
+    def _validate_roi_z_duplicates(
+        self, defined_rois: List[dict]
+    ) -> Tuple[List[Set[int]], str]:
         """Check for duplicate z values within ROIs."""
         z_int_per_roi = []
         msg = ""
@@ -737,7 +746,11 @@ class TiffSplitterBase(IntFromZMapperMixin):
 
         return z_int_per_roi, msg
 
-    def _validate_roi_z_order(self, z_value_array, z_int_per_roi):
+    def _validate_roi_z_order(
+        self,
+        z_value_array: np.ndarray,
+        z_int_per_roi: List[Set[int]],
+    ) -> str:
         """Validate that z values occur in ROI order."""
         msg = ""
         n_roi = len(z_int_per_roi)
@@ -767,7 +780,7 @@ class TiffSplitterBase(IntFromZMapperMixin):
 
         return msg
 
-    def _raise_validation_error(self, msg):
+    def _raise_validation_error(self, msg: str) -> None:
         """Raise a detailed validation error."""
         full_msg = "Unclear how to split this TIFF\n"
         full_msg += f"{self._file_path.resolve().absolute()}\n"
@@ -777,7 +790,7 @@ class TiffSplitterBase(IntFromZMapperMixin):
             full_msg += f"zs: {roi['zs']}\n"
         raise RuntimeError(full_msg)
 
-    def _validate_z_stack(self):
+    def _validate_z_stack(self) -> None:
         """
         Make sure that the zsAllActuators are arranged the
         way we expect, i.e.
@@ -811,7 +824,7 @@ class TiffSplitterBase(IntFromZMapperMixin):
         if len(msg) > 0:
             self._raise_validation_error(msg)
 
-    def _get_z_manifest(self):
+    def _get_z_manifest(self) -> None:
         """
         Populate various member objects that help us keep
         track of what z values go with what ROIs in this TIFF
@@ -968,7 +981,7 @@ class AvgImageTiffSplitter(TiffSplitterBase):
     """A class to split a timeseries TIFF file into"""
 
     @property
-    def n_pages(self):
+    def n_pages(self) -> int:
         """
         The number of pages in this TIFF
         """
@@ -1186,7 +1199,7 @@ class TimeSeriesSplitter(TiffSplitterBase):
 
     def _create_offset_to_path_map(
         self, output_path_map: Dict[Tuple[int, float], Path]
-    ) -> Dict:
+    ) -> Dict[int, Path]:
         """Create offset to path mapping with validation
         for duplicate offsets.
         """
@@ -1281,7 +1294,7 @@ class ZStackSplitter(IntFromZMapperMixin):
         associated with this OPhys session.
     """
 
-    def __init__(self, tiff_path_list: List[Path]):
+    def __init__(self, tiff_path_list: List[Path]) -> None:
         """
         Initialize the ZStackSplitter with a list of paths to
         _local_z_stack.tiff files.
@@ -1583,14 +1596,14 @@ class TiffSplitterCLI:
     """A command line interface for splitting TIFF files"""
 
     @staticmethod
-    def str2bool(v):
+    def str2bool(v: str) -> bool:
         """Convert a string to a boolean value."""
         if v.lower() in ("yes", "true", "t", "y", "1"):
             return True
         else:
             return False
 
-    def __init__(self, job_settings: JobSettings):
+    def __init__(self, job_settings: JobSettings) -> None:
         """Initialize the TiffSplitterCLI with job settings."""
         self.input_dir = job_settings.input_dir
         if isinstance(self.input_dir, str):
@@ -1628,7 +1641,16 @@ class TiffSplitterCLI:
         self.debug = job_settings.debug
         self.dump_every = job_settings.dump_every
 
-    def _initialize_splitters(self) -> Tuple:
+    def _initialize_splitters(
+        self,
+    ) -> Tuple[
+        "TimeSeriesSplitter",
+        "AvgImageTiffSplitter",
+        "AvgImageTiffSplitter",
+        "ZStackSplitter",
+        List[Path],
+        List[Path],
+    ]:
         """Initialize all the splitters needed for processing."""
         files_to_record = []
 
@@ -1668,7 +1690,9 @@ class TiffSplitterCLI:
             msg += "the TIFF splitting code no longer handles that file."
             logging.warning(msg)
 
-    def _create_experiment_metadata(self, plane) -> (dict, str):
+    def _create_experiment_metadata(
+        self, plane: Any
+    ) -> Tuple[dict, str]:
         """Create experiment metadata structure for a given imaging plane.
 
         Parameters
@@ -1695,7 +1719,7 @@ class TiffSplitterCLI:
 
         return this_exp_metadata, fov_id
 
-    def _get_imaging_planes(self) -> List:
+    def _get_imaging_planes(self) -> List[Any]:
         """Extract all imaging planes from the acquisition, sorted by plane_index.
 
         Returns
@@ -1715,13 +1739,13 @@ class TiffSplitterCLI:
 
     def _process_single_fov(
         self,
-        plane,
+        plane: Any,
         roi_index: int,
         z_value: float,
-        depth_splitter,
-        surface_splitter,
-        zstack_splitter,
-        valid_roi_centers: List,
+        depth_splitter: "AvgImageTiffSplitter",
+        surface_splitter: "AvgImageTiffSplitter",
+        zstack_splitter: "ZStackSplitter",
+        valid_roi_centers: List[Tuple[float, float]],
         t0: float,
     ) -> dict:
         """Process a single imaging plane and return its metadata."""
@@ -1784,11 +1808,11 @@ class TiffSplitterCLI:
     def _raise_roi_center_error(
         self,
         fov_id: str,
-        splitter,
+        splitter: Union["TiffSplitterBase", "ZStackSplitter"],
         output_path: Path,
-        baseline_center,
-        roi_center,
-    ):
+        baseline_center: int,
+        roi_center: Tuple[float, float],
+    ) -> None:
         """Raise an error when ROI centers are inconsistent."""
         msg = f"experiment {fov_id}\n"
         msg += "roi center inconsistent for "
@@ -1802,7 +1826,7 @@ class TiffSplitterCLI:
         metadata: dict,
         metadata_tag: str,
         output_path: Path,
-        splitter,
+        splitter: Union["TiffSplitterBase", "ZStackSplitter"],
         roi_index: int,
         z_value: float,
     ) -> None:
@@ -1815,8 +1839,10 @@ class TiffSplitterCLI:
         metadata[metadata_tag]["width"] = frame_shape[1]
 
     def _process_timeseries_data(
-        self, timeseries_splitter, experiment_metadata: List[dict]
-    ) -> Dict:
+        self,
+        timeseries_splitter: "TimeSeriesSplitter",
+        experiment_metadata: List[dict],
+    ) -> Dict[Tuple[int, float], Path]:
         """Process timeseries data and return output path lookup."""
         output_path_lookup = {}
 
@@ -1885,7 +1911,7 @@ class TiffSplitterCLI:
             file_metadata.append(this_metadata)
         return file_metadata
 
-    def run_job(self):
+    def run_job(self) -> None:
         """Run the job to split TIFF files."""
         t0 = time.time()
         output = {"column_stacks": []}
@@ -1964,12 +1990,12 @@ class TiffSplitterCLI:
         logging.info(f"that took {duration:.2e} seconds")
 
 
-def from_args(args: list):
+def from_args(args: List[str]) -> JobSettings:
     """
     Adds ability to construct settings from a list of arguments.
     Parameters
     ----------
-    args : list
+    args : List[str]
     A list of command line arguments to parse.
     """
 

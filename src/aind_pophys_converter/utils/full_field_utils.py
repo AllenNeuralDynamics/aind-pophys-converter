@@ -19,7 +19,7 @@ def write_out_stitched_full_field_image(
     path_to_avg_tiff: Path,
     path_to_full_field_tiff: Path,
     output_path: Path,
-):
+) -> None:
     """
     Write out the stitched full field image with
     and without ROIs to an HDF5 file
@@ -214,7 +214,7 @@ def stitch_full_field_tiff(tiff_path: pathlib.Path) -> np.ndarray:
 def _insert_rois_into_surface_img(
     full_field_img: np.ndarray,
     full_field_metadata: ScanImageMetadata,
-    avg_image_splitter,
+    avg_image_splitter: "AvgImageTiffSplitter",
 ) -> np.ndarray:
     """
     Insert thumbnails from avg_image_splitter into a stitched

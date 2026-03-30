@@ -8,7 +8,7 @@ import sys
 from collections import defaultdict
 from datetime import datetime as dt
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 
 import dateutil
 import h5py as h5
@@ -39,7 +39,7 @@ class BergamoSettings(BaseModel):
 
 class BaseStitcher:
     """Base class for stitching TIFF files into a single HDF5 file"""
-    def __init__(self, bergamo_settings: BergamoSettings):
+    def __init__(self, bergamo_settings: BergamoSettings) -> None:
         """Initialize the stitcher with settings"""
         self.input_dir = bergamo_settings.input_dir
         self.output_dir = bergamo_settings.output_dir
@@ -78,7 +78,7 @@ class BaseStitcher:
         self,
         output_filepath: Path,
         **kwargs: dict,
-    ):
+    ) -> None:
         """Writes the final output to disk along with the metadata.
         Clears the temporary
         hdf5 data file
@@ -116,7 +116,7 @@ class BaseStitcher:
 
 class BergamoTiffStitcher(BaseStitcher):
     """Class to stitch together TIFF files from a Bergamo session"""
-    def __init__(self, bergamo_settings: BergamoSettings):
+    def __init__(self, bergamo_settings: BergamoSettings) -> None:
         """Initialize the BergamoTiffStitcher with settings"""
         super().__init__(bergamo_settings)
 
@@ -178,7 +178,7 @@ class BergamoTiffStitcher(BaseStitcher):
             }
         return epochs
 
-    def _get_image_dim(self) -> tuple:
+    def _get_image_dim(self) -> Tuple[int, ...]:
         """Grab image shape from metdata"""
         file_path = next(self.input_dir.glob("*.tif"))
         with ScanImageTiffReader(str(file_path)) as reader:
@@ -292,7 +292,7 @@ class BergamoTiffStitcher(BaseStitcher):
         return output_filepath
 
     @classmethod
-    def from_args(cls, args: list):
+    def from_args(cls, args: List[str]) -> "BergamoTiffStitcher":
         """
         Adds ability to construct settings from a list of arguments.
         Parameters
