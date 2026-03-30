@@ -14,7 +14,7 @@ class TestAddBorderAndLabel(unittest.TestCase):
 
     def setUp(self):
         """Import here to avoid top-level side effects."""
-        from aind_pophys_converter.job import add_border_and_label
+        from aind_pophys_converter.utils.image_utils import add_border_and_label
 
         self.fn = add_border_and_label
 
@@ -48,7 +48,7 @@ class TestIsChildSessionViaPlatformJson(unittest.TestCase):
 
     def setUp(self):
         """Import and set up temp dir."""
-        from aind_pophys_converter.job import is_child_session_via_platform_json
+        from aind_pophys_converter.utils.platform_utils import is_child_session_via_platform_json
 
         self.fn = is_child_session_via_platform_json
         self.tmpdir = tempfile.TemporaryDirectory()
@@ -85,7 +85,7 @@ class TestCreateVasculature(unittest.TestCase):
 
     def setUp(self):
         """Set up temp directories."""
-        from aind_pophys_converter.job import create_vasculature
+        from aind_pophys_converter.qc import create_vasculature
 
         self.fn = create_vasculature
         self.tmpdir = tempfile.TemporaryDirectory()
@@ -124,7 +124,7 @@ class TestPairDepthTifsWithAvgDepthPngs(unittest.TestCase):
 
     def setUp(self):
         """Set up temp directories and import."""
-        from aind_pophys_converter.job import pair_depth_tifs_with_avg_depth_pngs
+        from aind_pophys_converter.qc import pair_depth_tifs_with_avg_depth_pngs
 
         self.fn = pair_depth_tifs_with_avg_depth_pngs
         self.tmpdir = tempfile.TemporaryDirectory()
@@ -205,7 +205,7 @@ class TestWriteAvgDepthSlices(unittest.TestCase):
 
     def setUp(self):
         """Set up temp dir."""
-        from aind_pophys_converter.job import write_avg_depth_slices
+        from aind_pophys_converter.qc import write_avg_depth_slices
 
         self.fn = write_avg_depth_slices
         self.tmpdir = tempfile.TemporaryDirectory()
