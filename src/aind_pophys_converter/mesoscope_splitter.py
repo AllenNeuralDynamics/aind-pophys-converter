@@ -16,7 +16,11 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union
 import h5py as h5
 import numpy as np
 import tifffile
-from aind_data_schema.components.configs import ImagingConfig, PlanarImage
+from aind_data_schema.components.configs import (
+    CoupledPlane,
+    ImagingConfig,
+    PlanarImage,
+)
 from aind_data_schema.core.acquisition import Acquisition
 from aind_ophys_utils.array_utils import normalize_array
 from aind_pophys_converter.settings import JobSettings
@@ -1690,7 +1694,7 @@ class TiffSplitterCLI:
             logging.warning(msg)
 
     def _create_experiment_metadata(
-        self, plane: Any
+        self, plane: CoupledPlane
     ) -> Tuple[dict, str]:
         """Create experiment metadata structure for a given imaging plane.
 
@@ -1718,7 +1722,9 @@ class TiffSplitterCLI:
 
         return this_exp_metadata, fov_id
 
-    def _get_imaging_planes(self) -> List[Any]:
+    def _get_imaging_planes(
+        self,
+    ) -> List[CoupledPlane]:
         """Extract all imaging planes from the acquisition, sorted by plane_index.
 
         Returns
@@ -1738,7 +1744,7 @@ class TiffSplitterCLI:
 
     def _process_single_fov(
         self,
-        plane: Any,
+        plane: CoupledPlane,
         roi_index: int,
         z_value: float,
         depth_splitter: "AvgImageTiffSplitter",
