@@ -99,21 +99,24 @@ def get_imaging_planes(acquisition: Acquisition) -> list:
 
 
 def get_fov_id(plane: CoupledPlane) -> str:
-    """Return the FOV identifier string for a CoupledPlane.
+    """Return the FOV identifier string for an imaging plane.
 
     Format: ``"{targeted_structure_acronym}_{plane_index}"``.
+    For single-plane instruments (e.g. Bergamo) that use plain ``Plane``
+    objects without a ``plane_index`` attribute, the index defaults to 0.
 
     Parameters
     ----------
     plane : CoupledPlane
-        Mesoscope imaging plane with plane_index and targeted_structure.
+        Imaging plane with targeted_structure; plane_index is optional.
 
     Returns
     -------
     str
-        FOV identifier string.
+        FOV identifier string, e.g. ``"MO_0"`` or ``"VISp_3"``.
     """
-    return f"{plane.targeted_structure.acronym}_{plane.plane_index}"
+    plane_index = getattr(plane, "plane_index", 0)
+    return f"{plane.targeted_structure.acronym}_{plane_index}"
 
 
 # ---------------------------------------------------------------------------

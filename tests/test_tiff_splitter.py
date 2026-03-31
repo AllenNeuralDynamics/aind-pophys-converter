@@ -504,6 +504,95 @@ class TestTiffSplitter(unittest.TestCase):
             splitter.write_output_files(output_path_map=output_path_map)
         self.assertIn("says it contains", str(cm.exception))
 
+    def test_z_stack_splitter(self):
+        """Test the ZStackSplitter with various parameters."""
+        param_list = [
+            (list(range(8)), True),
+            (list(range(8)), True),
+            (list(range(6)), True),
+            ((0, 2, 3, 5, 7, 4, 6, 11), True),
+            ((0, 2, 3, 5, 7, 4, 6, 11), True),
+            ((0, 2, 3, 5, 7, 4, 6, 5), True),
+            ((0, 2, 3, 5, 7, 4, 6, 5), True),
+            ((0, 4, 5, 2, 8, 7), True),
+            (list(range(8)), False),
+            (list(range(8)), False),
+            (list(range(6)), False),
+            ((0, 2, 3, 5, 7, 4, 6, 11), False),
+            ((0, 2, 3, 5, 7, 4, 6, 11), False),
+            ((0, 2, 3, 5, 7, 4, 6, 5), False),
+            ((0, 2, 3, 5, 7, 4, 6, 5), False),
+            ((0, 4, 5, 2, 8, 7), False),
+        ]
+        import tempfile
+
+        for z_value_list, use_zs in param_list:
+            with self.subTest(z_value_list=z_value_list, use_zs=use_zs):
+                tmpdir = pathlib.Path(tempfile.mkdtemp(prefix="z_stack_test"))
+                n_z_per_roi = 2  # a requirement of the z-stacks
+                n_rois = len(z_value_list) // n_z_per_roi
+                roi_to_z_mapping = []
+                for i_roi in range(n_rois):
+                    i0 = i_roi * n_z_per_roi
+                    i1 = i0 + n_z_per_roi
+                    these_zs = z_value_list[i0:i1]
+                    roi_to_z_mapping.append(these_zs)
+                dataset = _create_z_stack_tiffs(
+                    tmpdir=tmpdir,
+                    roi_to_z_mapping=roi_to_z_mapping,
+                    use_zs=use_zs,
+                )
+                z_stack_path_to_metadata = dataset[0]
+                tiff_pages_lookup = dataset[1]
+                tiff_path_lookup = dataset[2]
+
+                def mock_read_metadata(tiff_path):
+                    """Mock function to return metadata for a TIFF path."""
+                    str_path = str(tiff_path.resolve().absolute())
+                    return z_stack_path_to_metadata[str_path]
+
+                to_replace = (
+                    "aind_pophys_converter.utils.tiff_metadata._read_metadata"
+                )
+                with patch(to_replace, new=mock_read_metadata):
+                    z_stack_path_list = [
+                        pathlib.Path(k) for k in z_stack_path_to_metadata
+                    ]
+                    splitter = ZStackSplitter(tiff_path_list=z_stack_path_list)
+                for i_roi in range(n_rois):
+                    for z_value in roi_to_z_mapping[i_roi]:
+                        expected_metadata = mock_read_metadata(
+                            pathlib.Path(tiff_path_lookup[(i_roi, z_value)])
+                        )
+                        actual = splitter._get_pages(
+                            i_roi=i_roi, z_value=z_value
+                        )
+                        expected = np.stack(
+                            tiff_pages_lookup[(i_roi, z_value)]
+                        )
+                        np.testing.assert_array_equal(actual, expected)
+                        tmp_h5 = mkstemp_clean(dir=tmpdir, suffix=".h5")
+                        tmp_h5 = pathlib.Path(tmp_h5)
+                        splitter.write_output_file(
+                            i_roi=i_roi, z_value=z_value, output_path=tmp_h5
+                        )
+                        with h5py.File(tmp_h5, "r") as in_file:
+                            actual_metadata = json.loads(
+                                in_file["scanimage_metadata"][()].decode(
+                                    "utf-8"
+                                )
+                            )
+                            self.assertEqual(
+                                actual_metadata, expected_metadata
+                            )
+                            actual = in_file["data"][()]
+                        np.testing.assert_array_equal(actual, expected)
+                        if tmp_h5.is_file():
+                            tmp_h5.unlink()
+                for z_stack_path in z_stack_path_list:
+                    if z_stack_path.is_file():
+                        z_stack_path.unlink()
+
 
 def _create_roi_metadata(n_rois):
     """Create the main ROI metadata structure."""
@@ -638,88 +727,6 @@ def _create_z_stack_tiffs(
         )
 
     return (z_stack_path_to_metadata, tiff_pages_lookup, tiff_path_lookup)
-
-
-def test_z_stack_splitter(self):
-    """Test the ZStackSplitter with various parameters."""
-    param_list = [
-        (list(range(8)), True),
-        (list(range(8)), True),
-        (list(range(6)), True),
-        ((0, 2, 3, 5, 7, 4, 6, 11), True),
-        ((0, 2, 3, 5, 7, 4, 6, 11), True),
-        ((0, 2, 3, 5, 7, 4, 6, 5), True),
-        ((0, 2, 3, 5, 7, 4, 6, 5), True),
-        ((0, 4, 5, 2, 8, 7), True),
-        (list(range(8)), False),
-        (list(range(8)), False),
-        (list(range(6)), False),
-        ((0, 2, 3, 5, 7, 4, 6, 11), False),
-        ((0, 2, 3, 5, 7, 4, 6, 11), False),
-        ((0, 2, 3, 5, 7, 4, 6, 5), False),
-        ((0, 2, 3, 5, 7, 4, 6, 5), False),
-        ((0, 4, 5, 2, 8, 7), False),
-    ]
-    import tempfile
-
-    for z_value_list, use_zs in param_list:
-        with self.subTest(z_value_list=z_value_list, use_zs=use_zs):
-            tmpdir = pathlib.Path(tempfile.mkdtemp(prefix="z_stack_test"))
-            n_z_per_roi = 2  # a requirement of the z-stacks
-            n_rois = len(z_value_list) // n_z_per_roi
-            roi_to_z_mapping = []
-            for i_roi in range(n_rois):
-                i0 = i_roi * n_z_per_roi
-                i1 = i0 + n_z_per_roi
-                these_zs = z_value_list[i0:i1]
-                roi_to_z_mapping.append(these_zs)
-            dataset = _create_z_stack_tiffs(
-                tmpdir=tmpdir,
-                roi_to_z_mapping=roi_to_z_mapping,
-                use_zs=use_zs,
-            )
-            z_stack_path_to_metadata = dataset[0]
-            tiff_pages_lookup = dataset[1]
-            tiff_path_lookup = dataset[2]
-
-            def mock_read_metadata(tiff_path):
-                """Mock function to return metadata for a TIFF path."""
-                str_path = str(tiff_path.resolve().absolute())
-                return z_stack_path_to_metadata[str_path]
-
-            to_replace = (
-                "aind_pophys_converter.utils.tiff_metadata._read_metadata"
-            )
-            with patch(to_replace, new=mock_read_metadata):
-                z_stack_path_list = [
-                    pathlib.Path(k) for k in z_stack_path_to_metadata
-                ]
-                splitter = ZStackSplitter(tiff_path_list=z_stack_path_list)
-            for i_roi in range(n_rois):
-                for z_value in roi_to_z_mapping[i_roi]:
-                    expected_metadata = mock_read_metadata(
-                        pathlib.Path(tiff_path_lookup[(i_roi, z_value)])
-                    )
-                    actual = splitter._get_pages(i_roi=i_roi, z_value=z_value)
-                    expected = np.stack(tiff_pages_lookup[(i_roi, z_value)])
-                    np.testing.assert_array_equal(actual, expected)
-                    tmp_h5 = mkstemp_clean(dir=tmpdir, suffix=".h5")
-                    tmp_h5 = pathlib.Path(tmp_h5)
-                    splitter.write_output_file(
-                        i_roi=i_roi, z_value=z_value, output_path=tmp_h5
-                    )
-                    with h5py.File(tmp_h5, "r") as in_file:
-                        actual_metadata = json.loads(
-                            in_file["scanimage_metadata"][()].decode("utf-8")
-                        )
-                        self.assertEqual(actual_metadata, expected_metadata)
-                        actual = in_file["data"][()]
-                    np.testing.assert_array_equal(actual, expected)
-                    if tmp_h5.is_file():
-                        tmp_h5.unlink()
-            for z_stack_path in z_stack_path_list:
-                if z_stack_path.is_file():
-                    z_stack_path.unlink()
 
 
 if __name__ == "__main__":

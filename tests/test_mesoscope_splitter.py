@@ -16,7 +16,6 @@ import tempfile
 import unittest
 from itertools import product
 from pathlib import Path
-from unittest.mock import Mock
 
 from aind_pophys_converter.mesoscope_splitter import (
     TiffSplitterCLI,
@@ -264,9 +263,11 @@ class TestMesoscopeSplitter(unittest.TestCase):
                 )
 
     def test_split_timeseries_tiff_logger_messages(self):
-        """Test that split_timeseries_tiff calls logger with
-        proper messages.
+        """Test that split_timeseries_tiff emits log records via the
+        module-level logger.
         """
+        import logging
+
         from aind_pophys_converter.tiff_splitters import (
             split_timeseries_tiff,
         )
@@ -275,34 +276,25 @@ class TestMesoscopeSplitter(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
 
-            # Create a tiny mock TIFF file
             tiff_path = temp_path / "test.tif"
-            tiff_path.touch()  # Create empty file for now
+            tiff_path.touch()
 
-            # Create output paths
             output_path = temp_path / "output.h5"
             offset_to_path = {0: output_path}
 
-            # Mock logger
-            mock_logger = Mock()
-
-            # Try to test the logger calls - this will likely fail due to
-            # TIFF format issues
-            # but should at least test the logger path
-            try:
-                split_timeseries_tiff(
-                    tiff_path=tiff_path,
-                    offset_to_path=offset_to_path,
-                    logger=mock_logger,
-                    dump_every=10,
-                )
-            except Exception:
-                # Expected to fail due to invalid TIFF, but we should have
-                # captured some logger calls
-                pass
-
-            # Verify logger.info was called (at minimum for the start message)
-            mock_logger.info.assert_called()
+            with self.assertLogs(
+                "aind_pophys_converter.tiff_splitters", level=logging.INFO
+            ):
+                try:
+                    split_timeseries_tiff(
+                        tiff_path=tiff_path,
+                        offset_to_path=offset_to_path,
+                        dump_every=10,
+                    )
+                except Exception:
+                    # Expected to fail on an invalid TIFF; the start-message
+                    # log is emitted before the failure, so assertLogs passes.
+                    pass
 
     def test_avg_image_tiff_splitter_properties(self):
         """Test AvgImageTiffSplitter properties work correctly."""

@@ -99,7 +99,7 @@ def write_avg_depth_slices(splitter, output_dir: Path) -> None:
             )
             img_array = tifffile.imread(tmp_path)
         tifffile.imwrite(tif_path, img_array.astype(np.float32))
-        print(f"Saved TIF: {tif_path}")
+        logging.info(f"Saved TIF: {tif_path}")
 
 
 def pair_depth_tifs_with_avg_depth_pngs(
@@ -141,7 +141,7 @@ def pair_depth_tifs_with_avg_depth_pngs(
     ]
 
     if not imaging_planes:
-        print(
+        logging.info(
             "No imaging planes found in platform.json;"
             " skipping depth pairing."
         )
@@ -151,7 +151,7 @@ def pair_depth_tifs_with_avg_depth_pngs(
     z_to_tif = {abs(float(p.stem)): p for p in child_tifs}
 
     if not z_to_tif:
-        print("No averaged-depth TIFs found; skipping depth pairing.")
+        logging.info("No averaged-depth TIFs found; skipping depth pairing.")
         return
 
     for plane in imaging_planes:
@@ -165,15 +165,15 @@ def pair_depth_tifs_with_avg_depth_pngs(
             )
         )
         if len(parent_tifs) == 0:
-            print(
-                f"WARNING: No parent TIF found for "
+            logging.warning(
+                f"No parent TIF found for "
                 f"intended_depth={intended_depth}, "
                 f"targeted_structure_id={targeted_structure_id}; skipping."
             )
             continue
         if len(parent_tifs) > 1:
-            print(
-                f"WARNING: Multiple parent TIFs found for "
+            logging.warning(
+                f"Multiple parent TIFs found for "
                 f"intended_depth={intended_depth}, "
                 f"targeted_structure_id={targeted_structure_id}; "
                 f"using first: {parent_tifs[0].name}"
@@ -203,12 +203,12 @@ def pair_depth_tifs_with_avg_depth_pngs(
         p_hi = np.percentile(parent_array, 95)
         c_lo = np.percentile(child_array, 5)
         c_hi = np.percentile(child_array, 95)
-        print(
-            f"  Parent normalization: p5={p_lo:.1f}, p95={p_hi:.1f}"
+        logging.info(
+            f"Parent normalization: p5={p_lo:.1f}, p95={p_hi:.1f}"
             f" (dtype={parent_array.dtype})"
         )
-        print(
-            f"  Child  normalization: p5={c_lo:.1f}, p95={c_hi:.1f}"
+        logging.info(
+            f"Child  normalization: p5={c_lo:.1f}, p95={c_hi:.1f}"
             f" (dtype={child_array.dtype})"
         )
 
@@ -225,13 +225,17 @@ def pair_depth_tifs_with_avg_depth_pngs(
 
         merged_path = output_dir / f"{raw_tif_path.stem}_merged.png"
         merged.save(merged_path)
-        print(f"Saved merged image for {raw_tif_path.name} -> {merged_path}")
+        logging.info(
+            f"Saved merged image for {raw_tif_path.name} -> {merged_path}"
+        )
 
         try:
             child_tif_path.unlink()
-            print(f"Deleted original averaged TIF -> {child_tif_path}")
+            logging.info(
+                f"Deleted original averaged TIF -> {child_tif_path}"
+            )
         except Exception as e:
-            print(f"Failed to delete {child_tif_path}: {e}")
+            logging.warning(f"Failed to delete {child_tif_path}: {e}")
 
         unique_id = f"{targeted_structure_id}_{intended_depth}"
         write_fov_metric(

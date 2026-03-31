@@ -8,12 +8,13 @@ helper functions used by TimeSeriesSplitter.
 
 import datetime
 import json
+import logging
 import os
 import shutil
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Dict, List, Optional, Set, Tuple, Union
 
 import h5py as h5
 import numpy as np
@@ -21,6 +22,8 @@ import tifffile
 from aind_ophys_utils.array_utils import normalize_array
 
 from aind_pophys_converter.utils.tiff_metadata import ScanImageMetadata
+
+logger = logging.getLogger(__name__)
 
 # Number of frames per plane written when debug=True
 DEBUG_N_FRAMES = 100
@@ -131,7 +134,6 @@ def split_timeseries_tiff(
     offset_to_path: Dict,
     tmp_dir: Optional[Path] = None,
     dump_every: int = 1000,
-    logger: Optional[callable] = None,
     metadata: Optional[dict] = None,
     debug: Optional[bool] = False,
 ) -> None:
@@ -161,9 +163,6 @@ def split_timeseries_tiff(
     dump_every: int
         Write frames to the temporary files every dump_every
         frames per movie.
-
-    logger: Optional[callable]
-        Log statements will be written to logger.info()
 
     metadata: Optional[dict]
         The metadata read by tifffile.read_scanimage_metadata.
@@ -200,7 +199,6 @@ def split_timeseries_tiff(
             offset_to_tmp_files=offset_to_tmp_files,
             offset_to_tmp_dir=offset_to_tmp_dir,
             dump_every=dump_every,
-            logger=logger,
             metadata=metadata,
             debug=debug,
         )
@@ -225,21 +223,18 @@ def _initialize_caches(
     return offset_to_cache
 
 
-def _log_progress(
-    logger: Optional[Any], message: str, t0: float, page_ct: int
-) -> None:
+def _log_progress(message: str, t0: float, page_ct: int) -> None:
     """Log progress with timing information."""
-    if logger is not None:
-        duration = time.time() - t0
-        full_msg = f"{message} {page_ct} TIFF pages in {duration:.2e} seconds"
-        logger.info(full_msg)
+    duration = time.time() - t0
+    logger.info(
+        f"{message} {page_ct} TIFF pages in {duration:.2e} seconds"
+    )
 
 
 def _finalize_output_files(
     offset_to_tmp_files: Dict,
     offset_to_path: Dict,
     metadata: Optional[dict],
-    logger: Optional[callable],
     t0: float,
 ) -> None:
     """Write final output files from temporary caches."""
@@ -249,11 +244,10 @@ def _finalize_output_files(
             final_output_path=offset_to_path[offset],
             metadata=metadata,
         )
-        if logger is not None:
-            duration = time.time() - t0
-            msg = f"Wrote {offset_to_path[offset]} after "
-            msg += f"{duration:.2e} seconds"
-            logger.info(msg)
+        duration = time.time() - t0
+        logger.info(
+            f"Wrote {offset_to_path[offset]} after {duration:.2e} seconds"
+        )
 
 
 def _split_timeseries_tiff(
@@ -262,7 +256,6 @@ def _split_timeseries_tiff(
     offset_to_tmp_files: Dict,
     offset_to_tmp_dir: Dict,
     dump_every: int = 1000,
-    logger: Optional[callable] = None,
     metadata: Optional[dict] = None,
     debug: Optional[bool] = False,
 ) -> None:
@@ -290,9 +283,6 @@ def _split_timeseries_tiff(
     dump_every: int
         Write to the temporary files every dump_every frames
 
-    logger: Optional[callable]
-        Log statements will be written to logger.info()
-
     metadata: Optional[dict]
         The metadata read by tifffile.read_scanimage_metadata.
         If not None, will be serialized and stored as a bytestring
@@ -307,8 +297,7 @@ def _split_timeseries_tiff(
         Timeseries data is written to the paths specified in
         offset_to_path
     """
-    if logger is not None:
-        logger.info(f"Splitting {tiff_path}")
+    logger.info(f"Splitting {tiff_path}")
 
     max_offset = max(list(offset_to_path.keys()))
     fov_shape = None
@@ -323,7 +312,7 @@ def _split_timeseries_tiff(
         cache_ct = 0
 
         if debug:
-            print(
+            logger.debug(
                 f"Debug mode active: clipping timeseries to "
                 f"{DEBUG_N_FRAMES} frames per plane."
             )
@@ -356,7 +345,7 @@ def _split_timeseries_tiff(
                         offset_to_tmp_dir=offset_to_tmp_dir,
                     )
                     cache_ct = 0
-                    _log_progress(logger, "Iterated through", t0, page_ct)
+                    _log_progress("Iterated through", t0, page_ct)
 
             # Now safely store the data
             offset_to_cache[current_offset][cache_ct, :, :] = arr
@@ -370,17 +359,15 @@ def _split_timeseries_tiff(
         offset_to_tmp_dir=offset_to_tmp_dir,
     )
 
-    _log_progress(logger, "Iterated through all", t0, page_ct)
+    _log_progress("Iterated through all", t0, page_ct)
 
     # Write final output files
     _finalize_output_files(
-        offset_to_tmp_files, offset_to_path, metadata, logger, t0
+        offset_to_tmp_files, offset_to_path, metadata, t0
     )
 
-    if logger is not None:
-        duration = time.time() - t0
-        msg = f"Split {tiff_path} in {duration:.2e} seconds"
-        logger.info(msg)
+    duration = time.time() - t0
+    logger.info(f"Split {tiff_path} in {duration:.2e} seconds")
 
 
 def _gather_timeseries_caches(
@@ -1192,7 +1179,6 @@ class TimeSeriesSplitter(TiffSplitterBase):
         output_path_map: Dict[Tuple[int, float], Path],
         tmp_dir: Optional[Path] = None,
         dump_every: int = 1000,
-        logger: Optional[callable] = None,
         debug: Optional[bool] = False,
     ) -> None:
         """
@@ -1212,9 +1198,8 @@ class TimeSeriesSplitter(TiffSplitterBase):
             Number of frames to store in each temprorary file
             (see Notes)
 
-        logger: Optional[callable]
-            Logger which will be invoked with logger.INFO
-            by worker methods
+        debug: Optional[bool]
+            If True, stop after DEBUG_N_FRAMES frames per plane.
 
         Returns
         -------
@@ -1245,7 +1230,6 @@ class TimeSeriesSplitter(TiffSplitterBase):
             tmp_dir=tmp_dir,
             offset_to_path=offset_to_path,
             dump_every=dump_every,
-            logger=logger,
             metadata=self.raw_metadata,
             debug=debug,
         )

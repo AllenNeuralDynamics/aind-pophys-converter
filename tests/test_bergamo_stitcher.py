@@ -23,7 +23,6 @@ def _make_settings(input_dir, output_dir, acquisition_fp=None):
     return BergamoSettings(
         input_dir=input_dir,
         output_dir=output_dir,
-        unique_id="test_data",
         acquisition_fp=acquisition_fp,
     )
 
@@ -63,11 +62,20 @@ class TestBergamoTiffStitcher(unittest.TestCase):
         """Clean up after tests."""
         self.temp_dir.cleanup()
 
+    @patch("aind_pophys_converter.bergamo_stitcher.get_imaging_planes")
+    @patch("aind_pophys_converter.bergamo_stitcher.load_acquisition")
     @patch("aind_pophys_converter.bergamo_stitcher.ScanImageTiffReader")
-    def test_run_converter_creates_hdf5(self, mock_reader):
+    def test_run_converter_creates_hdf5(
+        self, mock_reader, mock_load_acq, mock_get_planes
+    ):
         """Test that run_converter creates an HDF5 file with the
         expected structure.
         """
+        mock_plane = Mock()
+        mock_plane.targeted_structure.acronym = "MO"
+        mock_get_planes.return_value = [mock_plane]
+        mock_load_acq.return_value = Mock()
+
         mock_instance = Mock()
         mock_reader.return_value = mock_instance
         mock_instance.__enter__ = Mock(return_value=mock_instance)
@@ -112,15 +120,12 @@ class TestBergamoTiffStitcher(unittest.TestCase):
             str(self.input_dir),
             "--output-dir",
             str(self.output_dir),
-            "--unique-id",
-            "test_unique_id",
             "--acquisition-file",
             str(self.acquisition_file),
         ]
         stitcher = BergamoTiffStitcher.from_args(args)
         self.assertEqual(stitcher.input_dir, self.input_dir)
         self.assertEqual(stitcher.output_dir, self.output_dir)
-        self.assertEqual(stitcher.unique_id, "test_unique_id")
 
     def test_discover_tiff_epochs_groups_by_stem(self):
         """Test that tiff files are grouped by stem and sorted numerically."""
@@ -180,11 +185,9 @@ class TestBergamoTiffStitcher(unittest.TestCase):
             for i in range(1, 4):
                 (self.input_dir / f"{stem}_0000{i}.tif").touch()
 
-        debug_settings = _make_settings(self.input_dir, self.output_dir)
         debug_settings = BergamoSettings(
             input_dir=self.input_dir,
             output_dir=self.output_dir,
-            unique_id="test_data",
             acquisition_fp=self.acquisition_file,
             debug=True,
         )
