@@ -1,8 +1,6 @@
 """Top-level job orchestration for aind-pophys-converter."""
-from pathlib import Path
 
-from aind_data_schema.core.acquisition import Acquisition
-from aind_data_schema.core.data_description import DataDescription
+from pathlib import Path
 
 from aind_pophys_converter.bergamo_stitcher import (
     BergamoSettings,
@@ -12,13 +10,18 @@ from aind_pophys_converter.mesoscope_splitter import (
     TiffSplitterCLI,
     find_split_directories,
 )
-from aind_pophys_converter.tiff_splitters import AvgImageTiffSplitter
 from aind_pophys_converter.qc import (
     create_vasculature,
     pair_depth_tifs_with_avg_depth_pngs,
     write_avg_depth_slices,
 )
 from aind_pophys_converter.settings import JobSettings
+from aind_pophys_converter.tiff_splitters import AvgImageTiffSplitter
+from aind_pophys_converter.utils.metadata_utils import (
+    get_imaging_planes,
+    load_acquisition,
+    load_data_description,
+)
 from aind_pophys_converter.utils.platform_utils import (
     is_child_session_via_platform_json,
 )
@@ -32,15 +35,13 @@ def run() -> None:
     acquisition_fp = next(input_dir.rglob("acquisition.json"))
     data_description_fp = next(input_dir.rglob("data_description.json"))
 
-    acquisition = Acquisition.model_validate_json(acquisition_fp.read_text())
-    data_description = DataDescription.model_validate_json(
-        data_description_fp.read_text()
-    )
+    acquisition = load_acquisition(acquisition_fp)
+    data_description = load_data_description(data_description_fp)
     pophys_dir = next(input_dir.rglob("pophys/"))
     if "Bergamo" in acquisition.instrument_id:
-        # pull this from targetted structure in acquisition
-
-        unique_id = "MOp2_3_0"  # TODO: read from CCF when available
+        unique_id = get_imaging_planes(acquisition)[
+            0
+        ].targeted_structure.acronym
         output_dir = output_dir / unique_id
         output_dir.mkdir(exist_ok=True)
         bergamo_settings = BergamoSettings(

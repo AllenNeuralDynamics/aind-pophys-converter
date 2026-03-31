@@ -1,4 +1,5 @@
 """Tests for job module."""
+
 import json
 import tempfile
 import unittest
@@ -112,9 +113,7 @@ class TestCreateVasculature(unittest.TestCase):
         """Creates vasculature.png and vasculature_metric.json."""
         # Write a minimal grayscale TIFF as the vasculature source
         src = self.pophys_dir / "session_vasculature.tif"
-        img = Image.fromarray(
-            np.zeros((64, 64), dtype=np.uint8), mode="L"
-        )
+        img = Image.fromarray(np.zeros((64, 64), dtype=np.uint8), mode="L")
         img.save(src)
 
         self.fn(self.pophys_dir, self.output_dir)
@@ -185,14 +184,10 @@ class TestPairDepthTifsWithAvgDepthPngs(unittest.TestCase):
         fp = self._write_platform(planes)
 
         # Parent depth TIF in pophys_dir
-        parent_arr = np.random.randint(
-            600, 1400, (64, 64), dtype=np.uint16
-        )
+        parent_arr = np.random.randint(600, 1400, (64, 64), dtype=np.uint16)
         import tifffile
 
-        tifffile.imwrite(
-            self.pophys_dir / "ts_200_VISp_depth.tif", parent_arr
-        )
+        tifffile.imwrite(self.pophys_dir / "ts_200_VISp_depth.tif", parent_arr)
 
         # Child averaged TIF in avg_dir named by abs(z)
         child_arr = np.random.uniform(4, 32, (64, 64)).astype(np.float32)

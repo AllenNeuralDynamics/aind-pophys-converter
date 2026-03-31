@@ -1,4 +1,5 @@
 """Tests for JobSettings."""
+
 import sys
 import unittest
 from pathlib import Path

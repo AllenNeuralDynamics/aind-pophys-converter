@@ -1,4 +1,5 @@
 """Tests for qc module."""
+
 import json
 import tempfile
 import unittest
@@ -8,34 +9,31 @@ from pathlib import Path
 from aind_data_schema.core.quality_control import QCMetric, QCStatus, Status
 from aind_data_schema_models.modalities import Modality
 
-from aind_pophys_converter.qc import (
-    PendingStatus,
-    write_fov_metric,
-    write_vasculature_metric,
-)
+from aind_pophys_converter.qc import write_fov_metric, write_vasculature_metric
+from aind_pophys_converter.utils.metadata_utils import pending_qc_status
 
 
-class TestPendingStatus(unittest.TestCase):
-    """Tests for PendingStatus factory."""
+class TestPendingQcStatus(unittest.TestCase):
+    """Tests for pending_qc_status helper."""
 
     def test_returns_qcstatus(self):
-        """PendingStatus returns a QCStatus instance."""
-        s = PendingStatus()
+        """pending_qc_status returns a QCStatus instance."""
+        s = pending_qc_status()
         self.assertIsInstance(s, QCStatus)
 
     def test_status_is_pending(self):
-        """PendingStatus status field is PENDING."""
-        s = PendingStatus()
+        """pending_qc_status status field is PENDING."""
+        s = pending_qc_status()
         self.assertEqual(s.status, Status.PENDING)
 
     def test_evaluator_is_automated(self):
-        """PendingStatus evaluator is 'Automated'."""
-        s = PendingStatus()
+        """pending_qc_status evaluator is 'Automated'."""
+        s = pending_qc_status()
         self.assertEqual(s.evaluator, "Automated")
 
     def test_timestamp_is_datetime(self):
-        """PendingStatus timestamp is a timezone-aware datetime."""
-        s = PendingStatus()
+        """pending_qc_status timestamp is a timezone-aware datetime."""
+        s = pending_qc_status()
         self.assertIsInstance(s.timestamp, datetime)
         self.assertIsNotNone(s.timestamp.tzinfo)
 

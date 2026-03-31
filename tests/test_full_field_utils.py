@@ -51,7 +51,7 @@ class TestFullFieldUtils(unittest.TestCase):
                 tmpdir = pathlib.Path(
                     tempfile.mkdtemp(prefix="full_field_avg")
                 )
-                (tiff_path, expected_avg, metadata_dict) = (
+                tiff_path, expected_avg, metadata_dict = (
                     _create_full_field_tiff(
                         numVolumes=numVolumes,
                         numSlices=numSlices,
@@ -78,7 +78,7 @@ class TestFullFieldUtils(unittest.TestCase):
         import tempfile
 
         tmpdir = pathlib.Path(tempfile.mkdtemp(prefix="full_field_avg"))
-        (tiff_path, expected_avg, metadata_dict) = _create_full_field_tiff(
+        tiff_path, expected_avg, metadata_dict = _create_full_field_tiff(
             numVolumes=11, numSlices=13, seed=213455, output_dir=tmpdir
         )
 
@@ -111,7 +111,7 @@ class TestFullFieldUtils(unittest.TestCase):
                 tmpdir = pathlib.Path(
                     tempfile.mkdtemp(prefix="stitched_shapes")
                 )
-                (tiff_path, avg_img, metadata) = _create_full_field_tiff(
+                tiff_path, avg_img, metadata = _create_full_field_tiff(
                     numVolumes=5,
                     numSlices=3,
                     seed=112358,
@@ -157,7 +157,7 @@ class TestFullFieldUtils(unittest.TestCase):
                 tmpdir = pathlib.Path(
                     tempfile.mkdtemp(prefix="stitched_shapes")
                 )
-                (tiff_path, avg_img, metadata) = _create_full_field_tiff(
+                tiff_path, avg_img, metadata = _create_full_field_tiff(
                     numVolumes=5,
                     numSlices=3,
                     seed=112358,
@@ -191,7 +191,7 @@ class TestFullFieldUtils(unittest.TestCase):
         nrows = gap * (nrois - 1) + roiy * nrois
         ncols = 23
         tmpdir = pathlib.Path(tempfile.mkdtemp(prefix="stitched_shapes"))
-        (tiff_path, avg_img, baseline_metadata) = _create_full_field_tiff(
+        tiff_path, avg_img, baseline_metadata = _create_full_field_tiff(
             numVolumes=5,
             numSlices=3,
             seed=112358,
@@ -279,7 +279,7 @@ class TestFullFieldUtils(unittest.TestCase):
                     list_of_rois.append(tile)
                     avg_img[r0:r1, :] = tile
                     expected_stitched[
-                        :, i_roi * roi_cols: (i_roi + 1) * roi_cols
+                        :, i_roi * roi_cols : (i_roi + 1) * roi_cols
                     ] = tile
                 metadata = [
                     "nothing",
@@ -336,7 +336,7 @@ class TestFullFieldUtils(unittest.TestCase):
                     list_of_rois.append(tile)
                     avg_img[r0:r1, :] = tile
                     expected_stitched[
-                        :, i_roi * roi_cols: (i_roi + 1) * roi_cols
+                        :, i_roi * roi_cols : (i_roi + 1) * roi_cols
                     ] = tile
                 expected_stitched = normalize_array(
                     array=expected_stitched, dtype=np.uint16
@@ -428,7 +428,7 @@ class TestFullFieldUtils(unittest.TestCase):
             "tifffile.read_scanimage_metadata", new=Mock(return_value=metadata)
         ):
             metadata_obj = ScanImageMetadata(tiff_path)
-            (resolution, size) = _validate_all_roi_same_size(metadata_obj)
+            resolution, size = _validate_all_roi_same_size(metadata_obj)
             self.assertEqual(resolution, (45, 33))
             np.testing.assert_allclose(size, [2.1, 3.2])
         # test for error in case where sizeXY differs

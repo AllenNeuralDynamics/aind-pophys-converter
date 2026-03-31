@@ -1,4 +1,5 @@
 """This module provides functionality to stitch together multiple TIFF files"""
+
 import argparse
 import json
 import logging
@@ -38,6 +39,7 @@ class BergamoSettings(BaseModel):
 
 class BaseStitcher:
     """Base class for stitching TIFF files into a single HDF5 file"""
+
     def __init__(self, bergamo_settings: BergamoSettings) -> None:
         """Initialize the stitcher with settings"""
         self.input_dir = bergamo_settings.input_dir
@@ -70,7 +72,7 @@ class BaseStitcher:
         with h5.File(cache_filepath, "a") as f:
             f["data"].resize(initial_frame + len(image_data_to_cache), axis=0)
             f["data"][
-                initial_frame: initial_frame + len(image_data_to_cache)
+                initial_frame : initial_frame + len(image_data_to_cache)
             ] = image_data_to_cache
 
     def write_final_output(
@@ -115,6 +117,7 @@ class BaseStitcher:
 
 class BergamoTiffStitcher(BaseStitcher):
     """Class to stitch together TIFF files from a Bergamo session"""
+
     def __init__(self, bergamo_settings: BergamoSettings) -> None:
         """Initialize the BergamoTiffStitcher with settings"""
         super().__init__(bergamo_settings)
@@ -160,9 +163,7 @@ class BergamoTiffStitcher(BaseStitcher):
 
         epochs = {
             stem: {
-                "tiff_files": [
-                    str(p) for p in sorted(files, key=_sort_key)
-                ]
+                "tiff_files": [str(p) for p in sorted(files, key=_sort_key)]
             }
             for stem, files in sorted(groups.items())
         }
@@ -307,11 +308,9 @@ class BergamoTiffStitcher(BaseStitcher):
             "--input-dir",
             required=True,
             type=str,
-            help=(
-                """
+            help=("""
                 data-directory for bergamo settings
-                """
-            ),
+                """),
         )
         parser.add_argument(
             "-o",
@@ -319,11 +318,9 @@ class BergamoTiffStitcher(BaseStitcher):
             required=False,
             default=None,
             type=str,
-            help=(
-                """
+            help=("""
                 output-directory for bergamo settings
-                """
-            ),
+                """),
         )
         parser.add_argument(
             "-u",
@@ -331,22 +328,18 @@ class BergamoTiffStitcher(BaseStitcher):
             required=False,
             default=None,
             type=str,
-            help=(
-                """
+            help=("""
                 unique name for h5 file
-                """
-            ),
+                """),
         )
         parser.add_argument(
             "-s",
             "--acquisition-file",
             required=True,
             type=str,
-            help=(
-                """
+            help=("""
                 path to the acquisition file
-                """
-            ),
+                """),
         )
         job_args = parser.parse_args(args)
 

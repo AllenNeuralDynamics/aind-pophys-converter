@@ -1,5 +1,6 @@
 """Platform JSON utilities (temporary — will be removed when platform.json
 dependency is retired)."""
+
 import json
 from pathlib import Path
 
