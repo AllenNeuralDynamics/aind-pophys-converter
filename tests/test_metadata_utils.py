@@ -172,6 +172,14 @@ class TestGetFovId(unittest.TestCase):
         )
         self.assertEqual(get_fov_id(plane), "MO_0")
 
+    def test_no_plane_index_defaults_to_zero(self):
+        """get_fov_id defaults plane_index to 0 for plain Plane objects."""
+        mock_structure = MagicMock()
+        mock_structure.acronym = "MO"
+        plane = MagicMock(spec=["targeted_structure"])
+        plane.targeted_structure = mock_structure
+        self.assertEqual(get_fov_id(plane), "MO_0")
+
 
 class TestPendingQcStatus(unittest.TestCase):
     """Tests for pending_qc_status."""

@@ -17,6 +17,11 @@ from pydantic import BaseModel, Field
 from ScanImageTiffReader import ScanImageTiffReader
 
 from aind_pophys_converter.utils.logging import setup_logging
+from aind_pophys_converter.utils.metadata_utils import (
+    get_fov_id,
+    get_imaging_planes,
+    load_acquisition,
+)
 
 
 class BergamoSettings(BaseModel):
@@ -24,9 +29,6 @@ class BergamoSettings(BaseModel):
 
     input_dir: Path = Field(description="directory of tiff files")
     output_dir: Path = Field(description="where to save the hdf5 file")
-    unique_id: str = Field(
-        description="name for data (how it relates to the experiment)"
-    )
     acquisition_fp: Path = Field(description="path to the acquisition file")
     debug: bool = Field(
         default=False,
@@ -44,7 +46,6 @@ class BaseStitcher:
         """Initialize the stitcher with settings"""
         self.input_dir = bergamo_settings.input_dir
         self.output_dir = bergamo_settings.output_dir
-        self.unique_id = bergamo_settings.unique_id
         self.acquisition_fp = bergamo_settings.acquisition_fp
         self.debug = bergamo_settings.debug
 
@@ -188,6 +189,7 @@ class BergamoTiffStitcher(BaseStitcher):
     def write_bergamo(
         self,
         epochs: dict,
+        unique_id: str,
         image_width: int = 800,
         image_height: int = 800,
     ) -> Path:
@@ -199,6 +201,8 @@ class BergamoTiffStitcher(BaseStitcher):
         ----------
         epochs : dict
             A dictionary containg the sorted epochs
+        unique_id : str
+            Name for the output HDF5 file (without extension).
         image_width : int, optional
             The width of the image, by default 800
         image_height : int, optional
@@ -216,7 +220,7 @@ class BergamoTiffStitcher(BaseStitcher):
         start_epoch_count = 0
         trial_counter = 0
         header_data = {}
-        output_filepath = self.output_dir / f"{self.unique_id}.h5"
+        output_filepath = self.output_dir / f"{unique_id}.h5"
         with h5.File(output_filepath, "w") as f:
             f.create_dataset(
                 "data",
@@ -263,19 +267,23 @@ class BergamoTiffStitcher(BaseStitcher):
         logging.info("Time to cache %s seconds", total_time.total_seconds())
         if image_shape is None:
             raise ValueError("No tiff files were processed")
-        return self.output_dir / f"{self.unique_id}.h5", image_shape
+        return self.output_dir / f"{unique_id}.h5", image_shape
 
     def run_converter(self) -> Path:
         """
         Reads in a list of tiff files from a specified path (initialized above)
         and converts them to a single h5 file. Writes relevant metadata to the
-        h5 file.
+        h5 file. The output filename is derived from the acquisition metadata.
 
         Returns
         -------
         Path
             converted filepath
         """
+        acquisition = load_acquisition(self.acquisition_fp)
+        unique_id = get_fov_id(get_imaging_planes(acquisition)[0])
+        self.output_dir = self.output_dir / unique_id
+        self.output_dir.mkdir(exist_ok=True)
         # Convert the file and build the final metadata structure
         epochs = self._discover_tiff_epochs()
         shape = self._get_image_dim()
@@ -285,6 +293,7 @@ class BergamoTiffStitcher(BaseStitcher):
         # image in the h5 stack and the image shape
         output_filepath = self.write_bergamo(
             epochs=epochs,
+            unique_id=unique_id,
             image_width=shape[0],
             image_height=shape[1],
         )
@@ -321,16 +330,6 @@ class BergamoTiffStitcher(BaseStitcher):
                 """),
         )
         parser.add_argument(
-            "-u",
-            "--unique-id",
-            required=False,
-            default=None,
-            type=str,
-            help=("""
-                unique name for h5 file
-                """),
-        )
-        parser.add_argument(
             "-s",
             "--acquisition-file",
             required=True,
@@ -341,20 +340,14 @@ class BergamoTiffStitcher(BaseStitcher):
         )
         job_args = parser.parse_args(args)
 
-        # Provide default values for optional arguments
         output_dir = (
             Path(job_args.output_dir)
             if job_args.output_dir
             else Path(job_args.input_dir)
         )
-        unique_id = (
-            job_args.unique_id if job_args.unique_id else "bergamo_stitched"
-        )
-
         job_settings = BergamoSettings(
             input_dir=Path(job_args.input_dir),
             output_dir=output_dir,
-            unique_id=unique_id,
             acquisition_fp=Path(job_args.acquisition_file),
         )
         return cls(

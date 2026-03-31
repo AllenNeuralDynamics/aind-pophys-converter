@@ -19,7 +19,6 @@ from aind_pophys_converter.settings import JobSettings
 from aind_pophys_converter.tiff_splitters import AvgImageTiffSplitter
 from aind_pophys_converter.utils.logging import setup_logging
 from aind_pophys_converter.utils.metadata_utils import (
-    get_imaging_planes,
     load_acquisition,
     load_data_description,
 )
@@ -52,15 +51,9 @@ def run() -> None:
     try:
         pophys_dir = next(input_dir.rglob("pophys/"))
         if "Bergamo" in acquisition.instrument_id:
-            unique_id = get_imaging_planes(acquisition)[
-                0
-            ].targeted_structure.acronym
-            output_dir = output_dir / unique_id
-            output_dir.mkdir(exist_ok=True)
             bergamo_settings = BergamoSettings(
                 input_dir=pophys_dir,
                 output_dir=output_dir,
-                unique_id=unique_id,
                 acquisition_fp=acquisition_fp,
                 debug=job_settings.debug,
             )
