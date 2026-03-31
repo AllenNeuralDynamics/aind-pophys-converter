@@ -1,4 +1,5 @@
 """Utilities for stitching full field images"""
+
 import json
 import logging
 import pathlib
@@ -243,9 +244,9 @@ def _insert_rois_into_surface_img(
     so this method does not alter full_field_img in place.
     """
 
-    (ff_resolution, ff_size) = _validate_all_roi_same_size(full_field_metadata)
+    ff_resolution, ff_size = _validate_all_roi_same_size(full_field_metadata)
 
-    (origin_col, origin_row) = _get_origin(full_field_metadata)
+    origin_col, origin_row = _get_origin(full_field_metadata)
 
     output_img = np.copy(full_field_img)
 
@@ -511,14 +512,14 @@ def _stitch_full_field_tiff(
     # Make sure ROIs all have the same size in physical
     # units and pixels
 
-    (resolution, physical_size) = _validate_all_roi_same_size(tiff_metadata)
+    resolution, physical_size = _validate_all_roi_same_size(tiff_metadata)
 
     physical_to_pixels = (
         resolution[0] / physical_size[0],
         resolution[1] / physical_size[1],
     )
 
-    (origin_col, origin_row) = _get_origin(tiff_metadata)
+    origin_col, origin_row = _get_origin(tiff_metadata)
 
     stitched_img = np.zeros(stitched_shape, dtype=avg_img.dtype)
 
@@ -532,14 +533,14 @@ def _stitch_full_field_tiff(
         pix_col0 = pix_col0.astype(int)
 
         sub_img = avg_img[
-            i_roi * (resolution[1] + pixel_gap): i_roi * pixel_gap
+            i_roi * (resolution[1] + pixel_gap) : i_roi * pixel_gap
             + (i_roi + 1) * resolution[1],
             :,
         ]
 
         stitched_img[
-            pix_row0: pix_row0 + resolution[1],
-            pix_col0: pix_col0 + resolution[0],
+            pix_row0 : pix_row0 + resolution[1],
+            pix_col0 : pix_col0 + resolution[0],
         ] = sub_img
 
     return stitched_img

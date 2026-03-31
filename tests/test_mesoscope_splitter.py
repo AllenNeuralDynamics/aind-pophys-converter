@@ -17,7 +17,6 @@ import unittest
 from itertools import product
 from pathlib import Path
 
-
 from aind_pophys_converter.mesoscope_splitter import (
     TiffSplitterCLI,
     find_split_directories,
@@ -159,8 +158,7 @@ class TestMesoscopeSplitter(unittest.TestCase):
 
         mock_acq = MagicMock()
         with patch(
-            "aind_pophys_converter.mesoscope_splitter.Acquisition"
-            ".model_validate_json",
+            "aind_pophys_converter.mesoscope_splitter.load_acquisition",
             return_value=mock_acq,
         ):
             return TiffSplitterCLI(job_settings)
@@ -239,8 +237,7 @@ class TestMesoscopeSplitter(unittest.TestCase):
 
             mock_acq = MagicMock()
             with patch(
-                "aind_pophys_converter.mesoscope_splitter.Acquisition"
-                ".model_validate_json",
+                "aind_pophys_converter.mesoscope_splitter.load_acquisition",
                 return_value=mock_acq,
             ):
                 with self.assertRaises(ValueError) as cm:

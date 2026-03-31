@@ -37,8 +37,8 @@ def _create_tiff_pages_and_lookup(z_value_list, n_rois):
             value = i_roi + z_value + i_page * len(z_value_list)
             page = np.arange(value, value + 24 * 24).astype(np.uint16)
             page = page.reshape((24, 24))
-            page[i_roi: i_roi + 4, i_roi: i_roi + 4] = 3
-            page[i_z: i_z + 2, i_z: i_z + 2] = 0
+            page[i_roi : i_roi + 4, i_roi : i_roi + 4] = 3
+            page[i_z : i_z + 2, i_z : i_z + 2] = 0
             tiff_pages.append(page)
             page_lookup[(i_roi, z_value)].append(page)
     return tiff_pages, page_lookup
@@ -65,7 +65,7 @@ def _create_metadata(z_array, use_zs, is_surface, z_value_list, n_rois):
     n_z_per_roi = len(z_value_list) // n_rois
     roi_list = []
     for ii in range(0, len(z_value_list), n_z_per_roi):
-        this_list = copy.deepcopy(list(z_value_list[ii: ii + n_z_per_roi]))
+        this_list = copy.deepcopy(list(z_value_list[ii : ii + n_z_per_roi]))
         this_list.sort()
         roi_list.append({"zs": this_list})
     roi_metadata = {"RoiGroups": {"imagingRoiGroup": {"rois": roi_list}}}
@@ -118,7 +118,7 @@ def _create_image_tiff(
     avg_img_lookup = dict()
     raw_avg_img_lookup = dict()
     for i_z, z_value in enumerate(z_value_list):
-        sub_arr = tiff_pages[i_z:: len(z_value_list), :, :]
+        sub_arr = tiff_pages[i_z :: len(z_value_list), :, :]
         mean_img = np.mean(sub_arr, axis=0)
         roi_id = i_z // n_z_per_roi
         raw_avg_img_lookup[(roi_id, z_value)] = mean_img
@@ -278,7 +278,7 @@ class TestTiffSplitter(unittest.TestCase):
                 self.assertEqual(splitter.n_rois, n_rois)
                 offset = 0
                 for i_roi in range(n_rois):
-                    for zz in z_value_list[offset: offset + n_z_per_roi]:
+                    for zz in z_value_list[offset : offset + n_z_per_roi]:
                         self.assertTrue(
                             splitter.is_z_valid_for_roi(
                                 i_roi=i_roi, z_value=zz
@@ -550,8 +550,8 @@ def _generate_tiff_pages(
                     tiff_pages_lookup[(i_roi, this_z)] = []
                     tiff_path_lookup[(i_roi, this_z)] = str_path
                 page = rng.integers(0, 2**16 - 1, (24, 24)).astype(np.int16)
-                page[i_roi: i_roi + 5, i_roi: i_roi + 5] = 0
-                page[i_z: i_z + 2, i_z: i_z + 2] = 1000
+                page[i_roi : i_roi + 5, i_roi : i_roi + 5] = 0
+                page[i_z : i_z + 2, i_z : i_z + 2] = 1000
                 tiff_pages_lookup[(i_roi, this_z)].append(page)
                 this_tiff.append(page)
     return this_tiff

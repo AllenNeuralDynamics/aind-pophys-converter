@@ -1,4 +1,5 @@
 """Image manipulation utilities."""
+
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 

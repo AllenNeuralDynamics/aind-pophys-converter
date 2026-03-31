@@ -1,4 +1,5 @@
 """Utilities for reading and parsing ScanImage TIFF metadata"""
+
 import copy
 import pathlib
 from typing import List, Tuple, Union

@@ -1,4 +1,5 @@
 """Mesoscope TIFF splitting CLI and orchestration."""
+
 import argparse
 import logging
 import re
@@ -7,12 +8,7 @@ import time
 from pathlib import Path
 from typing import Dict, List, Tuple, Union
 
-from aind_data_schema.components.configs import (
-    CoupledPlane,
-    ImagingConfig,
-    PlanarImage,
-)
-from aind_data_schema.core.acquisition import Acquisition
+from aind_data_schema.components.configs import CoupledPlane
 
 from aind_pophys_converter.settings import JobSettings
 from aind_pophys_converter.tiff_splitters import (
@@ -25,6 +21,11 @@ from aind_pophys_converter.tiff_splitters import (
 )
 from aind_pophys_converter.utils.full_field_utils import (
     write_out_stitched_full_field_image,
+)
+from aind_pophys_converter.utils.metadata_utils import (
+    get_fov_id,
+    get_imaging_planes,
+    load_acquisition,
 )
 from aind_pophys_converter.utils.tiff_metadata import ScanImageMetadata
 
@@ -78,9 +79,7 @@ class TiffSplitterCLI:
         )
         if not acquisition_json:
             raise ValueError("No acquisition.json file found")
-        self.acquisition_data = Acquisition.model_validate_json(
-            acquisition_json.read_text()
-        )
+        self.acquisition_data = load_acquisition(acquisition_json)
         self.timeseries_tif = next(
             self.input_dir.glob("*timeseries.tiff"), None
         )
@@ -166,8 +165,7 @@ class TiffSplitterCLI:
         tuple[dict, str]
             Metadata dict and the fov_id string.
         """
-        targeted_structure = plane.targeted_structure.acronym
-        fov_id = targeted_structure + "_" + str(plane.plane_index)
+        fov_id = get_fov_id(plane)
         this_exp_metadata = {"fov": fov_id}
 
         for file_key in (
@@ -187,18 +185,10 @@ class TiffSplitterCLI:
 
         Returns
         -------
-        List
-            Plane objects (Plane or CoupledPlane) sorted by plane_index.
+        List[CoupledPlane]
+            CoupledPlane objects sorted by plane_index.
         """
-        planes = []
-        for data_stream in self.acquisition_data.data_streams:
-            for config in data_stream.configurations:
-                if isinstance(config, ImagingConfig):
-                    for image in config.images:
-                        if isinstance(image, PlanarImage):
-                            for plane in image.planes:
-                                planes.append(plane)
-        return sorted(planes, key=lambda p: p.plane_index)
+        return get_imaging_planes(self.acquisition_data)
 
     def _process_single_fov(
         self,
@@ -484,11 +474,9 @@ def from_args(args: List[str]) -> JobSettings:
         "--input-dir",
         required=True,
         type=str,
-        help=(
-            """
+        help=("""
             data-directory for job settings
-            """
-        ),
+            """),
     )
     parser.add_argument(
         "-t",
@@ -496,11 +484,9 @@ def from_args(args: List[str]) -> JobSettings:
         required=False,
         default=None,
         type=str,
-        help=(
-            """
+        help=("""
             temp-directory for job settings
-            """
-        ),
+            """),
     )
     parser.add_argument(
         "-o",
@@ -508,11 +494,9 @@ def from_args(args: List[str]) -> JobSettings:
         required=False,
         default=None,
         type=str,
-        help=(
-            """
+        help=("""
             output-directory for job settings
-            """
-        ),
+            """),
     )
     parser.add_argument(
         "-d",
