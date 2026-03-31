@@ -376,87 +376,104 @@ class TiffSplitterCLI:
 
     def run_job(self) -> None:
         """Run the job to split TIFF files."""
+        logging.info(
+            "Starting mesoscope TIFF splitting",
+            extra={"event_type": "stage_start"},
+        )
         t0 = time.time()
         output = {"column_stacks": []}
-
-        # Initialize splitters and get file paths
-        (
-            timeseries_splitter,
-            depth_splitter,
-            surface_splitter,
-            zstack_splitter,
-            zstack_path_list,
-            files_to_record,
-        ) = self._initialize_splitters()
-
-        # Check for deprecated file types
-        self._check_deprecated_files()
-
-        # Get valid ROI centers for validation
-        valid_roi_centers = get_valid_roi_centers(
-            timeseries_splitter=timeseries_splitter
-        )
-
-        # Process experiment metadata for each imaging plane
-        experiment_metadata = []
-        for plane in self._get_imaging_planes():
-            # See ordering assumption comment in _process_timeseries_data.
-            roi_z = timeseries_splitter.roi_z_int_manifest[plane.plane_index]
-            roi_index, z_int = roi_z
-            z_value = timeseries_splitter._z_from_int(z_int)
-            this_exp_metadata = self._process_single_fov(
-                plane,
-                roi_index,
-                z_value,
+        try:
+            # Initialize splitters and get file paths
+            (
+                timeseries_splitter,
                 depth_splitter,
                 surface_splitter,
                 zstack_splitter,
-                valid_roi_centers,
-                t0,
+                zstack_path_list,
+                files_to_record,
+            ) = self._initialize_splitters()
+
+            # Check for deprecated file types
+            self._check_deprecated_files()
+
+            # Get valid ROI centers for validation
+            valid_roi_centers = get_valid_roi_centers(
+                timeseries_splitter=timeseries_splitter
             )
-            experiment_metadata.append(this_exp_metadata)
 
-        # Process timeseries data separately for efficiency
-        output_path_lookup = self._process_timeseries_data(
-            timeseries_splitter, experiment_metadata
-        )
+            # Process experiment metadata for each imaging plane
+            experiment_metadata = []
+            for plane in self._get_imaging_planes():
+                # See ordering assumption comment in _process_timeseries_data.
+                roi_z = timeseries_splitter.roi_z_int_manifest[
+                    plane.plane_index
+                ]
+                roi_index, z_int = roi_z
+                z_value = timeseries_splitter._z_from_int(z_int)
+                this_exp_metadata = self._process_single_fov(
+                    plane,
+                    roi_index,
+                    z_value,
+                    depth_splitter,
+                    surface_splitter,
+                    zstack_splitter,
+                    valid_roi_centers,
+                    t0,
+                )
+                experiment_metadata.append(this_exp_metadata)
 
-        # dump_every controls the per-plane frame buffer size before
-        # flushing to temp HDF5 files. Historically read from v1
-        # session.json via session_data.get("dump_every", 1000);
-        # some multiplane-ophys data assets may have carried custom
-        # values there. The default of 1000 has negligible runtime
-        # impact (bottleneck is TIFF read, not buffer flush) so we
-        # hardcode it and rely on write_output_files()'s default.
-        timeseries_splitter.write_output_files(
-            output_path_map=output_path_lookup,
-            tmp_dir=self.temp_dir,
-            logger=logging,
-            debug=self.debug,
-        )
+            # Process timeseries data separately for efficiency
+            output_path_lookup = self._process_timeseries_data(
+                timeseries_splitter, experiment_metadata
+            )
 
-        # Set up output structure
-        output["experiment_output"] = experiment_metadata
+            # dump_every controls the per-plane frame buffer size before
+            # flushing to temp HDF5 files. Historically read from v1
+            # session.json via session_data.get("dump_every", 1000);
+            # some multiplane-ophys data assets may have carried custom
+            # values there. The default of 1000 has negligible runtime
+            # impact (bottleneck is TIFF read, not buffer flush) so we
+            # hardcode it and rely on write_output_files()'s default.
+            timeseries_splitter.write_output_files(
+                output_path_map=output_path_lookup,
+                tmp_dir=self.temp_dir,
+                debug=self.debug,
+            )
 
-        ready_to_archive = {
-            str(self.surface_tif),
-            str(self.depths_tif),
-            str(self.timeseries_tif),
-        }
-        ready_to_archive.update(
-            str(zstack_path.resolve().absolute())
-            for zstack_path in zstack_path_list
-        )
-        output["ready_to_archive"] = list(ready_to_archive)
+            # Set up output structure
+            output["experiment_output"] = experiment_metadata
 
-        # Process full field image if available
-        self._process_full_field_image()
+            ready_to_archive = {
+                str(self.surface_tif),
+                str(self.depths_tif),
+                str(self.timeseries_tif),
+            }
+            ready_to_archive.update(
+                str(zstack_path.resolve().absolute())
+                for zstack_path in zstack_path_list
+            )
+            output["ready_to_archive"] = list(ready_to_archive)
 
-        # Create file metadata
-        output["file_metadata"] = self._create_file_metadata(files_to_record)
+            # Process full field image if available
+            self._process_full_field_image()
 
-        duration = time.time() - t0
-        logging.info(f"that took {duration:.2e} seconds")
+            # Create file metadata
+            output["file_metadata"] = self._create_file_metadata(
+                files_to_record
+            )
+
+            duration = time.time() - t0
+            logging.info(
+                f"Mesoscope TIFF splitting complete in {duration:.2e} seconds",
+                extra={"event_type": "stage_complete"},
+            )
+        except Exception:
+            logging.error(
+                "Mesoscope TIFF splitting failed",
+                extra={"event_type": "stage_error"},
+            )
+            logging.exception("Unhandled exception")
+            raise
 
 
 def from_args(args: List[str]) -> JobSettings:

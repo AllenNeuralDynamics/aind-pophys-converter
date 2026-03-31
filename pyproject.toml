@@ -30,7 +30,9 @@ dependencies = [
     'pytz==2025.2',
     'scikit-image>=0.25.0',
     'tifffile==2024.2.12',
-    'scanimage-tiff-reader==1.4.1.4'
+    'scanimage-tiff-reader==1.4.1.4',
+    'pyyaml',
+    'watchtower',
 ]
 
 [project.optional-dependencies]
@@ -47,6 +49,9 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"aind_pophys_converter.utils" = ["logging.yml"]
 
 [tool.setuptools.dynamic]
 version = {attr = "aind_pophys_converter.__version__"}
