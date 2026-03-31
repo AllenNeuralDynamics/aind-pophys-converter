@@ -376,10 +376,6 @@ class TiffSplitterCLI:
 
     def run_job(self) -> None:
         """Run the job to split TIFF files."""
-        logging.info(
-            "Starting mesoscope TIFF splitting",
-            extra={"event_type": "stage_start"},
-        )
         t0 = time.time()
         output = {"column_stacks": []}
         try:
@@ -464,15 +460,12 @@ class TiffSplitterCLI:
 
             duration = time.time() - t0
             logging.info(
-                f"Mesoscope TIFF splitting complete in {duration:.2e} seconds",
-                extra={"event_type": "stage_complete"},
+                f"Mesoscope TIFF splitting complete in {duration:.2e} seconds"
             )
         except Exception:
-            logging.error(
-                "Mesoscope TIFF splitting failed",
-                extra={"event_type": "stage_error"},
+            logging.exception(
+                "Unhandled exception in mesoscope TIFF splitting"
             )
-            logging.exception("Unhandled exception")
             raise
 
 

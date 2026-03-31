@@ -275,35 +275,19 @@ class BergamoTiffStitcher(BaseStitcher):
         Path
             converted filepath
         """
-        logging.info(
-            "Starting Bergamo stitcher",
-            extra={"event_type": "stage_start"},
+        # Convert the file and build the final metadata structure
+        epochs = self._discover_tiff_epochs()
+        shape = self._get_image_dim()
+        # metadata dictionary where the keys are the image filename and
+        # the values are the index of the order in which the image was
+        # read, which epoch it's associated with, the location of the
+        # image in the h5 stack and the image shape
+        output_filepath = self.write_bergamo(
+            epochs=epochs,
+            image_width=shape[0],
+            image_height=shape[1],
         )
-        try:
-            # Convert the file and build the final metadata structure
-            epochs = self._discover_tiff_epochs()
-            shape = self._get_image_dim()
-            # metadata dictionary where the keys are the image filename and
-            # the values are the index of the order in which the image was
-            # read, which epoch it's associated with, the location of the
-            # image in the h5 stack and the image shape
-            output_filepath = self.write_bergamo(
-                epochs=epochs,
-                image_width=shape[0],
-                image_height=shape[1],
-            )
-            logging.info(
-                "Bergamo stitcher complete",
-                extra={"event_type": "stage_complete"},
-            )
-            return output_filepath
-        except Exception:
-            logging.error(
-                "Bergamo stitcher failed",
-                extra={"event_type": "stage_error"},
-            )
-            logging.exception("Unhandled exception")
-            raise
+        return output_filepath
 
     @classmethod
     def from_args(cls, args: List[str]) -> "BergamoTiffStitcher":
