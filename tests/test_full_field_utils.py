@@ -9,7 +9,7 @@ from unittest.mock import Mock, patch
 import numpy as np
 from aind_ophys_utils.array_utils import normalize_array
 
-from aind_pophys_converter.mesoscope_splitter import mkstemp_clean
+from aind_pophys_converter.tiff_splitters import mkstemp_clean
 from aind_pophys_converter.utils.full_field_utils import (
     _average_full_field_tiff,
     _get_origin,
@@ -503,7 +503,7 @@ class TestFullFieldUtils(unittest.TestCase):
                 "aind_pophys_converter.utils.full_field_utils.stitch_full_field_tiff"  # noqa: E501
             ) as mock_stitch:
                 with patch(
-                    "aind_pophys_converter.mesoscope_splitter.AvgImageTiffSplitter"  # noqa: E501
+                    "aind_pophys_converter.utils.full_field_utils.AvgImageTiffSplitter"  # noqa: E501
                 ) as mock_splitter:
                     with patch(
                         "aind_pophys_converter.utils.full_field_utils._insert_rois_into_surface_img"  # noqa: E501

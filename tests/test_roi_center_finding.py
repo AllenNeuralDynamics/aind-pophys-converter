@@ -4,7 +4,7 @@ import unittest
 
 import numpy as np
 
-from aind_pophys_converter.mesoscope_splitter import (
+from aind_pophys_converter.tiff_splitters import (
     get_nearest_roi_center,
     get_valid_roi_centers,
 )

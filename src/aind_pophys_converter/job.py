@@ -9,10 +9,10 @@ from aind_pophys_converter.bergamo_stitcher import (
     BergamoTiffStitcher,
 )
 from aind_pophys_converter.mesoscope_splitter import (
-    AvgImageTiffSplitter,
     TiffSplitterCLI,
     find_split_directories,
 )
+from aind_pophys_converter.tiff_splitters import AvgImageTiffSplitter
 from aind_pophys_converter.qc import (
     create_vasculature,
     pair_depth_tifs_with_avg_depth_pngs,

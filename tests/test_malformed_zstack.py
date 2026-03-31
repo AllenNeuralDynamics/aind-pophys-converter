@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from aind_pophys_converter.mesoscope_splitter import (
+from aind_pophys_converter.tiff_splitters import (
     ZStackSplitter,
     mkstemp_clean,
 )

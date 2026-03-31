@@ -22,8 +22,8 @@ from unittest.mock import Mock
 from aind_pophys_converter.mesoscope_splitter import (
     TiffSplitterCLI,
     find_split_directories,
-    mkstemp_clean,
 )
+from aind_pophys_converter.tiff_splitters import mkstemp_clean
 
 
 class TestMesoscopeSplitter(unittest.TestCase):
@@ -270,7 +270,7 @@ class TestMesoscopeSplitter(unittest.TestCase):
         """Test that split_timeseries_tiff calls logger with
         proper messages.
         """
-        from aind_pophys_converter.mesoscope_splitter import (
+        from aind_pophys_converter.tiff_splitters import (
             split_timeseries_tiff,
         )
 
@@ -311,7 +311,7 @@ class TestMesoscopeSplitter(unittest.TestCase):
         """Test AvgImageTiffSplitter properties work correctly."""
         from unittest.mock import Mock, mock_open, patch
 
-        from aind_pophys_converter.mesoscope_splitter import (
+        from aind_pophys_converter.tiff_splitters import (
             AvgImageTiffSplitter,
         )
 
@@ -366,7 +366,7 @@ class TestMesoscopeSplitter(unittest.TestCase):
         """Test utility methods in TiffSplitterBase classes."""
         from unittest.mock import Mock, mock_open, patch
 
-        from aind_pophys_converter.mesoscope_splitter import (
+        from aind_pophys_converter.tiff_splitters import (
             AvgImageTiffSplitter,
         )
 
@@ -419,7 +419,7 @@ class TestMesoscopeSplitter(unittest.TestCase):
 
     def test_tiff_splitter_error_conditions(self):
         """Test error handling in TiffSplitter classes."""
-        from aind_pophys_converter.mesoscope_splitter import (
+        from aind_pophys_converter.tiff_splitters import (
             AvgImageTiffSplitter,
         )
 
@@ -431,7 +431,7 @@ class TestMesoscopeSplitter(unittest.TestCase):
 
     def test_logging_and_cleanup_paths(self):
         """Test logging statements and cleanup operations."""
-        from aind_pophys_converter.mesoscope_splitter import mkstemp_clean
+        from aind_pophys_converter.tiff_splitters import mkstemp_clean
 
         # Test mkstemp_clean function - it returns a file path and cleans up
         # the descriptor
