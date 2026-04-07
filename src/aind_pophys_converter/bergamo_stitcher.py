@@ -26,6 +26,13 @@ class BergamoSettings(BaseModel):
         description="name for data (how it relates to the experiment)"
     )
     session_fp: Path = Field(description="path to the session file")
+    debug: bool = Field(
+        default=False,
+        description=(
+            "If True, process only the first tiff file per epoch "
+            "instead of the full dataset."
+        ),
+    )
 
 
 class BaseStitcher:
@@ -36,6 +43,7 @@ class BaseStitcher:
         self.output_dir = bergamo_settings.output_dir
         self.unique_id = bergamo_settings.unique_id
         self.session_fp = bergamo_settings.session_fp
+        self.debug = bergamo_settings.debug
 
     def write_images(
         self,
@@ -154,6 +162,19 @@ class BergamoTiffStitcher(BaseStitcher):
                 epoch_files.append(str(native_tiffs_dict[stim]))
             epochs[tiff_stem] = {"tiff_files": epoch_files}
             epochs[tiff_stem]["stimulus_name"] = epoch["stimulus_name"]
+        if self.debug:
+            logging.info(
+                "Debug mode: limiting to 1 file per epoch "
+                "(was %s files total).",
+                sum(len(v["tiff_files"]) for v in epochs.values()),
+            )
+            epochs = {
+                stem: {
+                    "tiff_files": v["tiff_files"][:1],
+                    "stimulus_name": v["stimulus_name"],
+                }
+                for stem, v in epochs.items()
+            }
         return epochs
 
     def _get_image_dim(self) -> tuple:

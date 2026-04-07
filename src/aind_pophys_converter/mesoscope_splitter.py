@@ -24,6 +24,9 @@ from aind_pophys_converter.utils.full_field_utils import (
 )
 from aind_pophys_converter.utils.tiff_metadata import ScanImageMetadata
 
+# Number of frames per plane written when debug=True
+DEBUG_N_FRAMES = 100
+
 
 def find_split_directories(directory: Path) -> List[Path]:
     """Determine if there are any V* directories in the specified directory.
@@ -226,6 +229,7 @@ def split_timeseries_tiff(
             dump_every=dump_every,
             logger=logger,
             metadata=metadata,
+            debug=debug,
         )
     finally:
         _cleanup_temp_files(offset_to_tmp_files, directories_to_clean)
@@ -282,6 +286,7 @@ def _split_timeseries_tiff(
     dump_every: int = 1000,
     logger: Optional[callable] = None,
     metadata: Optional[dict] = None,
+    debug: Optional[bool] = False,
 ) -> None:
     """
     Method to do the work behind split_timeseries_tiff
@@ -315,6 +320,9 @@ def _split_timeseries_tiff(
         If not None, will be serialized and stored as a bytestring
         in the HDF5 file.
 
+    debug: Optional[bool]
+        If True, stop after DEBUG_N_FRAMES frames per plane.
+
     Returns
     -------
     None
@@ -336,7 +344,14 @@ def _split_timeseries_tiff(
         current_offset = -1
         cache_ct = 0
 
+        if debug and logger is not None:
+            logger.info(
+                f"Debug mode active: clipping timeseries to "
+                f"{DEBUG_N_FRAMES} frames per plane."
+            )
         for page in tiff_file.pages:
+            if debug and page_ct >= (max_offset + 1) * DEBUG_N_FRAMES:
+                break
             page_ct += 1
             arr = page.asarray()
 
