@@ -1630,18 +1630,27 @@ def build_roi_remap(
     splitter,
     valid_roi_centers: List[Tuple[float, float]],
     tolerance: float = 1.0,
+    roi_indices: list = None,
 ) -> dict:
     """Map each valid center index to the splitter roi_index nearest to it.
 
     Returns a dict: {valid_center_index: splitter_roi_index}.
     Raises if the mapping is not 1:1 or any match exceeds tolerance.
+
+    Parameters
+    ----------
+    roi_indices : list, optional
+        Explicit list of roi indices to consider. If None, uses
+        range(splitter.n_rois).
     """
+    if roi_indices is None:
+        roi_indices = list(range(splitter.n_rois))
     remap = {}
     used_rois = set()
     for valid_idx, valid_center in enumerate(valid_roi_centers):
         best_roi = None
         best_dist = None
-        for i in range(splitter.n_rois):
+        for i in roi_indices:
             if i in used_rois:
                 continue
             center = splitter.roi_center(i_roi=i)
@@ -1804,6 +1813,7 @@ class TiffSplitterCLI:
         valid_roi_centers: List,
         depth_remap: dict,
         surface_remap: dict,
+        zstack_remap: dict,
         t0: float,
     ) -> dict:
         """Process a single FOV and return its metadata."""
@@ -1823,6 +1833,7 @@ class TiffSplitterCLI:
         splitter_roi_remaps = {
             id(depth_splitter): depth_remap,
             id(surface_splitter): surface_remap,
+            id(zstack_splitter): zstack_remap,
         }
 
         for splitter, z_value, output_name, metadata_tag in zip(
@@ -1840,13 +1851,8 @@ class TiffSplitterCLI:
                 output_dir.mkdir()
             output_path = output_dir / output_name
 
-            # Use remapped roi_index if available, otherwise fall back
-            # to session roi_index (e.g. for zstack splitter)
-            remap = splitter_roi_remaps.get(id(splitter))
-            if remap is not None:
-                actual_roi_index = remap[baseline_center]
-            else:
-                actual_roi_index = roi_index
+            remap = splitter_roi_remaps[id(splitter)]
+            actual_roi_index = remap[baseline_center]
 
             if actual_roi_index != roi_index:
                 logging.info(
@@ -1989,6 +1995,11 @@ class TiffSplitterCLI:
         # may differ from the timeseries-derived valid centers
         depth_remap = build_roi_remap(depth_splitter, valid_roi_centers)
         surface_remap = build_roi_remap(surface_splitter, valid_roi_centers)
+        zstack_remap = build_roi_remap(
+            zstack_splitter,
+            valid_roi_centers,
+            roi_indices=list(zstack_splitter._roi_to_path.keys()),
+        )
 
         # Process experiment metadata for each FOV
         experiment_metadata = []
@@ -2003,6 +2014,7 @@ class TiffSplitterCLI:
                         valid_roi_centers,
                         depth_remap,
                         surface_remap,
+                        zstack_remap,
                         t0,
                     )
                     experiment_metadata.append(this_exp_metadata)
