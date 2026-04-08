@@ -85,14 +85,17 @@ class MockSplitter:
     """Mock splitter with configurable ROI centers."""
 
     def __init__(self, centers: dict):
+        """Initialize with a dict of {roi_index: (x, y) center}."""
         self._centers = centers
         self._n_rois = len(centers)
 
     @property
     def n_rois(self):
+        """Return the number of ROIs."""
         return self._n_rois
 
     def roi_center(self, i_roi: int):
+        """Return the (x, y) center for the given ROI index."""
         return self._centers[i_roi]
 
 
@@ -199,7 +202,10 @@ class TestBuildRoiRemap(unittest.TestCase):
 
     def test_real_world_scenario(self):
         """Test with actual values from the VISp/VISl debug output."""
-        valid_centers = [(-6.706054084, 4.706558895), (-4.474865807, -5.792409906)]
+        valid_centers = [
+            (-6.706054084, 4.706558895),
+            (-4.474865807, -5.792409906),
+        ]
         # Surface has swapped indices
         surface = MockSplitter({
             0: (-4.599042486, -5.853638735),
