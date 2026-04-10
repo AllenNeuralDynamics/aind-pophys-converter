@@ -1807,6 +1807,7 @@ class TiffSplitterCLI:
     def _process_single_fov(
         self,
         fov: dict,
+        timeseries_splitter,
         depth_splitter,
         surface_splitter,
         zstack_splitter,
@@ -1822,10 +1823,11 @@ class TiffSplitterCLI:
         scanfield_z = fov["scanfield_z"]
 
         # Determine which valid center this FOV corresponds to
-        # using the depth splitter (timeseries and depth share ordering)
-        depth_center = depth_splitter.roi_center(i_roi=roi_index)
+        # using the timeseries splitter (the anchor from which
+        # valid_roi_centers was derived)
+        ts_center = timeseries_splitter.roi_center(i_roi=roi_index)
         baseline_center = get_nearest_roi_center(
-            this_roi_center=depth_center,
+            this_roi_center=ts_center,
             valid_roi_centers=valid_roi_centers,
         )
 
@@ -2008,6 +2010,7 @@ class TiffSplitterCLI:
                 for fov in data_stream["ophys_fovs"]:
                     this_exp_metadata = self._process_single_fov(
                         fov,
+                        timeseries_splitter,
                         depth_splitter,
                         surface_splitter,
                         zstack_splitter,
