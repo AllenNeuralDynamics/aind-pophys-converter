@@ -1854,16 +1854,16 @@ class TiffSplitterCLI:
             output_path = output_dir / output_name
 
             remap = splitter_roi_remaps[id(splitter)]
-            actual_roi_index = remap[baseline_center]
+            splitter_roi_index = remap[baseline_center]
 
-            if actual_roi_index != roi_index:
+            if splitter_roi_index != roi_index:
                 logging.info(
                     f"FOV {fov_id} {metadata_tag}: remapped roi_index "
-                    f"{roi_index} -> {actual_roi_index}"
+                    f"{roi_index} -> {splitter_roi_index}"
                 )
 
             splitter.write_output_file(
-                i_roi=actual_roi_index,
+                i_roi=splitter_roi_index,
                 z_value=z_value,
                 output_path=output_path,
             )
@@ -1873,7 +1873,7 @@ class TiffSplitterCLI:
                 metadata_tag,
                 output_path,
                 splitter,
-                actual_roi_index,
+                splitter_roi_index,
                 z_value,
             )
 
