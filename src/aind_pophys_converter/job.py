@@ -17,7 +17,7 @@ from aind_pophys_converter.qc import (
 )
 from aind_pophys_converter.settings import JobSettings
 from aind_pophys_converter.tiff_splitters import AvgImageTiffSplitter
-from aind_pophys_converter.utils.logging import setup_logging
+from aind_pophys_converter.utils.structured_logging import setup_logging
 from aind_pophys_converter.utils.metadata_utils import (
     load_acquisition,
     load_data_description,

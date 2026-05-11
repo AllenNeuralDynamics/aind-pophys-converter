@@ -16,7 +16,7 @@ import numpy as np
 from pydantic import BaseModel, Field
 from ScanImageTiffReader import ScanImageTiffReader
 
-from aind_pophys_converter.utils.logging import setup_logging
+from aind_pophys_converter.utils.structured_logging import setup_logging
 from aind_pophys_converter.utils.metadata_utils import (
     get_fov_id,
     get_imaging_planes,

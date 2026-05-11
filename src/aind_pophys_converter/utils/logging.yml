@@ -20,7 +20,7 @@ disable_existing_loggers: false
 formatters:
   aind_json:
     # () tells dictConfig to instantiate this class directly
-    (): aind_pophys_converter.utils.logging.AindJsonFormatter
+    (): aind_pophys_converter.utils.structured_logging.AindJsonFormatter
     fields:
       - timestamp
       - level
@@ -31,7 +31,7 @@ formatters:
 
 filters:
   aind_fields:
-    (): aind_pophys_converter.utils.logging.AindContextFilter
+    (): aind_pophys_converter.utils.structured_logging.AindContextFilter
     # Override these values at runtime by passing **fields to setup_logging()
     acquisition_name: "undefined"
     process_name: "undefined"
