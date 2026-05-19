@@ -1576,6 +1576,107 @@ def get_nearest_roi_center(
     return ans
 
 
+def validate_roi_pairing(
+    depth_splitter,
+    surface_splitter,
+    tolerance: float = 1.0,
+) -> None:
+    """Verify depth and surface splitters have the same ROI centers
+    (in any order) within tolerance. Raises if not a 1:1 match."""
+    depth_centers = [
+        depth_splitter.roi_center(i) for i in range(depth_splitter.n_rois)
+    ]
+    surface_centers = [
+        surface_splitter.roi_center(i)
+        for i in range(surface_splitter.n_rois)
+    ]
+
+    if len(depth_centers) != len(surface_centers):
+        raise RuntimeError(
+            f"ROI count mismatch: depth has {len(depth_centers)}, "
+            f"surface has {len(surface_centers)}"
+        )
+
+    used = set()
+    for d_idx, d_center in enumerate(depth_centers):
+        best_s_idx = None
+        best_dist = None
+        for s_idx, s_center in enumerate(surface_centers):
+            if s_idx in used:
+                continue
+            dist = np.sqrt(
+                (d_center[0] - s_center[0]) ** 2
+                + (d_center[1] - s_center[1]) ** 2
+            )
+            if best_dist is None or dist < best_dist:
+                best_s_idx = s_idx
+                best_dist = dist
+        if best_dist > tolerance:
+            raise RuntimeError(
+                f"Depth roi {d_idx} at {d_center} has no surface match "
+                f"within tolerance={tolerance} (nearest: surface roi "
+                f"{best_s_idx} at {surface_centers[best_s_idx]}, "
+                f"dist={best_dist:.4f})"
+            )
+        used.add(best_s_idx)
+
+    logging.info(
+        "validate_roi_pairing: depth and surface ROI centers "
+        "are a 1:1 match within tolerance=%.1f", tolerance
+    )
+
+
+def build_roi_remap(
+    splitter,
+    valid_roi_centers: List[Tuple[float, float]],
+    tolerance: float = 1.0,
+    roi_indices: list = None,
+) -> dict:
+    """Map each valid center index to the splitter roi_index nearest to it.
+
+    Returns a dict: {valid_center_index: splitter_roi_index}.
+    Raises if the mapping is not 1:1 or any match exceeds tolerance.
+
+    Parameters
+    ----------
+    roi_indices : list, optional
+        Explicit list of roi indices to consider. If None, uses
+        range(splitter.n_rois).
+    """
+    if roi_indices is None:
+        roi_indices = list(range(splitter.n_rois))
+    remap = {}
+    used_rois = set()
+    for valid_idx, valid_center in enumerate(valid_roi_centers):
+        best_roi = None
+        best_dist = None
+        for i in roi_indices:
+            if i in used_rois:
+                continue
+            center = splitter.roi_center(i_roi=i)
+            dist = np.sqrt(
+                (center[0] - valid_center[0]) ** 2
+                + (center[1] - valid_center[1]) ** 2
+            )
+            if best_dist is None or dist < best_dist:
+                best_roi = i
+                best_dist = dist
+        if best_roi is None:
+            raise RuntimeError(
+                f"No unmatched ROI in splitter for valid center "
+                f"{valid_idx}: {valid_center}"
+            )
+        if best_dist > tolerance:
+            raise RuntimeError(
+                f"Splitter roi {best_roi} is {best_dist:.4f} from valid "
+                f"center {valid_idx} {valid_center}, exceeds "
+                f"tolerance={tolerance}"
+            )
+        remap[valid_idx] = best_roi
+        used_rois.add(best_roi)
+    return remap
+
+
 class JobSettings(BaseModel):
     """Job settings values."""
 
@@ -1706,17 +1807,36 @@ class TiffSplitterCLI:
     def _process_single_fov(
         self,
         fov: dict,
+        timeseries_splitter,
         depth_splitter,
         surface_splitter,
         zstack_splitter,
         valid_roi_centers: List,
+        depth_remap: dict,
+        surface_remap: dict,
+        zstack_remap: dict,
         t0: float,
     ) -> dict:
         """Process a single FOV and return its metadata."""
         this_exp_metadata, fov_id = self._create_experiment_metadata(fov)
         roi_index = fov["scanimage_roi_index"]
         scanfield_z = fov["scanfield_z"]
-        baseline_center = None
+
+        # Determine which valid center this FOV corresponds to
+        # using the timeseries splitter (the anchor from which
+        # valid_roi_centers was derived)
+        ts_center = timeseries_splitter.roi_center(i_roi=roi_index)
+        baseline_center = get_nearest_roi_center(
+            this_roi_center=ts_center,
+            valid_roi_centers=valid_roi_centers,
+        )
+
+        # Map from valid center index to correct roi_index per splitter
+        splitter_roi_remaps = {
+            id(depth_splitter): depth_remap,
+            id(surface_splitter): surface_remap,
+            id(zstack_splitter): zstack_remap,
+        }
 
         for splitter, z_value, output_name, metadata_tag in zip(
             (depth_splitter, surface_splitter, zstack_splitter),
@@ -1733,22 +1853,17 @@ class TiffSplitterCLI:
                 output_dir.mkdir()
             output_path = output_dir / output_name
 
-            roi_center = splitter.roi_center(i_roi=roi_index)
-            nearest_valid = get_nearest_roi_center(
-                this_roi_center=roi_center,
-                valid_roi_centers=valid_roi_centers,
-            )
+            remap = splitter_roi_remaps[id(splitter)]
+            splitter_roi_index = remap[baseline_center]
 
-            if baseline_center is None:
-                baseline_center = nearest_valid
-
-            if nearest_valid != baseline_center:
-                self._raise_roi_center_error(
-                    fov_id, splitter, output_path, baseline_center, roi_center
+            if splitter_roi_index != roi_index:
+                logging.info(
+                    f"FOV {fov_id} {metadata_tag}: remapped roi_index "
+                    f"{roi_index} -> {splitter_roi_index}"
                 )
 
             splitter.write_output_file(
-                i_roi=roi_index,
+                i_roi=splitter_roi_index,
                 z_value=z_value,
                 output_path=output_path,
             )
@@ -1758,7 +1873,7 @@ class TiffSplitterCLI:
                 metadata_tag,
                 output_path,
                 splitter,
-                roi_index,
+                splitter_roi_index,
                 z_value,
             )
 
@@ -1769,22 +1884,6 @@ class TiffSplitterCLI:
             )
 
         return this_exp_metadata
-
-    def _raise_roi_center_error(
-        self,
-        fov_id: str,
-        splitter,
-        output_path: Path,
-        baseline_center,
-        roi_center,
-    ):
-        """Raise an error when ROI centers are inconsistent."""
-        msg = f"experiment {fov_id}\n"
-        msg += "roi center inconsistent for "
-        msg += f"input: {splitter.input_path.resolve().absolute()}\n"
-        msg += f"output: {output_path.resolve().absolute()}\n"
-        msg += f"{baseline_center}; {roi_center}\n"
-        raise RuntimeError(msg)
 
     def _update_metadata_with_file_info(
         self,
@@ -1891,6 +1990,19 @@ class TiffSplitterCLI:
             timeseries_splitter=timeseries_splitter
         )
 
+        # Validate depth and surface have the same FOVs
+        validate_roi_pairing(depth_splitter, surface_splitter)
+
+        # Build roi index remaps for splitters whose roi ordering
+        # may differ from the timeseries-derived valid centers
+        depth_remap = build_roi_remap(depth_splitter, valid_roi_centers)
+        surface_remap = build_roi_remap(surface_splitter, valid_roi_centers)
+        zstack_remap = build_roi_remap(
+            zstack_splitter,
+            valid_roi_centers,
+            roi_indices=list(zstack_splitter._roi_to_path.keys()),
+        )
+
         # Process experiment metadata for each FOV
         experiment_metadata = []
         for data_stream in self.session_data["data_streams"]:
@@ -1898,10 +2010,14 @@ class TiffSplitterCLI:
                 for fov in data_stream["ophys_fovs"]:
                     this_exp_metadata = self._process_single_fov(
                         fov,
+                        timeseries_splitter,
                         depth_splitter,
                         surface_splitter,
                         zstack_splitter,
                         valid_roi_centers,
+                        depth_remap,
+                        surface_remap,
+                        zstack_remap,
                         t0,
                     )
                     experiment_metadata.append(this_exp_metadata)
