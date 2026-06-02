@@ -16,12 +16,12 @@ import numpy as np
 from pydantic import BaseModel, Field
 from ScanImageTiffReader import ScanImageTiffReader
 
-from aind_pophys_converter.utils.structured_logging import setup_logging
 from aind_pophys_converter.utils.metadata_utils import (
-    get_fov_id,
-    get_imaging_planes,
-    load_acquisition,
+    ConverterMetadata,
+    fov_id_from_plane,
+    load_converter_metadata,
 )
+from aind_pophys_converter.utils.structured_logging import setup_logging
 
 
 class BergamoSettings(BaseModel):
@@ -29,7 +29,6 @@ class BergamoSettings(BaseModel):
 
     input_dir: Path = Field(description="directory of tiff files")
     output_dir: Path = Field(description="where to save the hdf5 file")
-    acquisition_fp: Path = Field(description="path to the acquisition file")
     debug: bool = Field(
         default=False,
         description=(
@@ -42,12 +41,24 @@ class BergamoSettings(BaseModel):
 class BaseStitcher:
     """Base class for stitching TIFF files into a single HDF5 file"""
 
-    def __init__(self, bergamo_settings: BergamoSettings) -> None:
-        """Initialize the stitcher with settings"""
+    def __init__(
+        self,
+        bergamo_settings: BergamoSettings,
+        metadata: ConverterMetadata,
+    ) -> None:
+        """Initialize the stitcher with settings and converter metadata.
+
+        Parameters
+        ----------
+        bergamo_settings : BergamoSettings
+            CLI-driven settings (input/output dirs, debug flag).
+        metadata : ConverterMetadata
+            Schema-agnostic metadata loaded from v1 or v2 input.
+        """
         self.input_dir = bergamo_settings.input_dir
         self.output_dir = bergamo_settings.output_dir
-        self.acquisition_fp = bergamo_settings.acquisition_fp
         self.debug = bergamo_settings.debug
+        self.metadata = metadata
 
     def write_images(
         self,
@@ -119,9 +130,13 @@ class BaseStitcher:
 class BergamoTiffStitcher(BaseStitcher):
     """Class to stitch together TIFF files from a Bergamo session"""
 
-    def __init__(self, bergamo_settings: BergamoSettings) -> None:
-        """Initialize the BergamoTiffStitcher with settings"""
-        super().__init__(bergamo_settings)
+    def __init__(
+        self,
+        bergamo_settings: BergamoSettings,
+        metadata: ConverterMetadata,
+    ) -> None:
+        """Initialize the BergamoTiffStitcher with settings and metadata."""
+        super().__init__(bergamo_settings, metadata=metadata)
 
     def _discover_tiff_epochs(self) -> dict:
         """Discover tiff epochs by grouping *.tif files in input_dir by stem.
@@ -280,8 +295,7 @@ class BergamoTiffStitcher(BaseStitcher):
         Path
             converted filepath
         """
-        acquisition = load_acquisition(self.acquisition_fp)
-        unique_id = get_fov_id(get_imaging_planes(acquisition)[0])
+        unique_id = fov_id_from_plane(self.metadata.planes[0])
         self.output_dir = self.output_dir / unique_id
         self.output_dir.mkdir(exist_ok=True)
         # Convert the file and build the final metadata structure
@@ -301,12 +315,17 @@ class BergamoTiffStitcher(BaseStitcher):
 
     @classmethod
     def from_args(cls, args: List[str]) -> "BergamoTiffStitcher":
-        """
-        Adds ability to construct settings from a list of arguments.
+        """Construct a stitcher from command line arguments.
+
         Parameters
         ----------
-        args : list
-        A list of command line arguments to parse.
+        args : list of str
+            CLI arguments. Expects ``--input-dir`` (tiff directory; its
+            parent is searched for v1 ``session.json`` or v2
+            ``acquisition.json``), and optionally ``--output-dir``
+            (defaults to input directory) and ``--metadata-dir``
+            (overrides where metadata files are looked up; defaults to
+            ``input-dir.parent``).
         """
 
         parser = argparse.ArgumentParser()
@@ -315,9 +334,7 @@ class BergamoTiffStitcher(BaseStitcher):
             "--input-dir",
             required=True,
             type=str,
-            help=("""
-                data-directory for bergamo settings
-                """),
+            help="directory containing the tiff files to stitch",
         )
         parser.add_argument(
             "-o",
@@ -325,34 +342,36 @@ class BergamoTiffStitcher(BaseStitcher):
             required=False,
             default=None,
             type=str,
-            help=("""
-                output-directory for bergamo settings
-                """),
+            help="directory to write outputs into",
         )
         parser.add_argument(
-            "-s",
-            "--acquisition-file",
-            required=True,
+            "-m",
+            "--metadata-dir",
+            required=False,
+            default=None,
             type=str,
-            help=("""
-                path to the acquisition file
-                """),
+            help=(
+                "directory to search for acquisition.json / session.json"
+                " and data_description.json (defaults to input-dir.parent)"
+            ),
         )
         job_args = parser.parse_args(args)
 
+        input_dir = Path(job_args.input_dir)
         output_dir = (
-            Path(job_args.output_dir)
-            if job_args.output_dir
-            else Path(job_args.input_dir)
+            Path(job_args.output_dir) if job_args.output_dir else input_dir
         )
+        metadata_dir = (
+            Path(job_args.metadata_dir)
+            if job_args.metadata_dir
+            else input_dir.parent
+        )
+        metadata = load_converter_metadata(metadata_dir)
         job_settings = BergamoSettings(
-            input_dir=Path(job_args.input_dir),
+            input_dir=input_dir,
             output_dir=output_dir,
-            acquisition_fp=Path(job_args.acquisition_file),
         )
-        return cls(
-            job_settings,
-        )
+        return cls(job_settings, metadata=metadata)
 
 
 if __name__ == "__main__":

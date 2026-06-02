@@ -8,8 +8,6 @@ import time
 from pathlib import Path
 from typing import Dict, List, Tuple, Union
 
-from aind_data_schema.components.configs import CoupledPlane
-
 from aind_pophys_converter.settings import JobSettings
 from aind_pophys_converter.tiff_splitters import (
     AvgImageTiffSplitter,
@@ -23,9 +21,10 @@ from aind_pophys_converter.utils.full_field_utils import (
     write_out_stitched_full_field_image,
 )
 from aind_pophys_converter.utils.metadata_utils import (
-    get_fov_id,
-    get_imaging_planes,
-    load_acquisition,
+    ConverterMetadata,
+    PlaneInfo,
+    fov_id_from_plane,
+    load_converter_metadata,
 )
 from aind_pophys_converter.utils.tiff_metadata import ScanImageMetadata
 
@@ -66,20 +65,27 @@ class TiffSplitterCLI:
         else:
             return False
 
-    def __init__(self, job_settings: JobSettings) -> None:
-        """Initialize the TiffSplitterCLI with job settings."""
+    def __init__(
+        self,
+        job_settings: JobSettings,
+        metadata: ConverterMetadata,
+    ) -> None:
+        """Initialize the TiffSplitterCLI with job settings and metadata.
+
+        Parameters
+        ----------
+        job_settings : JobSettings
+            CLI-driven settings (input/output/temp dirs, debug flag).
+        metadata : ConverterMetadata
+            Schema-agnostic metadata loaded by ``load_converter_metadata``.
+        """
         self.input_dir = job_settings.input_dir
         if isinstance(self.input_dir, str):
             self.input_dir = Path(self.input_dir)
         self.output_dir = job_settings.output_dir
         if isinstance(self.output_dir, str):
             self.output_dir = Path(self.output_dir)
-        acquisition_json = next(
-            self.input_dir.parent.glob("*acquisition.json"), None
-        )
-        if not acquisition_json:
-            raise ValueError("No acquisition.json file found")
-        self.acquisition_data = load_acquisition(acquisition_json)
+        self.metadata = metadata
         self.timeseries_tif = next(
             self.input_dir.glob("*timeseries.tiff"), None
         )
@@ -151,21 +157,21 @@ class TiffSplitterCLI:
             logging.warning(msg)
 
     def _create_experiment_metadata(
-        self, plane: CoupledPlane
+        self, plane: PlaneInfo
     ) -> Tuple[dict, str]:
         """Create experiment metadata structure for a given imaging plane.
 
         Parameters
         ----------
-        plane : Plane or CoupledPlane
-            Imaging plane from the v2 acquisition data.
+        plane : PlaneInfo
+            Plane info from the schema-agnostic metadata model.
 
         Returns
         -------
         tuple[dict, str]
             Metadata dict and the fov_id string.
         """
-        fov_id = get_fov_id(plane)
+        fov_id = fov_id_from_plane(plane)
         this_exp_metadata = {"fov": fov_id}
 
         for file_key in (
@@ -180,19 +186,19 @@ class TiffSplitterCLI:
 
     def _get_imaging_planes(
         self,
-    ) -> List[CoupledPlane]:
-        """Extract imaging planes from acquisition, sorted by plane_index.
+    ) -> Tuple[PlaneInfo, ...]:
+        """Return imaging planes sorted by plane_index.
 
         Returns
         -------
-        List[CoupledPlane]
-            CoupledPlane objects sorted by plane_index.
+        tuple of PlaneInfo
+            Plane info objects from ``self.metadata.planes``.
         """
-        return get_imaging_planes(self.acquisition_data)
+        return self.metadata.planes
 
     def _process_single_fov(
         self,
-        plane: CoupledPlane,
+        plane: PlaneInfo,
         roi_index: int,
         z_value: float,
         depth_splitter: "AvgImageTiffSplitter",
@@ -519,13 +525,17 @@ def from_args(args: List[str]) -> JobSettings:
 
 if __name__ == "__main__":
     sys_args = sys.argv[1:]
-    runner = from_args(sys_args)
-    split_directories = find_split_directories(Path(runner.input_dir))
+    job_settings = from_args(sys_args)
+    input_dir_path = Path(job_settings.input_dir)
+    split_directories = find_split_directories(input_dir_path)
     if len(split_directories) == 0:
-        runner = TiffSplitterCLI(runner)
+        # Metadata lives one level up from the pophys/ tiff directory
+        # when invoked standalone (matches the capsule layout).
+        metadata = load_converter_metadata(input_dir_path.parent)
+        runner = TiffSplitterCLI(job_settings, metadata=metadata)
         runner.run_job()
     else:
-        output_dir = Path(runner.output_dir)
+        output_dir = Path(job_settings.output_dir)
         for split_dir in split_directories:
             new_directory = output_dir / split_dir
             new_directory.mkdir(parents=True, exist_ok=True)

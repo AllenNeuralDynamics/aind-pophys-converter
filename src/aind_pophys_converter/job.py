@@ -1,7 +1,10 @@
 """Top-level job orchestration for aind-pophys-converter."""
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
+from aind_pophys_converter import __version__
 from aind_pophys_converter.bergamo_stitcher import (
     BergamoSettings,
     BergamoTiffStitcher,
@@ -17,14 +20,15 @@ from aind_pophys_converter.qc import (
 )
 from aind_pophys_converter.settings import JobSettings
 from aind_pophys_converter.tiff_splitters import AvgImageTiffSplitter
-from aind_pophys_converter.utils.structured_logging import setup_logging
 from aind_pophys_converter.utils.metadata_utils import (
-    load_acquisition,
-    load_data_description,
+    build_processing,
+    load_converter_metadata,
+    write_processing_json,
 )
 from aind_pophys_converter.utils.platform_utils import (
     is_child_session_via_platform_json,
 )
+from aind_pophys_converter.utils.structured_logging import setup_logging
 
 
 def run() -> None:
@@ -32,34 +36,34 @@ def run() -> None:
     job_settings = JobSettings()
     input_dir = Path(job_settings.input_dir)
     output_dir = Path(job_settings.output_dir)
-    acquisition_fp = next(input_dir.rglob("acquisition.json"))
-    data_description_fp = next(input_dir.rglob("data_description.json"))
 
-    acquisition = load_acquisition(acquisition_fp)
-    data_description = load_data_description(data_description_fp)
+    metadata = load_converter_metadata(input_dir)
 
     setup_logging(
         "aind-pophys-converter",
-        acquisition_name=data_description.name,
+        acquisition_name=metadata.dataset_name,
         process_name="aind-pophys-converter",
     )
 
+    started_at = datetime.now(timezone.utc)
+    run_error: Optional[BaseException] = None
     logging.info(
         "Starting pophys converter job",
         extra={"event_type": "stage_start"},
     )
     try:
         pophys_dir = next(input_dir.rglob("pophys/"))
-        if "Bergamo" in acquisition.instrument_id:
+        if "Bergamo" in metadata.instrument_id:
             bergamo_settings = BergamoSettings(
                 input_dir=pophys_dir,
                 output_dir=output_dir,
-                acquisition_fp=acquisition_fp,
                 debug=job_settings.debug,
             )
-            bergamo_stitcher = BergamoTiffStitcher(bergamo_settings)
+            bergamo_stitcher = BergamoTiffStitcher(
+                bergamo_settings, metadata=metadata
+            )
             bergamo_stitcher.run_converter()
-        elif "multiplane" in data_description.name:
+        elif "multiplane" in metadata.dataset_name:
             # Use pophys_dir.glob (not input_dir.rglob) because rglob does
             # not follow symlinks in Python <=3.12 and pophys/ is a symlink
             # in dev.
@@ -71,7 +75,7 @@ def run() -> None:
             job_settings.input_dir = pophys_dir
             split_directories = find_split_directories(pophys_dir)
             if len(split_directories) == 0:
-                runner = TiffSplitterCLI(job_settings)
+                runner = TiffSplitterCLI(job_settings, metadata=metadata)
                 runner.run_job()
             else:
                 for split_dir in split_directories:
@@ -100,10 +104,44 @@ def run() -> None:
             "Pophys converter job complete",
             extra={"event_type": "stage_complete"},
         )
-    except Exception:
+    except BaseException as exc:
+        run_error = exc
         logging.error(
             "Pophys converter job failed",
             extra={"event_type": "stage_error"},
         )
         logging.exception("Unhandled exception")
         raise
+    finally:
+        _write_processing_metadata(
+            job_settings=job_settings,
+            start_time=started_at,
+            error=run_error,
+            output_dir=output_dir,
+        )
+
+
+def _write_processing_metadata(
+    job_settings: JobSettings,
+    start_time: datetime,
+    error: Optional[BaseException],
+    output_dir: Path,
+) -> None:
+    """Best-effort writer for processing.json. Never raises.
+
+    Failures here must not mask a conversion failure that was already
+    propagating out of ``run()``.
+    """
+    try:
+        processing = build_processing(
+            job_parameters=job_settings.model_dump(mode="json"),
+            library_version=__version__,
+            start_time=start_time,
+            end_time=datetime.now(timezone.utc),
+            error=error,
+        )
+        write_processing_json(processing, output_dir)
+    except Exception as proc_exc:
+        logging.error(
+            f"processing.json write failed (non-fatal): {proc_exc}"
+        )
