@@ -1544,3 +1544,113 @@ def get_nearest_roi_center(
         raise RuntimeError(msg)
 
     return ans
+
+
+def validate_roi_pairing(
+    depth_splitter,
+    surface_splitter,
+    tolerance: float = 1.0,
+) -> None:
+    """Verify depth and surface splitters have the same ROI centers
+    (in any order) within tolerance. Raises if not a 1:1 match."""
+    depth_centers = [
+        depth_splitter.roi_center(i) for i in range(depth_splitter.n_rois)
+    ]
+    surface_centers = [
+        surface_splitter.roi_center(i)
+        for i in range(surface_splitter.n_rois)
+    ]
+
+    if len(depth_centers) != len(surface_centers):
+        raise RuntimeError(
+            f"ROI count mismatch: depth has {len(depth_centers)}, "
+            f"surface has {len(surface_centers)}"
+        )
+
+    used = set()
+    for d_idx, d_center in enumerate(depth_centers):
+        best_s_idx = None
+        best_dist = None
+        for s_idx, s_center in enumerate(surface_centers):
+            if s_idx in used:
+                continue
+            dist = np.sqrt(
+                (d_center[0] - s_center[0]) ** 2
+                + (d_center[1] - s_center[1]) ** 2
+            )
+            if best_dist is None or dist < best_dist:
+                best_s_idx = s_idx
+                best_dist = dist
+        if best_dist > tolerance:
+            raise RuntimeError(
+                f"Depth roi {d_idx} at {d_center} has no surface match "
+                f"within tolerance={tolerance} (nearest: surface roi "
+                f"{best_s_idx} at {surface_centers[best_s_idx]}, "
+                f"dist={best_dist:.4f})"
+            )
+        used.add(best_s_idx)
+
+    logging.info(
+        "validate_roi_pairing: depth and surface ROI centers "
+        "are a 1:1 match within tolerance=%.1f",
+        tolerance,
+    )
+
+
+def build_roi_remap(
+    splitter,
+    valid_roi_centers: List[Tuple[float, float]],
+    tolerance: float = 1.0,
+    roi_indices: Optional[List[int]] = None,
+) -> Dict[int, int]:
+    """Map each valid center index to the splitter roi_index nearest it.
+
+    Returns a dict ``{valid_center_index: splitter_roi_index}``. Raises if
+    the mapping is not 1:1 or any match exceeds ``tolerance``.
+
+    Parameters
+    ----------
+    splitter
+        Any splitter exposing ``roi_center(i_roi)``. ZStack-like splitters
+        whose roi indices are non-contiguous must pass ``roi_indices``.
+    valid_roi_centers : list of (x, y)
+        Canonical centers (typically derived from the timeseries splitter).
+    tolerance : float
+        Maximum allowed distance between a valid center and its nearest
+        splitter ROI before a RuntimeError is raised.
+    roi_indices : list of int, optional
+        Explicit list of roi indices to consider. If ``None``, uses
+        ``range(splitter.n_rois)``.
+    """
+    if roi_indices is None:
+        roi_indices = list(range(splitter.n_rois))
+    remap = {}
+    used_rois = set()
+    for valid_idx, valid_center in enumerate(valid_roi_centers):
+        best_roi = None
+        best_dist = None
+        for i in roi_indices:
+            if i in used_rois:
+                continue
+            center = splitter.roi_center(i_roi=i)
+            dist = np.sqrt(
+                (center[0] - valid_center[0]) ** 2
+                + (center[1] - valid_center[1]) ** 2
+            )
+            if best_dist is None or dist < best_dist:
+                best_roi = i
+                best_dist = dist
+        if best_roi is None:
+            raise RuntimeError(
+                f"No unmatched ROI in splitter for valid center "
+                f"{valid_idx}: {valid_center}"
+            )
+        if best_dist > tolerance:
+            raise RuntimeError(
+                f"Splitter roi {best_roi} is {best_dist:.4f} from valid "
+                f"center {valid_idx} {valid_center}, exceeds "
+                f"tolerance={tolerance}"
+            )
+        remap[valid_idx] = best_roi
+        used_rois.add(best_roi)
+    return remap

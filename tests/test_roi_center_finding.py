@@ -5,8 +5,10 @@ import unittest
 import numpy as np
 
 from aind_pophys_converter.tiff_splitters import (
+    build_roi_remap,
     get_nearest_roi_center,
     get_valid_roi_centers,
+    validate_roi_pairing,
 )
 
 
@@ -77,6 +79,145 @@ class TestRoiCenterFinding(unittest.TestCase):
         np.testing.assert_allclose(
             np.array([3.1, 2.4]), np.array(valid_centers[1])
         )
+
+
+class MockSplitter:
+    """Mock splitter with configurable ROI centers."""
+
+    def __init__(self, centers: dict):
+        """Initialize with a dict of ``{roi_index: (x, y) center}``."""
+        self._centers = centers
+        self._n_rois = len(centers)
+
+    @property
+    def n_rois(self):
+        """Return the number of ROIs."""
+        return self._n_rois
+
+    def roi_center(self, i_roi: int):
+        """Return the (x, y) center for the given ROI index."""
+        return self._centers[i_roi]
+
+
+class TestValidateRoiPairing(unittest.TestCase):
+    """Test suite for validate_roi_pairing."""
+
+    def test_matching_centers_same_order(self):
+        """Depth and surface with same centers in same order passes."""
+        depth = MockSplitter({0: (1.0, 2.0), 1: (5.0, 6.0)})
+        surface = MockSplitter({0: (1.0, 2.0), 1: (5.0, 6.0)})
+        validate_roi_pairing(depth, surface)
+
+    def test_matching_centers_swapped_order(self):
+        """Depth and surface with centers in swapped order passes."""
+        depth = MockSplitter({0: (1.0, 2.0), 1: (5.0, 6.0)})
+        surface = MockSplitter({0: (5.05, 6.05), 1: (1.05, 2.05)})
+        validate_roi_pairing(depth, surface, tolerance=1.0)
+
+    def test_count_mismatch_raises(self):
+        """Different number of ROIs raises RuntimeError."""
+        depth = MockSplitter({0: (1.0, 2.0), 1: (5.0, 6.0)})
+        surface = MockSplitter({0: (1.0, 2.0)})
+        with self.assertRaises(RuntimeError) as cm:
+            validate_roi_pairing(depth, surface)
+        self.assertIn("ROI count mismatch", str(cm.exception))
+
+    def test_no_match_within_tolerance_raises(self):
+        """Surface ROI too far from any depth ROI raises RuntimeError."""
+        depth = MockSplitter({0: (1.0, 2.0), 1: (5.0, 6.0)})
+        surface = MockSplitter({0: (1.0, 2.0), 1: (50.0, 60.0)})
+        with self.assertRaises(RuntimeError) as cm:
+            validate_roi_pairing(depth, surface, tolerance=1.0)
+        self.assertIn("no surface match", str(cm.exception))
+
+    def test_small_drift_within_tolerance(self):
+        """Small positional drift within tolerance passes."""
+        depth = MockSplitter({0: (-6.706, 4.707), 1: (-4.475, -5.792)})
+        surface = MockSplitter(
+            {0: (-4.599, -5.854), 1: (-6.835, 4.563)}
+        )
+        validate_roi_pairing(depth, surface, tolerance=1.0)
+
+    def test_single_roi(self):
+        """Single ROI case works."""
+        depth = MockSplitter({0: (3.0, 4.0)})
+        surface = MockSplitter({0: (3.01, 4.01)})
+        validate_roi_pairing(depth, surface, tolerance=1.0)
+
+
+class TestBuildRoiRemap(unittest.TestCase):
+    """Test suite for build_roi_remap."""
+
+    def test_identity_remap(self):
+        """When splitter order matches valid centers, remap is identity."""
+        valid_centers = [(1.0, 2.0), (5.0, 6.0)]
+        splitter = MockSplitter({0: (1.0, 2.0), 1: (5.0, 6.0)})
+        remap = build_roi_remap(splitter, valid_centers)
+        self.assertEqual(remap, {0: 0, 1: 1})
+
+    def test_swapped_remap(self):
+        """When splitter has swapped indices, remap corrects them."""
+        valid_centers = [(1.0, 2.0), (5.0, 6.0)]
+        splitter = MockSplitter({0: (5.05, 6.05), 1: (1.05, 2.05)})
+        remap = build_roi_remap(splitter, valid_centers, tolerance=1.0)
+        self.assertEqual(remap, {0: 1, 1: 0})
+
+    def test_tolerance_exceeded_raises(self):
+        """ROI too far from any valid center raises RuntimeError."""
+        valid_centers = [(1.0, 2.0), (5.0, 6.0)]
+        splitter = MockSplitter({0: (1.0, 2.0), 1: (50.0, 60.0)})
+        with self.assertRaises(RuntimeError) as cm:
+            build_roi_remap(splitter, valid_centers, tolerance=1.0)
+        self.assertIn("exceeds", str(cm.exception))
+
+    def test_explicit_roi_indices(self):
+        """Using explicit roi_indices works for splitters without n_rois."""
+        valid_centers = [(1.0, 2.0), (5.0, 6.0)]
+        splitter = MockSplitter({0: (5.0, 6.0), 1: (1.0, 2.0)})
+        remap = build_roi_remap(
+            splitter, valid_centers, roi_indices=[0, 1]
+        )
+        self.assertEqual(remap, {0: 1, 1: 0})
+
+    def test_non_contiguous_roi_indices(self):
+        """Works with non-contiguous roi indices (e.g. zstack)."""
+        valid_centers = [(1.0, 2.0), (5.0, 6.0)]
+        splitter = MockSplitter({2: (5.0, 6.0), 5: (1.0, 2.0)})
+        remap = build_roi_remap(
+            splitter, valid_centers, roi_indices=[2, 5]
+        )
+        self.assertEqual(remap, {0: 5, 1: 2})
+
+    def test_empty_valid_centers(self):
+        """Empty valid centers produces empty remap."""
+        splitter = MockSplitter({0: (1.0, 2.0)})
+        remap = build_roi_remap(splitter, [])
+        self.assertEqual(remap, {})
+
+    def test_single_roi(self):
+        """Single ROI remap works."""
+        valid_centers = [(3.0, 4.0)]
+        splitter = MockSplitter({0: (3.01, 4.01)})
+        remap = build_roi_remap(splitter, valid_centers, tolerance=1.0)
+        self.assertEqual(remap, {0: 0})
+
+    def test_real_world_scenario(self):
+        """Test with actual values from the VISp/VISl debug output."""
+        valid_centers = [
+            (-6.706054084, 4.706558895),
+            (-4.474865807, -5.792409906),
+        ]
+        # Surface has swapped indices
+        surface = MockSplitter(
+            {
+                0: (-4.599042486, -5.853638735),
+                1: (-6.83482236, 4.563156318),
+            }
+        )
+        remap = build_roi_remap(surface, valid_centers, tolerance=1.0)
+        # valid[0] (VISp) should map to surface roi 1
+        # valid[1] (VISl) should map to surface roi 0
+        self.assertEqual(remap, {0: 1, 1: 0})
 
 
 if __name__ == "__main__":

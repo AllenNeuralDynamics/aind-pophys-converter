@@ -16,8 +16,10 @@ from aind_pophys_converter.tiff_splitters import (
     TiffSplitterBase,
     TimeSeriesSplitter,
     ZStackSplitter,
+    build_roi_remap,
     get_nearest_roi_center,
     get_valid_roi_centers,
+    validate_roi_pairing,
 )
 from aind_pophys_converter.utils.full_field_utils import (
     write_out_stitched_full_field_image,
@@ -195,18 +197,40 @@ class TiffSplitterCLI:
         plane: CoupledPlane,
         roi_index: int,
         z_value: float,
+        timeseries_splitter: "TimeSeriesSplitter",
         depth_splitter: "AvgImageTiffSplitter",
         surface_splitter: "AvgImageTiffSplitter",
         zstack_splitter: "ZStackSplitter",
         valid_roi_centers: List[Tuple[float, float]],
+        depth_remap: Dict[int, int],
+        surface_remap: Dict[int, int],
+        zstack_remap: Dict[int, int],
         t0: float,
     ) -> dict:
-        """Process a single imaging plane and return its metadata."""
+        """Process a single imaging plane and return its metadata.
+
+        Uses the timeseries splitter as the canonical source of ROI
+        indexing; per-splitter remap dicts translate from the
+        timeseries-anchored valid-center index to each splitter's own
+        roi_index so depth/surface/zstack TIFFs that index ROIs in a
+        different order are still addressed correctly.
+        """
         this_exp_metadata, fov_id = self._create_experiment_metadata(plane)
         scanfield_z = z_value
-        baseline_center = None
 
-        for splitter, z_value, output_name, metadata_tag in zip(
+        ts_center = timeseries_splitter.roi_center(i_roi=roi_index)
+        baseline_center = get_nearest_roi_center(
+            this_roi_center=ts_center,
+            valid_roi_centers=valid_roi_centers,
+        )
+
+        splitter_roi_remaps = {
+            id(depth_splitter): depth_remap,
+            id(surface_splitter): surface_remap,
+            id(zstack_splitter): zstack_remap,
+        }
+
+        for splitter, z_value_inner, output_name, metadata_tag in zip(
             (depth_splitter, surface_splitter, zstack_splitter),
             (scanfield_z, None, scanfield_z),
             (
@@ -221,23 +245,18 @@ class TiffSplitterCLI:
                 output_dir.mkdir()
             output_path = output_dir / output_name
 
-            roi_center = splitter.roi_center(i_roi=roi_index)
-            nearest_valid = get_nearest_roi_center(
-                this_roi_center=roi_center,
-                valid_roi_centers=valid_roi_centers,
-            )
+            remap = splitter_roi_remaps[id(splitter)]
+            splitter_roi_index = remap[baseline_center]
 
-            if baseline_center is None:
-                baseline_center = nearest_valid
-
-            if nearest_valid != baseline_center:
-                self._raise_roi_center_error(
-                    fov_id, splitter, output_path, baseline_center, roi_center
+            if splitter_roi_index != roi_index:
+                logging.info(
+                    f"FOV {fov_id} {metadata_tag}: remapped roi_index "
+                    f"{roi_index} -> {splitter_roi_index}"
                 )
 
             splitter.write_output_file(
-                i_roi=roi_index,
-                z_value=z_value,
+                i_roi=splitter_roi_index,
+                z_value=z_value_inner,
                 output_path=output_path,
             )
 
@@ -246,8 +265,8 @@ class TiffSplitterCLI:
                 metadata_tag,
                 output_path,
                 splitter,
-                roi_index,
-                z_value,
+                splitter_roi_index,
+                z_value_inner,
             )
 
             elapsed_time = time.time() - t0
@@ -257,22 +276,6 @@ class TiffSplitterCLI:
             )
 
         return this_exp_metadata
-
-    def _raise_roi_center_error(
-        self,
-        fov_id: str,
-        splitter: Union[TiffSplitterBase, ZStackSplitter],
-        output_path: Path,
-        baseline_center: int,
-        roi_center: Tuple[float, float],
-    ) -> None:
-        """Raise an error when ROI centers are inconsistent."""
-        msg = f"experiment {fov_id}\n"
-        msg += "roi center inconsistent for "
-        msg += f"input: {splitter.input_path.resolve().absolute()}\n"
-        msg += f"output: {output_path.resolve().absolute()}\n"
-        msg += f"{baseline_center}; {roi_center}\n"
-        raise RuntimeError(msg)
 
     def _update_metadata_with_file_info(
         self,
@@ -382,9 +385,27 @@ class TiffSplitterCLI:
             # Check for deprecated file types
             self._check_deprecated_files()
 
-            # Get valid ROI centers for validation
+            # Get valid ROI centers from the timeseries (canonical anchor)
             valid_roi_centers = get_valid_roi_centers(
                 timeseries_splitter=timeseries_splitter
+            )
+
+            # Validate depth and surface have the same FOVs (1:1 centers)
+            validate_roi_pairing(depth_splitter, surface_splitter)
+
+            # Build per-splitter roi_index remaps so each TIFF is addressed
+            # by its own indexing (depth, surface, and zstack TIFFs can
+            # index ROIs in a different order than the timeseries).
+            depth_remap = build_roi_remap(
+                depth_splitter, valid_roi_centers
+            )
+            surface_remap = build_roi_remap(
+                surface_splitter, valid_roi_centers
+            )
+            zstack_remap = build_roi_remap(
+                zstack_splitter,
+                valid_roi_centers,
+                roi_indices=list(zstack_splitter._roi_to_path.keys()),
             )
 
             # Process experiment metadata for each imaging plane
@@ -400,10 +421,14 @@ class TiffSplitterCLI:
                     plane,
                     roi_index,
                     z_value,
+                    timeseries_splitter,
                     depth_splitter,
                     surface_splitter,
                     zstack_splitter,
                     valid_roi_centers,
+                    depth_remap,
+                    surface_remap,
+                    zstack_remap,
                     t0,
                 )
                 experiment_metadata.append(this_exp_metadata)
