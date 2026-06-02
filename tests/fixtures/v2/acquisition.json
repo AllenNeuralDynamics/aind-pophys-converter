@@ -1,0 +1,59 @@
+{
+    "schema_version": "2.4.0",
+    "subject_id": "000000",
+    "acquisition_start_time": "2025-05-17T10:00:00-07:00",
+    "acquisition_end_time": "2025-05-17T12:00:00-07:00",
+    "instrument_id": "MESO.1",
+    "experimenters": ["Test User"],
+    "acquisition_type": "Mesoscope",
+    "data_streams": [
+        {
+            "object_type": "Data stream",
+            "stream_start_time": "2025-05-17T10:00:00-07:00",
+            "stream_end_time": "2025-05-17T12:00:00-07:00",
+            "modalities": [{"abbreviation": "pophys", "name": "Planar optical physiology"}],
+            "active_devices": [],
+            "configurations": [
+                {
+                    "object_type": "Imaging config",
+                    "device_name": "MESO.1",
+                    "channels": [],
+                    "images": [
+                        {
+                            "object_type": "Planar image",
+                            "channel_name": "Ch1",
+                            "dimensions_unit": "pixel",
+                            "planes": [
+                                {
+                                    "object_type": "Coupled plane",
+                                    "plane_index": 1,
+                                    "depth": 150,
+                                    "depth_unit": "micrometer",
+                                    "targeted_structure": {
+                                        "atlas": "CCFv3",
+                                        "name": "Primary visual area",
+                                        "acronym": "VISp",
+                                        "id": "385"
+                                    }
+                                },
+                                {
+                                    "object_type": "Coupled plane",
+                                    "plane_index": 0,
+                                    "depth": 200,
+                                    "depth_unit": "micrometer",
+                                    "targeted_structure": {
+                                        "atlas": "CCFv3",
+                                        "name": "Primary motor area",
+                                        "acronym": "MOp",
+                                        "id": "985"
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
+    "stimulus_epochs": []
+}
