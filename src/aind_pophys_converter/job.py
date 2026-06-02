@@ -1,8 +1,11 @@
 """Top-level job orchestration for aind-pophys-converter."""
 import logging
 from datetime import datetime, timezone
+from importlib import resources
 from pathlib import Path
 from typing import Optional
+
+from log_schema.main import setup_logging
 
 from aind_pophys_converter import __version__
 from aind_pophys_converter.bergamo_stitcher import (
@@ -28,7 +31,10 @@ from aind_pophys_converter.utils.metadata_utils import (
 from aind_pophys_converter.utils.platform_utils import (
     is_child_session_via_platform_json,
 )
-from aind_pophys_converter.utils.structured_logging import setup_logging
+
+_LOGGING_CONFIG = str(
+    resources.files("aind_pophys_converter.utils") / "logging.yml"
+)
 
 
 def run() -> None:
@@ -40,9 +46,11 @@ def run() -> None:
     metadata = load_converter_metadata(input_dir)
 
     setup_logging(
-        "aind-pophys-converter",
-        acquisition_name=metadata.dataset_name,
-        process_name="aind-pophys-converter",
+        path_to_config=_LOGGING_CONFIG,
+        model={
+            "acquisition_name": metadata.dataset_name,
+            "process_name": "aind-pophys-converter",
+        },
     )
 
     started_at = datetime.now(timezone.utc)

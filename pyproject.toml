@@ -19,6 +19,7 @@ dynamic = ["version"]
 dependencies = [
     'aind-data-schema==2.6.0',
     'aind-data-schema-models==5.4.1',
+    'log-schema>=0.2.10.dev1',
     'aind-ophys-utils==0.0.8',
     'aind-qcportal-schema==0.6.4',
     'h5py==3.16.0',
@@ -31,7 +32,6 @@ dependencies = [
     'scikit-image>=0.25.0',
     'tifffile==2024.2.12',
     'scanimage-tiff-reader==1.4.1.4',
-    'pyyaml',
     'watchtower',
 ]
 

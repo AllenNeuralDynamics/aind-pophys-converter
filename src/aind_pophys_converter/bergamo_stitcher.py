@@ -8,11 +8,13 @@ import re
 import sys
 from collections import defaultdict
 from datetime import datetime as dt
+from importlib import resources
 from pathlib import Path
 from typing import List, Tuple
 
 import h5py as h5
 import numpy as np
+from log_schema.main import setup_logging
 from pydantic import BaseModel, Field
 from ScanImageTiffReader import ScanImageTiffReader
 
@@ -21,7 +23,10 @@ from aind_pophys_converter.utils.metadata_utils import (
     fov_id_from_plane,
     load_converter_metadata,
 )
-from aind_pophys_converter.utils.structured_logging import setup_logging
+
+_LOGGING_CONFIG = str(
+    resources.files("aind_pophys_converter.utils") / "logging.yml"
+)
 
 
 class BergamoSettings(BaseModel):
@@ -376,7 +381,8 @@ class BergamoTiffStitcher(BaseStitcher):
 
 if __name__ == "__main__":
     setup_logging(
-        "aind-pophys-converter", process_name="aind-pophys-converter"
+        path_to_config=_LOGGING_CONFIG,
+        model={"process_name": "aind-pophys-converter"},
     )
     sys_args = sys.argv[1:]
     runner = BergamoTiffStitcher.from_args(sys_args)
