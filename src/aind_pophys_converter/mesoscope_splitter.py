@@ -691,7 +691,7 @@ class TiffSplitterBase(IntFromZMapperMixin):
                     f"{self._metadata.channelSave}\n{self._file_path}"
                 )
             for ii in range(1, len(z_value_array), 2):
-                if z_value_array[ii] != 0 or z_value_array[ii - 1] == z_value_array[ii]:
+                if z_value_array[ii] != 0 or z_value_array[ii - 1] != z_value_array[ii]:
                     raise RuntimeError(
                         "channelSave==1 but z values are "
                         f"{z_value_array}; "
