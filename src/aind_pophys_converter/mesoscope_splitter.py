@@ -1307,11 +1307,11 @@ class ZStackSplitter(IntFromZMapperMixin):
                 tiff_path=tiff_path
             )
 
-            if self._path_to_metadata[str_path].channelSave != [1, 2]:
+            if self._path_to_metadata[str_path].channelSave != [1, 2] and self._path_to_metadata[str_path].channelSave != 1:
                 raise RuntimeError(
                     f"metadata for {str_path} has channelSave="
                     f"{self._path_to_metadata[str_path].channelSave}\n"
-                    "can only handle channelSave==[1, 2]"
+                    "can only handle channelSave==[1, 2] or channelSave==1"
                 )
 
     def _build_lookup_tables(self) -> None:
