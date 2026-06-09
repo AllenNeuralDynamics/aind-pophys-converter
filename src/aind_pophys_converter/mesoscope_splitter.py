@@ -690,14 +690,12 @@ class TiffSplitterBase(IntFromZMapperMixin):
                     "Expect channelSave == 1 or [1, 2]; got "
                     f"{self._metadata.channelSave}\n{self._file_path}"
                 )
-            ch1_values = z_value_array[0::2]
-            ch2_values = z_value_array[1::2]
-
-            if not (np.all(ch2_values == 0) or np.all(ch2_values == ch1_values)):
+            for ii in range(1, len(z_value_array), 2):
+                if z_value_array[ii] != 0 and z_value_array[ii - 1] != z_value_array[ii]:
                     raise RuntimeError(
                         "channelSave==1 but z values are "
                         f"{z_value_array}; "
-                        "expect every other value to be zero\n"
+                        "expect every other value to be zero or equal to the preceding value\n"
                         f"{self._file_path}"
                     )
             return z_value_array[::2]
