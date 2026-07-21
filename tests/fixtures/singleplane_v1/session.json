@@ -1,0 +1,23 @@
+{
+   "data_streams": [
+      {
+         "ophys_fovs": [
+            {
+               "fov_height": 512,
+               "fov_reference": "Bregma",
+               "fov_scale_factor": "0.97",
+               "fov_scale_factor_unit": "um/pixel",
+               "fov_size_unit": "pixel",
+               "fov_width": 512,
+               "frame_rate": "33.3",
+               "frame_rate_unit": "hertz",
+               "imaging_depth": 158,
+               "imaging_depth_unit": "micrometer",
+               "targeted_structure": "DLS"
+            }
+         ]
+      }
+   ],
+   "subject_id": "NY129",
+   "rig_id": "Bruker"
+}

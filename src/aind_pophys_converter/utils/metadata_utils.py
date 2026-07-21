@@ -1,24 +1,18 @@
-"""Centralised aind-data-schema interaction helpers.
+"""Input-metadata reading + processing.json generation.
 
-All imports of ``aind-data-schema`` and ``aind-data-schema-models`` symbols
-live in this module. Callers interact with schema objects only through the
-functions here, so schema-version changes require edits in one place.
-
-The module covers three concerns at the schema boundary:
+This module covers two concerns at the aind-data-schema boundary:
 
 1. **Input metadata** is loaded as raw JSON dicts (no Pydantic) and mapped
    into a ``ConverterMetadata`` frozen dataclass via either ``_map_v1`` or
-   ``_map_v2``, dispatched by ``load_converter_metadata`` based on the
-   ``schema_version`` field of the acquisition / session file. Downstream
-   code consumes only ``ConverterMetadata``; it never sees a v1 or v2
-   schema object.
+   ``_map_v2``, dispatched by ``load_converter_metadata`` based on **which
+   core file is present** (``session.json`` -> v1, ``acquisition.json`` ->
+   v2). Downstream code consumes only ``ConverterMetadata``; it never sees a
+   v1 or v2 schema object.
 
-2. **QC output** (unchanged): ``build_fov_qc_metric`` and
-   ``build_vasculature_qc_metric`` construct v2 ``QCMetric`` objects.
+2. **Processing output**: ``build_processing`` / ``write_processing_json``
+   emit a v2 ``processing.json`` describing the conversion run.
 
-3. **Processing output** (new): ``build_processing`` /
-   ``write_processing_json`` emit a v2 ``processing.json`` describing
-   the conversion run.
+All ``quality_control.json`` generation lives in ``qc.py``.
 """
 
 import json
@@ -30,7 +24,11 @@ from datetime import datetime as dt
 from pathlib import Path
 from typing import Any, Optional, Tuple
 
-import pytz
+from aind_data_schema.components.configs import (
+    ImagingConfig,
+    PlanarImage,
+    PlanarImageStack,
+)
 from aind_data_schema.components.identifiers import Code
 from aind_data_schema.core.processing import (
     DataProcess,
@@ -38,15 +36,7 @@ from aind_data_schema.core.processing import (
     ProcessStage,
     ResourceUsage,
 )
-from aind_data_schema.core.quality_control import (
-    QCMetric,
-    QCStatus,
-    Stage,
-    Status,
-)
-from aind_data_schema_models.modalities import Modality
 from aind_data_schema_models.process_names import ProcessName
-from aind_qcportal_schema.metric_value import DropdownMetric
 
 # ---------------------------------------------------------------------------
 # Internal metadata model
@@ -54,60 +44,40 @@ from aind_qcportal_schema.metric_value import DropdownMetric
 
 
 @dataclass(frozen=True)
-class PlaneInfo:
-    """Per-plane info the converter actually consumes.
-
-    Parameters
-    ----------
-    plane_index : int
-        Index of the plane within the imaging session. ``0`` for
-        single-plane instruments (e.g. Bergamo) that have no explicit index.
-    targeted_structure_acronym : str
-        CCF acronym of the targeted brain structure, e.g. ``"VISp"``.
-    """
-
-    plane_index: int
-    targeted_structure_acronym: str
-
-
-@dataclass(frozen=True)
 class ConverterMetadata:
-    """Schema-agnostic metadata object consumed by the converter.
+    """Minimal, schema-agnostic metadata the converter actually uses.
 
-    Populated from either v1 (``session.json``) or v2
-    (``acquisition.json``) input by ``load_converter_metadata``. The
-    converter pipeline reads only this object; it never sees a v1 or v2
-    aind-data-schema Pydantic class.
+    Holds only the fields the conversion consumes (the "fields as used by
+    the code", not a faithful copy of the input file). Populated from either
+    v1 (``session.json``) or v2 (``acquisition.json``) input by
+    ``load_converter_metadata`` via a factory (``_map_v1``/``_map_v2``); the
+    canonical FOV ids are resolved once, at construction. Downstream code
+    reads only this object — never a v1/v2 aind-data-schema class, and never
+    a raw targeted-structure acronym.
 
     Attributes
     ----------
-    source_schema_version : str
-        Full schema_version string from the input acquisition / session
-        file, e.g. ``"1.1.2"`` or ``"2.4.0"``. Used for provenance and
-        error messages.
-    source_acquisition_file : Path
-        Path to the input ``acquisition.json`` (v2) or ``session.json``
-        (v1) that this metadata was derived from.
-    source_data_description_file : Path
-        Path to the input ``data_description.json``.
     instrument_id : str
         Hardware identifier; drives Bergamo vs mesoscope routing.
-    dataset_name : str
-        Dataset name from ``data_description.json``; drives multiplane
-        detection.
-    subject_id : str
-        Subject identifier.
-    planes : tuple of PlaneInfo
-        Imaging planes sorted by ``plane_index``. Tuple for immutability.
+    fov_ids : tuple of str
+        Canonical FOV id per imaging plane, ordered by plane index (e.g.
+        ``("plane_0",)`` single-plane, or ``("MOp_0", "VISp_1")``
+        multi-plane). Precomputed via the shared naming rule (``_fov_id``)
+        so the ids are identical across capsules. Paired with the TIFF's
+        scan-order planes **by position** (``fov_ids[i]`` is the i-th
+        scanned plane). Empty only for malformed input with no planes
+        (consumers fail-fast on that).
+    dataset_name : str or None
+        Dataset name from ``data_description.json``; used as the logging
+        label. ``None`` when no data_description.
+    subject_id : str or None
+        Subject identifier; used only as the logging-label fallback.
     """
 
-    source_schema_version: str
-    source_acquisition_file: Path
-    source_data_description_file: Path
     instrument_id: str
-    dataset_name: str
-    subject_id: str
-    planes: Tuple[PlaneInfo, ...]
+    fov_ids: Tuple[str, ...]
+    dataset_name: Optional[str] = None
+    subject_id: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -116,12 +86,13 @@ class ConverterMetadata:
 
 
 def load_converter_metadata(input_dir: Path) -> ConverterMetadata:
-    """Discover, detect, and parse v1 or v2 input metadata.
+    """Discover and parse v1 or v2 input metadata.
 
-    Searches ``input_dir`` recursively for an acquisition / session JSON
-    file and a data_description JSON file, detects the schema major
-    version from the acquisition / session ``schema_version`` field, and
-    dispatches to the appropriate mapper.
+    Searches ``input_dir`` recursively for the core acquisition file and an
+    optional data_description file. The schema version is dispatched by
+    **which core file is present** — ``session.json`` (v1) vs
+    ``acquisition.json`` (v2), the v1->v2 rename being the authoritative
+    version signal — so no ``schema_version`` field is required.
 
     Parameters
     ----------
@@ -136,29 +107,25 @@ def load_converter_metadata(input_dir: Path) -> ConverterMetadata:
     Raises
     ------
     FileNotFoundError
-        If neither ``acquisition.json`` nor ``session.json`` is found,
-        or if ``data_description.json`` is not found.
+        If neither ``acquisition.json`` nor ``session.json`` is found.
+        (``data_description.json`` is optional.)
     ValueError
         If both ``acquisition.json`` and ``session.json`` are present
-        (ambiguous input), or if the detected schema major version is
-        not supported.
+        (ambiguous input).
     KeyError
         If a required field is missing from the input metadata.
     """
     acq_path = _find_acquisition_file(input_dir)
     dd_path = _find_data_description_file(input_dir)
     acq_raw = json.loads(acq_path.read_text())
-    dd_raw = json.loads(dd_path.read_text())
-    schema_version = str(acq_raw.get("schema_version", ""))
-    major = _detect_major_version(acq_raw, acq_path)
-    if major == 1:
-        return _map_v1(acq_raw, dd_raw, acq_path, dd_path, schema_version)
-    if major == 2:
-        return _map_v2(acq_raw, dd_raw, acq_path, dd_path, schema_version)
-    raise ValueError(
-        f"Unsupported schema_version major {major} in {acq_path} "
-        f"(schema_version={schema_version!r})"
-    )
+    dd_raw = json.loads(dd_path.read_text()) if dd_path else {}
+    # Dispatch on which core file is present: the v1 -> v2 rename
+    # (session.json -> acquisition.json) IS the authoritative version signal,
+    # so no schema_version parsing is needed. Minimal inputs that omit
+    # schema_version (and inputs with no data_description) still load.
+    if acq_path.name == "session.json":
+        return _map_v1(acq_raw, dd_raw, acq_path)
+    return _map_v2(acq_raw, dd_raw, acq_path)
 
 
 def _find_acquisition_file(input_dir: Path) -> Path:
@@ -203,55 +170,17 @@ def _find_acquisition_file(input_dir: Path) -> Path:
     )
 
 
-def _find_data_description_file(input_dir: Path) -> Path:
-    """Locate ``data_description.json`` under ``input_dir`` (recursive)."""
-    matches = list(input_dir.rglob("data_description.json"))
-    if not matches:
-        raise FileNotFoundError(
-            f"No data_description.json found under {input_dir}"
-        )
-    return matches[0]
+def _find_data_description_file(input_dir: Path) -> Optional[Path]:
+    """Locate ``data_description.json`` under ``input_dir`` (recursive).
 
-
-def _detect_major_version(blob: dict, file_path: Path) -> int:
-    """Parse ``blob['schema_version']`` and return the integer major.
-
-    Parameters
-    ----------
-    blob : dict
-        Raw JSON dict from the acquisition / session file.
-    file_path : Path
-        Source file path, included in error messages.
-
-    Returns
-    -------
-    int
-        Major version (1 or 2).
-
-    Raises
-    ------
-    ValueError
-        If ``schema_version`` is missing or malformed.
+    Returns ``None`` when absent — a minimal input (e.g. a single-plane
+    session) may ship only the session/acquisition file.
     """
-    version_str = blob.get("schema_version")
-    if not version_str:
-        raise ValueError(
-            f"Missing 'schema_version' field in {file_path}; "
-            f"cannot detect v1 vs v2 schema."
-        )
-    try:
-        major_str = str(version_str).split(".", 1)[0]
-        return int(major_str)
-    except (ValueError, AttributeError) as exc:
-        raise ValueError(
-            f"Malformed schema_version {version_str!r} in {file_path}: "
-            f"{exc}"
-        ) from exc
+    matches = list(input_dir.rglob("data_description.json"))
+    return matches[0] if matches else None
 
 
-def _require(
-    blob: dict, key: str, source_version: str, file_path: Path
-) -> Any:
+def _require(blob: dict, key: str, file_path: Path) -> Any:
     """Return ``blob[key]`` or raise a descriptive KeyError.
 
     Parameters
@@ -260,8 +189,6 @@ def _require(
         The raw JSON dict.
     key : str
         Required key.
-    source_version : str
-        Schema version string, for the error message.
     file_path : Path
         Source file path, for the error message.
 
@@ -277,74 +204,107 @@ def _require(
     """
     if key not in blob:
         raise KeyError(
-            f"Required field '{key}' missing from {file_path.name} "
-            f"(schema v{source_version})"
+            f"Required field '{key}' missing from {file_path.name}"
         )
     return blob[key]
+
+
+def _acronym_from_targeted_structure(value: Any) -> Optional[str]:
+    """Extract a structure acronym from a v1/v2 ``targeted_structure`` value.
+
+    The field type changed across schema versions, so tolerate all shapes:
+    a **bare acronym string** (``"DLS"`` — early v1, where
+    ``FieldOfView.targeted_structure: str``), a **dict** carrying an
+    ``"acronym"`` key (``{"acronym": "VISp", ...}`` — later v1's
+    ``CCFStructure`` and v2's structure model), or **absent** (``None``).
+    Returns ``None`` when no acronym is available (fine for single-plane,
+    which is named ``plane_{index}`` regardless).
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        acronym = value.get("acronym")
+        return str(acronym) if acronym is not None else None
+    return None
 
 
 def _map_v1(
     acq_raw: dict,
     dd_raw: dict,
     acq_path: Path,
-    dd_path: Path,
-    schema_version: str,
 ) -> ConverterMetadata:
-    """Map a v1 ``session.json`` + ``data_description.json`` pair to
+    """Map a v1 ``session.json`` (+ optional ``data_description.json``) to
     a ``ConverterMetadata`` instance.
 
-    v1 layout:
-    ``session["data_streams"][*]["ophys_fovs"][*]`` →
-    each FOV has ``index`` and ``targeted_structure`` (a CCFStructure
-    dict with an ``acronym`` key).
+    v1 layout: ``session["data_streams"][*]["ophys_fovs"][*]``. Each FOV
+    *may* have an ``index`` (defaults to ``0`` for single-plane) and a
+    ``targeted_structure`` that is either a bare acronym string
+    (single-plane, e.g. ``"DLS"``) or a CCFStructure dict with an
+    ``"acronym"`` key (multi-plane). ``subject_id`` and
+    ``data_description.json``/``name`` are optional (logging labels only).
+    See ``single_plane_support.md``.
     """
-    instrument_id = _require(acq_raw, "rig_id", schema_version, acq_path)
-    subject_id = _require(acq_raw, "subject_id", schema_version, acq_path)
-    dataset_name = _require(dd_raw, "name", schema_version, dd_path)
+    instrument_id = _require(acq_raw, "rig_id", acq_path)
+    subject_id = acq_raw.get("subject_id")
+    dataset_name = dd_raw.get("name")
 
-    planes = []
-    data_streams = _require(
-        acq_raw, "data_streams", schema_version, acq_path
-    )
+    pairs = []
+    data_streams = _require(acq_raw, "data_streams", acq_path)
     for stream in data_streams:
         for fov in stream.get("ophys_fovs", []):
-            plane_index = _require(fov, "index", schema_version, acq_path)
-            targeted_structure = _require(
-                fov, "targeted_structure", schema_version, acq_path
+            plane_index = int(fov.get("index", 0))
+            acronym = _acronym_from_targeted_structure(
+                fov.get("targeted_structure")
             )
-            acronym = _require(
-                targeted_structure, "acronym", schema_version, acq_path
-            )
-            planes.append(
-                PlaneInfo(
-                    plane_index=int(plane_index),
-                    targeted_structure_acronym=str(acronym),
-                )
-            )
-    planes.sort(key=lambda p: p.plane_index)
+            pairs.append((plane_index, acronym))
     return ConverterMetadata(
-        source_schema_version=schema_version,
-        source_acquisition_file=acq_path,
-        source_data_description_file=dd_path,
         instrument_id=str(instrument_id),
-        dataset_name=str(dataset_name),
-        subject_id=str(subject_id),
-        planes=tuple(planes),
+        fov_ids=_build_fov_ids(pairs),
+        dataset_name=dataset_name,
+        subject_id=None if subject_id is None else str(subject_id),
     )
 
 
-_V2_IMAGING_CONFIG_DISCRIMINATOR = "Imaging config"
-_V2_PLANAR_IMAGE_DISCRIMINATORS = {"Planar image", "Planar image stack"}
+def _object_type_value(cls) -> str:
+    """Return a schema class's auto-derived ``object_type`` discriminator.
+
+    In aind-data-schema v2 the ``object_type`` field is a ``Literal``
+    whose value is derived from the class name (e.g. ``ImagingConfig`` →
+    ``"Imaging config"``) and used as the discriminator in serialized
+    JSON. Reading it from ``model_fields`` instead of hardcoding the
+    string keeps the v2 mapper correct if the schema ever re-words a
+    discriminator.
+
+    Parameters
+    ----------
+    cls : type
+        An aind-data-schema v2 model class with an ``object_type`` field.
+
+    Returns
+    -------
+    str
+        The discriminator string the class serializes to.
+    """
+    return cls.model_fields["object_type"].default
+
+
+# Discriminator values are read from the schema classes (not hardcoded) so
+# they track the installed aind-data-schema version. See _object_type_value.
+_V2_IMAGING_CONFIG_DISCRIMINATOR = _object_type_value(ImagingConfig)
+_V2_PLANAR_IMAGE_DISCRIMINATORS = {
+    _object_type_value(PlanarImage),
+    _object_type_value(PlanarImageStack),
+}
 
 
 def _map_v2(
     acq_raw: dict,
     dd_raw: dict,
     acq_path: Path,
-    dd_path: Path,
-    schema_version: str,
 ) -> ConverterMetadata:
-    """Map a v2 ``acquisition.json`` + ``data_description.json`` pair
+    """Map a v2 ``acquisition.json`` (+ optional ``data_description.json``)
     to a ``ConverterMetadata`` instance.
 
     v2 layout:
@@ -353,19 +313,17 @@ def _map_v2(
     ``images[*]`` (filter by ``object_type in {"Planar image",
     "Planar image stack"}``) →
     ``planes[*]`` — each plane has ``plane_index`` (optional; defaults
-    to 0 for single-plane instruments) and ``targeted_structure``
-    (a BrainStructureModel dict with an ``acronym`` key).
+    to 0 for single-plane) and ``targeted_structure`` (a bare acronym
+    string or a BrainStructureModel dict with an ``"acronym"`` key;
+    optional). ``subject_id`` and ``data_description.json``/``name`` are
+    optional (logging labels only).
     """
-    instrument_id = _require(
-        acq_raw, "instrument_id", schema_version, acq_path
-    )
-    subject_id = _require(acq_raw, "subject_id", schema_version, acq_path)
-    dataset_name = _require(dd_raw, "name", schema_version, dd_path)
+    instrument_id = _require(acq_raw, "instrument_id", acq_path)
+    subject_id = acq_raw.get("subject_id")
+    dataset_name = dd_raw.get("name")
 
-    planes = []
-    data_streams = _require(
-        acq_raw, "data_streams", schema_version, acq_path
-    )
+    pairs = []
+    data_streams = _require(acq_raw, "data_streams", acq_path)
     for stream in data_streams:
         configurations = stream.get("configurations", [])
         for config in configurations:
@@ -381,194 +339,90 @@ def _map_v2(
                 ):
                     continue
                 for plane in image.get("planes", []):
-                    targeted_structure = _require(
-                        plane,
-                        "targeted_structure",
-                        schema_version,
-                        acq_path,
+                    acronym = _acronym_from_targeted_structure(
+                        plane.get("targeted_structure")
                     )
-                    acronym = _require(
-                        targeted_structure,
-                        "acronym",
-                        schema_version,
-                        acq_path,
+                    pairs.append(
+                        (int(plane.get("plane_index", 0)), acronym)
                     )
-                    planes.append(
-                        PlaneInfo(
-                            plane_index=int(plane.get("plane_index", 0)),
-                            targeted_structure_acronym=str(acronym),
-                        )
-                    )
-    planes.sort(key=lambda p: p.plane_index)
     return ConverterMetadata(
-        source_schema_version=schema_version,
-        source_acquisition_file=acq_path,
-        source_data_description_file=dd_path,
         instrument_id=str(instrument_id),
-        dataset_name=str(dataset_name),
-        subject_id=str(subject_id),
-        planes=tuple(planes),
+        fov_ids=_build_fov_ids(pairs),
+        dataset_name=dataset_name,
+        subject_id=None if subject_id is None else str(subject_id),
     )
 
 
 # ---------------------------------------------------------------------------
-# FOV helper
+# FOV / plane naming
 # ---------------------------------------------------------------------------
 
 
-def fov_id_from_plane(plane: PlaneInfo) -> str:
-    """Return the FOV identifier ``"{acronym}_{plane_index}"`` for a plane.
+def _build_fov_ids(pairs: list) -> Tuple[str, ...]:
+    """Resolve canonical FOV ids for ``(plane_index, acronym)`` pairs.
+
+    Sorts by plane index and applies the shared naming rule (``_fov_id``)
+    once per plane, so the returned ids are stable and identical to what
+    other capsules produce for the same input. Single- vs multi-plane is
+    decided here (exactly one plane -> single); the acronym never escapes
+    this module. The returned order matches the TIFF's scan order, which
+    downstream splitting pairs with by position.
 
     Parameters
     ----------
-    plane : PlaneInfo
-        Imaging plane info.
+    pairs : list of (int, str or None)
+        Per-plane ``(plane_index, targeted_structure_acronym)`` pairs.
+
+    Returns
+    -------
+    tuple of str
+        Canonical FOV ids, ordered by plane index. Empty when ``pairs``
+        is empty.
+    """
+    pairs = sorted(pairs, key=lambda p: p[0])
+    single_plane = len(pairs) == 1
+    return tuple(
+        _fov_id(idx, acronym, single_plane=single_plane)
+        for idx, acronym in pairs
+    )
+
+
+def _fov_id(
+    plane_index: int, acronym: Optional[str], *, single_plane: bool
+) -> str:
+    """Return the FOV/plane id for a plane under the active naming scheme.
+
+    Called once per plane by ``_build_fov_ids`` at construction time; the
+    result is cached on ``ConverterMetadata.fov_ids``. The id flows
+    downstream (capsules key their outputs/folders on it), so it must be
+    identical across every capsule for the same input.
+
+    Naming schemes (add new ones here as needed):
+
+    - **single-plane** → ``"plane_{plane_index}"`` (e.g. ``"plane_0"``):
+      stable and independent of targeted-structure metadata, which
+      single-plane acquisitions may omit.
+    - **multi-plane** → ``"{acronym}_{plane_index}"`` (e.g. ``"VISp_0"``).
+      Falls back to ``"plane_{plane_index}"`` if the acronym is missing, so
+      a malformed plane never yields ``"None_0"``.
+
+    Parameters
+    ----------
+    plane_index : int
+        Index of the plane within the imaging session.
+    acronym : str or None
+        CCF acronym of the plane's targeted structure, or ``None``.
+    single_plane : bool
+        Whether the acquisition has exactly one plane.
 
     Returns
     -------
     str
-        FOV identifier string, e.g. ``"VISp_3"`` or ``"MO_0"``.
+        FOV/plane identifier string.
     """
-    return f"{plane.targeted_structure_acronym}_{plane.plane_index}"
-
-
-# ---------------------------------------------------------------------------
-# QC schema helpers
-# ---------------------------------------------------------------------------
-
-
-def pending_qc_status() -> QCStatus:
-    """Return a PENDING QCStatus timestamped to US/Pacific.
-
-    Returns
-    -------
-    QCStatus
-        A QCStatus with status=PENDING and evaluator='Automated'.
-    """
-    seattle_tz = pytz.timezone("America/Los_Angeles")
-    return QCStatus(
-        evaluator="Automated",
-        status=Status.PENDING,
-        timestamp=dt.now(seattle_tz).isoformat(),
-    )
-
-
-def build_fov_qc_metric(
-    unique_id: str,
-    raw_tif_path: Path,
-    intended_depth: int,
-    targeted_structure_id: str,
-    closest_z: float,
-    merged_path: Path,
-) -> QCMetric:
-    """Construct the FOV parent-child matching QCMetric object.
-
-    Parameters
-    ----------
-    unique_id : str
-        Identifier string like 'VISp_200'.
-    raw_tif_path : Path
-        Path to the parent depth snapshot TIFF.
-    intended_depth : int
-        Intended imaging depth in microns.
-    targeted_structure_id : str
-        CCF structure acronym.
-    closest_z : float
-        Closest child z-plane in microns.
-    merged_path : Path
-        Path to the saved merged PNG.
-
-    Returns
-    -------
-    QCMetric
-        Constructed QCMetric object, not yet serialized.
-    """
-    return QCMetric(
-        name=f"{unique_id} Parent-Child FOV",
-        modality=Modality.POPHYS,
-        stage=Stage.RAW,
-        tags={
-            "evaluation": "Op. QC: Field-of-view Matching",
-            "type": "Operational QC",
-        },
-        description=(
-            f"Side-by-side comparison of the parent session depth snapshot "
-            f"({raw_tif_path.stem}, intended_depth={intended_depth}µm, "
-            f"structure={targeted_structure_id}) and the current session's "
-            f"averaged-depth image at the closest matching z-plane "
-            f"(child z: {closest_z}µm). "
-            f"Pass if the fields of view align spatially across sessions."
-        ),
-        status_history=[pending_qc_status()],
-        reference=str(merged_path),
-        value=DropdownMetric(
-            value="",
-            options=[
-                "FOV Matches parent FOV",
-                "FOV does not match parent FOV.",
-            ],
-            status=[Status.PASS, Status.FAIL],
-        ),
-    )
-
-
-def build_vasculature_qc_metric(vasculature_output_fp: Path) -> QCMetric:
-    """Construct the vasculature window-clarity QCMetric object.
-
-    Parameters
-    ----------
-    vasculature_output_fp : Path
-        Path to the saved vasculature PNG.
-
-    Returns
-    -------
-    QCMetric
-        Constructed QCMetric object, not yet serialized.
-    """
-    return QCMetric(
-        name="Vasculature Image",
-        modality=Modality.POPHYS,
-        stage=Stage.RAW,
-        tags={
-            "evaluation": "Op. QC: Window Clarity",
-            "type": "Operational QC",
-        },
-        description=(
-            "Vasculature image captured at session start to assess brain "
-            "surface health and cranial window clarity. Select the option "
-            "that best describes the observed surface condition. Bruising, "
-            "bubbles, or discoloration may indicate compromised tissue or "
-            "optical path quality."
-        ),
-        status_history=[pending_qc_status()],
-        reference=str(vasculature_output_fp),
-        value=DropdownMetric(
-            value="",
-            options=[
-                "Quality is sufficient",
-                "Poor vasculature image quality",
-                "Light bruising on surface of brain",
-                "Severe bruising on surface of brain",
-                "Vascularization of brain surface",
-                "Discoloration of brain surface (white)",
-                (
-                    "Bubbles in objective immersion present, but do NOT"
-                    " impact imaging quality"
-                ),
-                "Bubbles in objective immersion impact imaging quality",
-            ],
-            status=[
-                Status.PASS,
-                Status.PASS,
-                Status.PASS,
-                Status.FAIL,
-                Status.PASS,
-                Status.PASS,
-                Status.PASS,
-                Status.FAIL,
-            ],
-        ),
-    )
+    if single_plane or not acronym:
+        return f"plane_{plane_index}"
+    return f"{acronym}_{plane_index}"
 
 
 # ---------------------------------------------------------------------------

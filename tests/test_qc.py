@@ -1,4 +1,4 @@
-"""Tests for qc module."""
+"""Tests for QC generation (qc.py: metrics + QualityControl assembly)."""
 
 import json
 import tempfile
@@ -6,11 +6,72 @@ import unittest
 from datetime import datetime
 from pathlib import Path
 
-from aind_data_schema.core.quality_control import QCMetric, QCStatus, Status
+from aind_data_schema.core.quality_control import (
+    QCMetric,
+    QCStatus,
+    QualityControl,
+    Stage,
+    Status,
+)
 from aind_data_schema_models.modalities import Modality
 
-from aind_pophys_converter.qc import write_fov_metric, write_vasculature_metric
-from aind_pophys_converter.utils.metadata_utils import pending_qc_status
+from aind_pophys_converter.qc import (
+    build_fov_qc_metric,
+    build_quality_control,
+    build_vasculature_qc_metric,
+    pending_qc_status,
+    write_quality_control_json,
+)
+
+
+class TestBuildQcMetrics(unittest.TestCase):
+    """Tests for build_fov_qc_metric and build_vasculature_qc_metric."""
+
+    def test_fov_metric_stage(self):
+        """build_fov_qc_metric returns Stage.RAW."""
+        metric = build_fov_qc_metric(
+            unique_id="VISp_200",
+            raw_tif_path=Path("/fake/parent.tif"),
+            intended_depth=200,
+            targeted_structure_id="VISp",
+            closest_z=-200.0,
+            merged_path=Path("/fake/merged.png"),
+        )
+        self.assertEqual(metric.stage, Stage.RAW)
+
+    def test_fov_metric_modality_is_pophys(self):
+        """build_fov_qc_metric modality is POPHYS."""
+        metric = build_fov_qc_metric(
+            unique_id="VISp_200",
+            raw_tif_path=Path("/fake/parent.tif"),
+            intended_depth=200,
+            targeted_structure_id="VISp",
+            closest_z=-200.0,
+            merged_path=Path("/fake/merged.png"),
+        )
+        self.assertEqual(metric.modality, Modality.POPHYS)
+
+    def test_fov_metric_name_contains_unique_id(self):
+        """build_fov_qc_metric name includes the unique_id."""
+        metric = build_fov_qc_metric(
+            unique_id="MOp_100",
+            raw_tif_path=Path("/fake/parent.tif"),
+            intended_depth=100,
+            targeted_structure_id="MOp",
+            closest_z=-100.0,
+            merged_path=Path("/fake/merged.png"),
+        )
+        self.assertIn("MOp_100", metric.name)
+
+    def test_vasculature_metric_stage(self):
+        """build_vasculature_qc_metric returns Stage.RAW."""
+        metric = build_vasculature_qc_metric(Path("/fake/vasculature.png"))
+        self.assertEqual(metric.stage, Stage.RAW)
+
+    def test_vasculature_metric_reference(self):
+        """build_vasculature_qc_metric reference matches input path."""
+        fp = Path("/fake/vasculature.png")
+        self.assertEqual(build_vasculature_qc_metric(fp).reference, str(fp))
 
 
 class TestPendingQcStatus(unittest.TestCase):
@@ -38,11 +99,57 @@ class TestPendingQcStatus(unittest.TestCase):
         self.assertIsNotNone(s.timestamp.tzinfo)
 
 
-class TestWriteFovMetric(unittest.TestCase):
-    """Tests for write_fov_metric."""
+def _sample_metrics() -> list:
+    """Build one FOV metric and one vasculature metric."""
+    fov = build_fov_qc_metric(
+        unique_id="VISp_200",
+        raw_tif_path=Path("/fake/parent.tif"),
+        intended_depth=200,
+        targeted_structure_id="VISp",
+        closest_z=-276.0,
+        merged_path=Path("/fake/merged.png"),
+    )
+    vasc = build_vasculature_qc_metric(Path("/fake/vasculature.png"))
+    return [fov, vasc]
+
+
+class TestBuildQualityControl(unittest.TestCase):
+    """Tests for build_quality_control."""
+
+    def test_returns_quality_control(self):
+        """build_quality_control returns a QualityControl object."""
+        qc = build_quality_control(_sample_metrics())
+        self.assertIsInstance(qc, QualityControl)
+
+    def test_contains_all_metrics(self):
+        """All supplied metrics are retained."""
+        metrics = _sample_metrics()
+        qc = build_quality_control(metrics)
+        self.assertEqual(len(qc.metrics), len(metrics))
+
+    def test_metrics_are_qcmetrics(self):
+        """Wrapped metrics are QCMetric instances."""
+        qc = build_quality_control(_sample_metrics())
+        for m in qc.metrics:
+            self.assertIsInstance(m, QCMetric)
+
+    def test_default_grouping_set(self):
+        """default_grouping (required in v2.8) is populated."""
+        qc = build_quality_control(_sample_metrics())
+        self.assertTrue(qc.default_grouping)
+        self.assertIn("evaluation", qc.default_grouping)
+
+    def test_round_trips_through_json(self):
+        """QualityControl survives a full JSON round-trip + validation."""
+        qc = build_quality_control(_sample_metrics())
+        QualityControl.model_validate_json(qc.model_dump_json())
+
+
+class TestWriteQualityControlJson(unittest.TestCase):
+    """Tests for write_quality_control_json."""
 
     def setUp(self):
-        """Set up temporary directory."""
+        """Per-test scratch directory."""
         self.tmpdir = tempfile.TemporaryDirectory()
         self.output_dir = Path(self.tmpdir.name)
 
@@ -50,120 +157,24 @@ class TestWriteFovMetric(unittest.TestCase):
         """Clean up."""
         self.tmpdir.cleanup()
 
-    def _write(self, unique_id="VISp_200"):
-        """Helper to call write_fov_metric with minimal args."""
-        raw_tif_path = self.output_dir / "1234_200_VISp_depth.tif"
-        merged_path = self.output_dir / "merged.png"
-        write_fov_metric(
-            unique_id=unique_id,
-            raw_tif_path=raw_tif_path,
-            intended_depth=200,
-            targeted_structure_id="VISp",
-            closest_z=276.0,
-            merged_path=merged_path,
-            output_dir=self.output_dir,
+    def test_writes_single_quality_control_file(self):
+        """Writes exactly one quality_control.json (not per-metric files)."""
+        qc = build_quality_control(_sample_metrics())
+        written = write_quality_control_json(qc, self.output_dir)
+        self.assertTrue(written.exists())
+        self.assertEqual(written.name, "quality_control.json")
+        # No per-metric JSON fragments
+        self.assertEqual(
+            list(self.output_dir.glob("*_metric.json")), []
         )
-        return self.output_dir / f"{unique_id}_fov_metric.json"
 
-    def test_file_is_created(self):
-        """write_fov_metric creates a JSON file."""
-        path = self._write()
-        self.assertTrue(path.exists())
-
-    def test_file_is_valid_json(self):
-        """The written file deserializes without error."""
-        path = self._write()
-        with open(path) as f:
-            data = json.load(f)
-        self.assertIsInstance(data, dict)
-
-    def test_file_validates_as_qcmetric(self):
-        """The written JSON round-trips through QCMetric.model_validate."""
-        path = self._write()
-        with open(path) as f:
-            data = json.load(f)
-        metric = QCMetric.model_validate(data)
-        self.assertIsInstance(metric, QCMetric)
-
-    def test_metric_name_contains_unique_id(self):
-        """Metric name includes the unique_id."""
-        path = self._write("VISl_300")
-        with open(path) as f:
-            data = json.load(f)
-        self.assertIn("VISl_300", data["name"])
-
-    def test_metric_modality_is_pophys(self):
-        """Metric modality is POPHYS."""
-        path = self._write()
-        with open(path) as f:
-            data = json.load(f)
-        metric = QCMetric.model_validate(data)
-        self.assertEqual(metric.modality, Modality.POPHYS)
-
-    def test_metric_tags(self):
-        """Metric tags include evaluation and type keys."""
-        path = self._write()
-        with open(path) as f:
-            data = json.load(f)
-        self.assertIn("evaluation", data["tags"])
-        self.assertIn("type", data["tags"])
-
-    def test_filename_uses_unique_id(self):
-        """Output filename is {unique_id}_fov_metric.json."""
-        self._write("VISp_50")
-        self.assertTrue((self.output_dir / "VISp_50_fov_metric.json").exists())
-
-
-class TestWriteVasculatureMetric(unittest.TestCase):
-    """Tests for write_vasculature_metric."""
-
-    def setUp(self):
-        """Set up temporary directory."""
-        self.tmpdir = tempfile.TemporaryDirectory()
-        self.output_dir = Path(self.tmpdir.name)
-        self.vasculature_fp = self.output_dir / "vasculature.png"
-        self.vasculature_fp.touch()
-
-    def tearDown(self):
-        """Clean up."""
-        self.tmpdir.cleanup()
-
-    def test_file_is_created(self):
-        """write_vasculature_metric creates vasculature_metric.json."""
-        write_vasculature_metric(self.vasculature_fp, self.output_dir)
-        self.assertTrue((self.output_dir / "vasculature_metric.json").exists())
-
-    def test_file_validates_as_qcmetric(self):
-        """The written JSON round-trips through QCMetric.model_validate."""
-        write_vasculature_metric(self.vasculature_fp, self.output_dir)
-        with open(self.output_dir / "vasculature_metric.json") as f:
-            data = json.load(f)
-        metric = QCMetric.model_validate(data)
-        self.assertIsInstance(metric, QCMetric)
-
-    def test_metric_name(self):
-        """Metric name is 'Vasculature Image'."""
-        write_vasculature_metric(self.vasculature_fp, self.output_dir)
-        with open(self.output_dir / "vasculature_metric.json") as f:
-            data = json.load(f)
-        self.assertEqual(data["name"], "Vasculature Image")
-
-    def test_metric_modality_is_pophys(self):
-        """Metric modality is POPHYS."""
-        write_vasculature_metric(self.vasculature_fp, self.output_dir)
-        with open(self.output_dir / "vasculature_metric.json") as f:
-            data = json.load(f)
-        metric = QCMetric.model_validate(data)
-        self.assertEqual(metric.modality, Modality.POPHYS)
-
-    def test_pass_fail_option_count(self):
-        """Dropdown has 8 options and 8 statuses."""
-        write_vasculature_metric(self.vasculature_fp, self.output_dir)
-        with open(self.output_dir / "vasculature_metric.json") as f:
-            data = json.load(f)
-        value = data["value"]
-        self.assertEqual(len(value["options"]), 8)
-        self.assertEqual(len(value["status"]), 8)
+    def test_written_file_validates(self):
+        """The written file validates as a QualityControl."""
+        qc = build_quality_control(_sample_metrics())
+        written = write_quality_control_json(qc, self.output_dir)
+        data = json.loads(written.read_text())
+        self.assertIn("schema_version", data)
+        QualityControl.model_validate(data)
 
 
 if __name__ == "__main__":

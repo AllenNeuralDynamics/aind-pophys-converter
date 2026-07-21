@@ -1,7 +1,6 @@
 """Top-level job orchestration for aind-pophys-converter."""
 import logging
 from datetime import datetime, timezone
-from importlib import resources
 from pathlib import Path
 from typing import Optional
 
@@ -17,9 +16,11 @@ from aind_pophys_converter.mesoscope_splitter import (
     find_split_directories,
 )
 from aind_pophys_converter.qc import (
+    build_quality_control,
     create_vasculature,
     pair_depth_tifs_with_avg_depth_pngs,
     write_avg_depth_slices,
+    write_quality_control_json,
 )
 from aind_pophys_converter.settings import JobSettings
 from aind_pophys_converter.tiff_splitters import AvgImageTiffSplitter
@@ -32,9 +33,10 @@ from aind_pophys_converter.utils.platform_utils import (
     is_child_session_via_platform_json,
 )
 
-_LOGGING_CONFIG = str(
-    resources.files("aind_pophys_converter.utils") / "logging.yml"
-)
+# instrument_id routing signals: Bergamo matched as a substring, mesoscope
+# rigs matched by the MESO.* prefix.
+_BERGAMO_INSTRUMENT = "Bergamo"
+_MESOSCOPE_INSTRUMENT_PREFIX = "MESO"
 
 
 def run() -> None:
@@ -46,9 +48,9 @@ def run() -> None:
     metadata = load_converter_metadata(input_dir)
 
     setup_logging(
-        path_to_config=_LOGGING_CONFIG,
+        use_cloudwatch=True,
         model={
-            "acquisition_name": metadata.dataset_name,
+            "acquisition_name": metadata.dataset_name or metadata.subject_id,
             "process_name": "aind-pophys-converter",
         },
     )
@@ -61,7 +63,7 @@ def run() -> None:
     )
     try:
         pophys_dir = next(input_dir.rglob("pophys/"))
-        if "Bergamo" in metadata.instrument_id:
+        if _BERGAMO_INSTRUMENT in metadata.instrument_id:
             bergamo_settings = BergamoSettings(
                 input_dir=pophys_dir,
                 output_dir=output_dir,
@@ -71,10 +73,9 @@ def run() -> None:
                 bergamo_settings, metadata=metadata
             )
             bergamo_stitcher.run_converter()
-        elif "multiplane" in metadata.dataset_name:
-            # Use pophys_dir.glob (not input_dir.rglob) because rglob does
-            # not follow symlinks in Python <=3.12 and pophys/ is a symlink
-            # in dev.
+        elif metadata.instrument_id.startswith(_MESOSCOPE_INSTRUMENT_PREFIX):
+            # pophys_dir.glob (not input_dir.rglob): rglob does not follow
+            # symlinks in Python <=3.12 and pophys/ is a symlink in dev.
             platform_fp = next(pophys_dir.glob("*platform.json"), None)
             if platform_fp is None:
                 raise FileNotFoundError(
@@ -91,6 +92,7 @@ def run() -> None:
                     new_directory.mkdir(parents=True, exist_ok=True)
                     with open(new_directory / f"{split_dir}.txt", "w") as f:
                         f.write(f"{split_dir}.h5")
+            qc_metrics = []
             avg_depth_files = list(pophys_dir.glob("*_averaged_depth.tiff"))
             if avg_depth_files:
                 avg_depth_path = avg_depth_files[0]
@@ -101,13 +103,15 @@ def run() -> None:
                 if is_child_session_via_platform_json(platform_fp):
                     splitter = AvgImageTiffSplitter(avg_depth_path)
                     write_avg_depth_slices(splitter, output_dir)
-                    pair_depth_tifs_with_avg_depth_pngs(
-                        pophys_dir,
-                        output_dir,
-                        platform_fp,
-                        Path("/results/matched_tiff_vals"),
+                    qc_metrics.extend(
+                        pair_depth_tifs_with_avg_depth_pngs(
+                            pophys_dir,
+                            output_dir,
+                            platform_fp,
+                            Path("/results/matched_tiff_vals"),
+                        )
                     )
-            create_vasculature(pophys_dir, output_dir)
+            _finalize_quality_control(qc_metrics, pophys_dir, output_dir)
         logging.info(
             "Pophys converter job complete",
             extra={"event_type": "stage_complete"},
@@ -126,6 +130,36 @@ def run() -> None:
             start_time=started_at,
             error=run_error,
             output_dir=output_dir,
+        )
+
+
+def _finalize_quality_control(
+    qc_metrics: list,
+    pophys_dir: Path,
+    output_dir: Path,
+) -> None:
+    """Add the vasculature metric and emit a single quality_control.json.
+
+    Appends the window-clarity metric (if a vasculature TIFF exists) to the
+    FOV metrics collected upstream, then writes one ``QualityControl``
+    object. Writes nothing when no metrics were produced.
+
+    Parameters
+    ----------
+    qc_metrics : list of QCMetric
+        Metrics collected so far (e.g. from FOV depth pairing). Mutated
+        in place to append the vasculature metric.
+    pophys_dir : Path
+        Directory searched for the vasculature TIFF.
+    output_dir : Path
+        Destination directory for ``quality_control.json``.
+    """
+    vasculature_metric = create_vasculature(pophys_dir, output_dir)
+    if vasculature_metric is not None:
+        qc_metrics.append(vasculature_metric)
+    if qc_metrics:
+        write_quality_control_json(
+            build_quality_control(qc_metrics), output_dir
         )
 
 

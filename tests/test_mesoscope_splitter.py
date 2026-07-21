@@ -24,22 +24,16 @@ from aind_pophys_converter.mesoscope_splitter import (
 from aind_pophys_converter.tiff_splitters import mkstemp_clean
 from aind_pophys_converter.utils.metadata_utils import (
     ConverterMetadata,
-    PlaneInfo,
 )
 
 
 def _make_metadata() -> ConverterMetadata:
     """Build a minimal ConverterMetadata for splitter tests."""
     return ConverterMetadata(
-        source_schema_version="2.4.0",
-        source_acquisition_file=Path("acquisition.json"),
-        source_data_description_file=Path("data_description.json"),
         instrument_id="MESO.1",
+        fov_ids=("plane_0",),
         dataset_name="multiplane-test",
         subject_id="000000",
-        planes=(
-            PlaneInfo(plane_index=0, targeted_structure_acronym="VISp"),
-        ),
     )
 
 
@@ -54,6 +48,23 @@ class TestMesoscopeSplitter(unittest.TestCase):
     def tearDown(self):
         """Clean up after tests."""
         self.temp_dir.cleanup()
+
+    def test_get_imaging_planes_empty_raises(self):
+        """_get_imaging_planes fails fast when metadata has no planes."""
+        from dataclasses import replace
+
+        cli = object.__new__(TiffSplitterCLI)
+        cli.metadata = replace(_make_metadata(), fov_ids=())
+        cli.input_dir = Path("nonexistent")
+        with self.assertRaises(ValueError) as cm:
+            cli._get_imaging_planes()
+        self.assertIn("No imaging planes", str(cm.exception))
+
+    def test_get_imaging_planes_returns_planes(self):
+        """_get_imaging_planes returns the fov_ids tuple when present."""
+        cli = object.__new__(TiffSplitterCLI)
+        cli.metadata = _make_metadata()
+        self.assertEqual(cli._get_imaging_planes(), cli.metadata.fov_ids)
 
     def test_find_split_directories_with_matching_dirs(self):
         """Test find_split_directories finds V* directories with numbers."""

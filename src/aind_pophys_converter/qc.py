@@ -1,31 +1,68 @@
-"""QC visual generation and metric serialization."""
+"""All ``quality_control.json`` generation for aind-pophys-converter.
+
+This module owns the full QC path: constructing individual ``QCMetric``
+objects, the QC visual generation (depth pairing, vasculature PNG) which
+returns the metrics it produces, and assembling + writing a single v2
+``QualityControl`` object. ``job.run`` accumulates the returned metrics and
+calls ``build_quality_control`` + ``write_quality_control_json`` to emit one
+``quality_control.json`` — never per-metric fragments.
+"""
 
 import json
 import logging
 import tempfile
+from datetime import datetime as dt
 from pathlib import Path
+from typing import List, Optional
 
 import numpy as np
+import pytz
 import tifffile
+from aind_data_schema.core.quality_control import (
+    QCMetric,
+    QCStatus,
+    QualityControl,
+    Stage,
+    Status,
+)
+from aind_data_schema_models.modalities import Modality
+from aind_qcportal_schema.metric_value import DropdownMetric
 from PIL import Image
 
 from aind_pophys_converter.utils.image_utils import add_border_and_label
-from aind_pophys_converter.utils.metadata_utils import (
-    build_fov_qc_metric,
-    build_vasculature_qc_metric,
-)
+
+# Tag *keys* used to group metrics hierarchically for visualization. Every
+# QCMetric built here carries an ``"evaluation"`` tag whose value names the
+# operational-QC evaluation it belongs to (e.g. "Op. QC: Window Clarity"),
+# so grouping by that key reproduces the old per-evaluation QC layout.
+_QC_DEFAULT_GROUPING: List[str] = ["evaluation"]
 
 
-def write_fov_metric(
+def pending_qc_status() -> QCStatus:
+    """Return a PENDING QCStatus timestamped to US/Pacific.
+
+    Returns
+    -------
+    QCStatus
+        A QCStatus with status=PENDING and evaluator='Automated'.
+    """
+    seattle_tz = pytz.timezone("America/Los_Angeles")
+    return QCStatus(
+        evaluator="Automated",
+        status=Status.PENDING,
+        timestamp=dt.now(seattle_tz).isoformat(),
+    )
+
+
+def build_fov_qc_metric(
     unique_id: str,
     raw_tif_path: Path,
     intended_depth: int,
     targeted_structure_id: str,
     closest_z: float,
     merged_path: Path,
-    output_dir: Path,
-) -> None:
-    """Write a single FOV parent-child matching QC metric JSON.
+) -> QCMetric:
+    """Construct the FOV parent-child matching QCMetric object.
 
     Parameters
     ----------
@@ -41,41 +78,153 @@ def write_fov_metric(
         Closest child z-plane in microns.
     merged_path : Path
         Path to the saved merged PNG.
-    output_dir : Path
-        Directory to write the metric JSON.
+
+    Returns
+    -------
+    QCMetric
+        Constructed QCMetric object, not yet serialized.
     """
-    metric = build_fov_qc_metric(
-        unique_id=unique_id,
-        raw_tif_path=raw_tif_path,
-        intended_depth=intended_depth,
-        targeted_structure_id=targeted_structure_id,
-        closest_z=closest_z,
-        merged_path=merged_path,
+    return QCMetric(
+        name=f"{unique_id} Parent-Child FOV",
+        modality=Modality.POPHYS,
+        stage=Stage.RAW,
+        tags={
+            "evaluation": "Op. QC: Field-of-view Matching",
+            "type": "Operational QC",
+        },
+        description=(
+            f"Side-by-side comparison of the parent session depth snapshot "
+            f"({raw_tif_path.stem}, intended_depth={intended_depth}µm, "
+            f"structure={targeted_structure_id}) and the current session's "
+            f"averaged-depth image at the closest matching z-plane "
+            f"(child z: {closest_z}µm). "
+            f"Pass if the fields of view align spatially across sessions."
+        ),
+        status_history=[pending_qc_status()],
+        reference=str(merged_path),
+        value=DropdownMetric(
+            value="",
+            options=[
+                "FOV Matches parent FOV",
+                "FOV does not match parent FOV.",
+            ],
+            status=[Status.PASS, Status.FAIL],
+        ),
     )
-    metric_out_path = output_dir / f"{unique_id}_fov_metric.json"
-    with open(metric_out_path, "w") as f:
-        json.dump(json.loads(metric.model_dump_json()), f, indent=4)
-    logging.info(f"Saved QC metric -> {metric_out_path}")
 
 
-def write_vasculature_metric(
-    vasculature_output_fp: Path,
-    output_dir: Path,
-) -> None:
-    """Write the vasculature window clarity QC metric JSON.
+def build_vasculature_qc_metric(vasculature_output_fp: Path) -> QCMetric:
+    """Construct the vasculature window-clarity QCMetric object.
 
     Parameters
     ----------
     vasculature_output_fp : Path
         Path to the saved vasculature PNG.
-    output_dir : Path
-        Directory to write the metric JSON.
+
+    Returns
+    -------
+    QCMetric
+        Constructed QCMetric object, not yet serialized.
     """
-    metric = build_vasculature_qc_metric(vasculature_output_fp)
-    metric_out_path = output_dir / "vasculature_metric.json"
-    with open(metric_out_path, "w") as f:
-        json.dump(json.loads(metric.model_dump_json()), f, indent=4)
-    logging.info(f"Saved QC metric -> {metric_out_path}")
+    return QCMetric(
+        name="Vasculature Image",
+        modality=Modality.POPHYS,
+        stage=Stage.RAW,
+        tags={
+            "evaluation": "Op. QC: Window Clarity",
+            "type": "Operational QC",
+        },
+        description=(
+            "Vasculature image captured at session start to assess brain "
+            "surface health and cranial window clarity. Select the option "
+            "that best describes the observed surface condition. Bruising, "
+            "bubbles, or discoloration may indicate compromised tissue or "
+            "optical path quality."
+        ),
+        status_history=[pending_qc_status()],
+        reference=str(vasculature_output_fp),
+        value=DropdownMetric(
+            value="",
+            options=[
+                "Quality is sufficient",
+                "Poor vasculature image quality",
+                "Light bruising on surface of brain",
+                "Severe bruising on surface of brain",
+                "Vascularization of brain surface",
+                "Discoloration of brain surface (white)",
+                (
+                    "Bubbles in objective immersion present, but do NOT"
+                    " impact imaging quality"
+                ),
+                "Bubbles in objective immersion impact imaging quality",
+            ],
+            status=[
+                Status.PASS,
+                Status.PASS,
+                Status.PASS,
+                Status.FAIL,
+                Status.PASS,
+                Status.PASS,
+                Status.PASS,
+                Status.FAIL,
+            ],
+        ),
+    )
+
+
+def build_quality_control(metrics: List[QCMetric]) -> QualityControl:
+    """Wrap a list of QCMetrics into a single v2 ``QualityControl``.
+
+    The project's output contract is that each capsule emits one complete
+    ``quality_control.json`` (a ``QualityControl`` object), not loose
+    per-metric fragments; the QC aggregator later merges these via
+    ``QualityControl.__add__``. This sets the required ``default_grouping``
+    so the aggregator and every capsule agree on the grouping key.
+
+    Parameters
+    ----------
+    metrics : list of QCMetric
+        Metrics produced during the conversion run. Must be non-empty
+        (callers should skip writing QC when no metrics were produced).
+
+    Returns
+    -------
+    QualityControl
+        v2 QualityControl object ready for serialization.
+    """
+    return QualityControl(
+        metrics=metrics,
+        default_grouping=_QC_DEFAULT_GROUPING,
+    )
+
+
+def write_quality_control_json(
+    quality_control: QualityControl, output_dir: Path
+) -> Path:
+    """Write ``quality_control.json`` to ``output_dir`` via the schema helper.
+
+    Uses ``QualityControl.write_standard_file`` so the file format matches
+    other v2 metadata artifacts (``describedBy`` / ``schema_version``
+    populated).
+
+    Parameters
+    ----------
+    quality_control : QualityControl
+        Object built by ``build_quality_control``.
+    output_dir : Path
+        Destination directory. Created if it does not exist.
+
+    Returns
+    -------
+    Path
+        Absolute path to the written ``quality_control.json``.
+    """
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    quality_control.write_standard_file(output_directory=str(output_dir))
+    written = output_dir / "quality_control.json"
+    logging.info(f"quality_control.json written to {written}")
+    return written
 
 
 def write_avg_depth_slices(splitter, output_dir: Path) -> None:
@@ -107,14 +256,15 @@ def pair_depth_tifs_with_avg_depth_pngs(
     avg_slice_dir: Path,
     platform_fp: Path,
     output_dir: Path,
-) -> None:
-    """Pair parent depth TIFs with child averaged-depth PNGs and write QC.
+) -> List[QCMetric]:
+    """Pair parent depth TIFs with child averaged-depth PNGs; return QC.
 
     For each imaging plane defined in platform.json, locate the parent depth
     TIFF by intended_depth and targeted_structure_id, find the closest child
     averaged-depth TIF by abs(scanimage_scanfield_z), merge them side-by-side
-    with borders and labels, and save the result. Also writes a per-plane QC
-    metric JSON.
+    with borders and labels, and save the result. Builds a per-plane
+    ``QCMetric`` and returns the collected metrics (does not write per-metric
+    JSON files — the caller assembles a single ``quality_control.json``).
 
     Parameters
     ----------
@@ -127,9 +277,16 @@ def pair_depth_tifs_with_avg_depth_pngs(
     platform_fp : Path
         Path to the session platform.json.
     output_dir : Path
-        Directory to save merged PNGs and QC metric JSONs.
+        Directory to save merged PNGs.
+
+    Returns
+    -------
+    list of QCMetric
+        One metric per successfully paired plane. Empty if no planes could
+        be paired.
     """
     output_dir.mkdir(exist_ok=True, parents=True)
+    metrics: List[QCMetric] = []
 
     with open(platform_fp) as f:
         platform_json = json.load(f)
@@ -145,14 +302,14 @@ def pair_depth_tifs_with_avg_depth_pngs(
             "No imaging planes found in platform.json;"
             " skipping depth pairing."
         )
-        return
+        return metrics
 
     child_tifs = list(avg_slice_dir.glob("*.tif"))
     z_to_tif = {abs(float(p.stem)): p for p in child_tifs}
 
     if not z_to_tif:
         logging.info("No averaged-depth TIFs found; skipping depth pairing.")
-        return
+        return metrics
 
     for plane in imaging_planes:
         intended_depth = plane["intended_depth"]
@@ -238,19 +395,24 @@ def pair_depth_tifs_with_avg_depth_pngs(
             logging.warning(f"Failed to delete {child_tif_path}: {e}")
 
         unique_id = f"{targeted_structure_id}_{intended_depth}"
-        write_fov_metric(
-            unique_id=unique_id,
-            raw_tif_path=raw_tif_path,
-            intended_depth=intended_depth,
-            targeted_structure_id=targeted_structure_id,
-            closest_z=closest_z,
-            merged_path=merged_path,
-            output_dir=output_dir,
+        metrics.append(
+            build_fov_qc_metric(
+                unique_id=unique_id,
+                raw_tif_path=raw_tif_path,
+                intended_depth=intended_depth,
+                targeted_structure_id=targeted_structure_id,
+                closest_z=closest_z,
+                merged_path=merged_path,
+            )
         )
 
+    return metrics
 
-def create_vasculature(pophys_dir: Path, output_dir: Path) -> None:
-    """Create a vasculature PNG and write a window-clarity QC metric.
+
+def create_vasculature(
+    pophys_dir: Path, output_dir: Path
+) -> Optional[QCMetric]:
+    """Create a vasculature PNG and return a window-clarity QC metric.
 
     Parameters
     ----------
@@ -258,15 +420,21 @@ def create_vasculature(pophys_dir: Path, output_dir: Path) -> None:
         Directory containing the vasculature TIFF file.
     output_dir : Path
         Parent output directory; vasculature/ subdirectory is created here.
+
+    Returns
+    -------
+    QCMetric or None
+        The window-clarity metric, or ``None`` if no vasculature TIFF was
+        found (nothing to assess).
     """
     vasculature_fp = next(pophys_dir.glob("*_vasculature.tif"), None)
     if not vasculature_fp:
         logging.info("No vasculature TIFF found; skipping.")
-        return
+        return None
     vasculature_output_dir = output_dir / "vasculature"
     vasculature_output_dir.mkdir(exist_ok=True, parents=True)
     vasculature_output_fp = vasculature_output_dir / "vasculature.png"
     with Image.open(vasculature_fp) as im:
         im.save(vasculature_output_fp)
     logging.info(f"Saved vasculature image -> {vasculature_output_fp}")
-    write_vasculature_metric(vasculature_output_fp, vasculature_output_dir)
+    return build_vasculature_qc_metric(vasculature_output_fp)

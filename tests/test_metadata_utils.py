@@ -4,28 +4,22 @@ import json
 import shutil
 import tempfile
 import unittest
-from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
 from aind_data_schema.core.processing import Processing
-from aind_data_schema.core.quality_control import Stage, Status
 
 from aind_pophys_converter.utils.metadata_utils import (
     ConverterMetadata,
-    PlaneInfo,
-    _detect_major_version,
+    _build_fov_ids,
     _find_acquisition_file,
     _find_data_description_file,
+    _fov_id,
     _map_v1,
     _map_v2,
-    build_fov_qc_metric,
     build_processing,
-    build_vasculature_qc_metric,
-    fov_id_from_plane,
     load_converter_metadata,
-    pending_qc_status,
     write_processing_json,
 )
 
@@ -38,35 +32,6 @@ def _copy_fixture_dir(version: str, dest_root: Path) -> Path:
     dest = dest_root / version
     shutil.copytree(src, dest)
     return dest
-
-
-class TestDetectMajorVersion(unittest.TestCase):
-    """Tests for _detect_major_version."""
-
-    def test_v1_string(self):
-        """A '1.x.y' schema_version yields major 1."""
-        self.assertEqual(
-            _detect_major_version({"schema_version": "1.1.2"}, Path("a.json")),
-            1,
-        )
-
-    def test_v2_string(self):
-        """A '2.x.y' schema_version yields major 2."""
-        self.assertEqual(
-            _detect_major_version({"schema_version": "2.4.0"}, Path("a.json")),
-            2,
-        )
-
-    def test_missing_raises(self):
-        """No schema_version field raises ValueError."""
-        with self.assertRaises(ValueError) as cm:
-            _detect_major_version({}, Path("a.json"))
-        self.assertIn("schema_version", str(cm.exception))
-
-    def test_malformed_raises(self):
-        """Non-numeric major raises ValueError."""
-        with self.assertRaises(ValueError):
-            _detect_major_version({"schema_version": "abc"}, Path("a.json"))
 
 
 class TestFindAcquisitionFile(unittest.TestCase):
@@ -114,11 +79,10 @@ class TestFindAcquisitionFile(unittest.TestCase):
 class TestFindDataDescriptionFile(unittest.TestCase):
     """Tests for _find_data_description_file."""
 
-    def test_missing_raises(self):
-        """Absent data_description.json raises FileNotFoundError."""
+    def test_missing_returns_none(self):
+        """Absent data_description.json returns None (it is optional)."""
         with tempfile.TemporaryDirectory() as tmp:
-            with self.assertRaises(FileNotFoundError):
-                _find_data_description_file(Path(tmp))
+            self.assertIsNone(_find_data_description_file(Path(tmp)))
 
 
 class TestMapV1(unittest.TestCase):
@@ -130,26 +94,57 @@ class TestMapV1(unittest.TestCase):
         dd_path = FIXTURES / "v1" / "data_description.json"
         acq_raw = json.loads(acq_path.read_text())
         dd_raw = json.loads(dd_path.read_text())
-        meta = _map_v1(acq_raw, dd_raw, acq_path, dd_path, "1.1.2")
+        meta = _map_v1(acq_raw, dd_raw, acq_path)
         self.assertEqual(meta.instrument_id, "MESO.1")
         self.assertEqual(meta.subject_id, "000000")
         self.assertEqual(
             meta.dataset_name,
             "multiplane-ophys_000000_2025-05-17_10-00-00",
         )
-        self.assertEqual(len(meta.planes), 2)
-        # Sorted by plane_index ascending
-        self.assertEqual(meta.planes[0].plane_index, 0)
-        self.assertEqual(meta.planes[0].targeted_structure_acronym, "MOp")
-        self.assertEqual(meta.planes[1].plane_index, 1)
-        self.assertEqual(meta.planes[1].targeted_structure_acronym, "VISp")
+        # Two planes (0=MOp, 1=VISp) -> multi-plane '{acronym}_{index}' ids.
+        self.assertEqual(meta.fov_ids, ("MOp_0", "VISp_1"))
 
     def test_missing_rig_id_raises(self):
         """Missing rig_id raises KeyError naming the field."""
         with self.assertRaises(KeyError) as cm:
-            _map_v1({}, {"name": "x"}, Path("session.json"),
-                    Path("data_description.json"), "1.1.2")
+            _map_v1({}, {"name": "x"}, Path("session.json"))
         self.assertIn("rig_id", str(cm.exception))
+
+    def test_single_plane_minimal(self):
+        """Minimal single-plane v1: no FOV index, bare-string structure,
+        no data_description. See single_plane_support.md."""
+        acq = {
+            "data_streams": [
+                {"ophys_fovs": [{"targeted_structure": "DLS"}]}
+            ],
+            "subject_id": "NY129",
+            "rig_id": "Bruker",
+        }
+        meta = _map_v1(acq, {}, Path("session.json"))
+        self.assertEqual(meta.instrument_id, "Bruker")
+        self.assertEqual(meta.subject_id, "NY129")
+        self.assertIsNone(meta.dataset_name)
+        # Single plane -> plane_0 id (bare-string structure ignored).
+        self.assertEqual(meta.fov_ids, ("plane_0",))
+
+    def test_subject_id_optional(self):
+        """subject_id is optional (logging label only) -> None when absent."""
+        acq = {
+            "data_streams": [{"ophys_fovs": [{"index": 0}]}],
+            "rig_id": "Bruker",
+        }
+        meta = _map_v1(acq, {}, Path("session.json"))
+        self.assertIsNone(meta.subject_id)
+
+    def test_multiplane_bare_string_structures(self):
+        """Real multi-plane v1 uses bare-string targeted_structure and no
+        data_description; ids are '{structure}_{index}'."""
+        meta = load_converter_metadata(FIXTURES / "multiplane_v1")
+        self.assertEqual(meta.instrument_id, "MESO.2")
+        self.assertIsNone(meta.dataset_name)
+        self.assertEqual(len(meta.fov_ids), 8)
+        self.assertEqual(meta.fov_ids[0], "VISp_0")
+        self.assertEqual(meta.fov_ids[7], "VISp_7")
 
 
 class TestMapV2(unittest.TestCase):
@@ -161,14 +156,10 @@ class TestMapV2(unittest.TestCase):
         dd_path = FIXTURES / "v2" / "data_description.json"
         acq_raw = json.loads(acq_path.read_text())
         dd_raw = json.loads(dd_path.read_text())
-        meta = _map_v2(acq_raw, dd_raw, acq_path, dd_path, "2.4.0")
+        meta = _map_v2(acq_raw, dd_raw, acq_path)
         self.assertEqual(meta.instrument_id, "MESO.1")
         self.assertEqual(meta.subject_id, "000000")
-        self.assertEqual(len(meta.planes), 2)
-        self.assertEqual(meta.planes[0].plane_index, 0)
-        self.assertEqual(meta.planes[0].targeted_structure_acronym, "MOp")
-        self.assertEqual(meta.planes[1].plane_index, 1)
-        self.assertEqual(meta.planes[1].targeted_structure_acronym, "VISp")
+        self.assertEqual(meta.fov_ids, ("MOp_0", "VISp_1"))
 
     def test_skips_non_imaging_configs(self):
         """configurations with other object_type values are skipped."""
@@ -180,138 +171,83 @@ class TestMapV2(unittest.TestCase):
             ],
         }
         dd = {"name": "x"}
-        meta = _map_v2(acq, dd, Path("a.json"), Path("d.json"), "2.4.0")
-        self.assertEqual(meta.planes, ())
+        meta = _map_v2(acq, dd, Path("a.json"))
+        self.assertEqual(meta.fov_ids, ())
 
     def test_missing_instrument_id_raises(self):
         """Missing instrument_id raises KeyError."""
         with self.assertRaises(KeyError) as cm:
-            _map_v2({}, {"name": "x"}, Path("acquisition.json"),
-                    Path("data_description.json"), "2.4.0")
+            _map_v2({}, {"name": "x"}, Path("acquisition.json"))
         self.assertIn("instrument_id", str(cm.exception))
 
 
 class TestEquivalence(unittest.TestCase):
     """v1 and v2 semantically-equivalent fixtures must produce equal
-    ConverterMetadata after stripping the source provenance fields."""
+    ConverterMetadata (the object holds no source-provenance fields)."""
 
     def test_v1_and_v2_match(self):
         """The two fixture sets describe the same session; they should
         map to equal ConverterMetadata objects."""
         v1 = load_converter_metadata(FIXTURES / "v1")
         v2 = load_converter_metadata(FIXTURES / "v2")
-        stripped_v1 = replace(
-            v1,
-            source_schema_version="",
-            source_acquisition_file=Path(""),
-            source_data_description_file=Path(""),
-        )
-        stripped_v2 = replace(
-            v2,
-            source_schema_version="",
-            source_acquisition_file=Path(""),
-            source_data_description_file=Path(""),
-        )
-        self.assertEqual(stripped_v1, stripped_v2)
+        self.assertEqual(v1, v2)
 
 
 class TestLoadConverterMetadata(unittest.TestCase):
-    """End-to-end loader tests."""
+    """End-to-end loader tests (file-presence dispatch)."""
 
     def test_v1_fixture(self):
-        """Loader handles v1 input directory."""
+        """Loader parses a v1 (session.json) input directory."""
         meta = load_converter_metadata(FIXTURES / "v1")
-        self.assertEqual(meta.source_schema_version, "1.1.2")
-        self.assertTrue(
-            meta.source_acquisition_file.name == "session.json"
-        )
+        self.assertEqual(meta.instrument_id, "MESO.1")
+        self.assertEqual(meta.fov_ids, ("MOp_0", "VISp_1"))
 
     def test_v2_fixture(self):
-        """Loader handles v2 input directory."""
+        """Loader parses a v2 (acquisition.json) input directory."""
         meta = load_converter_metadata(FIXTURES / "v2")
-        self.assertEqual(meta.source_schema_version, "2.4.0")
-        self.assertTrue(
-            meta.source_acquisition_file.name == "acquisition.json"
-        )
+        self.assertEqual(meta.instrument_id, "MESO.1")
+        self.assertEqual(meta.fov_ids, ("MOp_0", "VISp_1"))
 
-    def test_unsupported_major_raises(self):
-        """A schema_version of 3.x.x raises ValueError."""
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / "acquisition.json").write_text(
-                json.dumps({"schema_version": "3.0.0"})
-            )
-            (root / "data_description.json").write_text(
-                json.dumps({"schema_version": "3.0.0"})
-            )
-            with self.assertRaises(ValueError) as cm:
-                load_converter_metadata(root)
-            self.assertIn("Unsupported", str(cm.exception))
+    def test_single_plane_fixture_no_schema_version_no_dd(self):
+        """Loader handles a minimal single-plane session.json with no
+        schema_version and no data_description (dispatch by filename)."""
+        meta = load_converter_metadata(FIXTURES / "singleplane_v1")
+        self.assertIsNone(meta.dataset_name)
+        self.assertEqual(meta.fov_ids, ("plane_0",))
 
 
-class TestFovIdFromPlane(unittest.TestCase):
-    """Tests for fov_id_from_plane."""
+class TestFovId(unittest.TestCase):
+    """Tests for the FOV/plane naming scheme (_fov_id + fov_id)."""
 
-    def test_format(self):
-        """Returns '{acronym}_{plane_index}'."""
-        plane = PlaneInfo(plane_index=3, targeted_structure_acronym="VISp")
-        self.assertEqual(fov_id_from_plane(plane), "VISp_3")
-
-    def test_zero_index(self):
-        """plane_index of 0 still renders."""
-        plane = PlaneInfo(plane_index=0, targeted_structure_acronym="MO")
-        self.assertEqual(fov_id_from_plane(plane), "MO_0")
-
-
-class TestPendingQcStatus(unittest.TestCase):
-    """Tests for pending_qc_status."""
-
-    def test_returns_pending_status(self):
-        """pending_qc_status returns Status.PENDING."""
-        self.assertEqual(pending_qc_status().status, Status.PENDING)
-
-    def test_evaluator_is_automated(self):
-        """pending_qc_status sets evaluator to 'Automated'."""
-        self.assertEqual(pending_qc_status().evaluator, "Automated")
-
-
-class TestBuildQcMetrics(unittest.TestCase):
-    """Tests for build_fov_qc_metric and build_vasculature_qc_metric."""
-
-    def test_fov_metric_stage(self):
-        """build_fov_qc_metric returns Stage.RAW."""
-        metric = build_fov_qc_metric(
-            unique_id="VISp_200",
-            raw_tif_path=Path("/fake/parent.tif"),
-            intended_depth=200,
-            targeted_structure_id="VISp",
-            closest_z=-200.0,
-            merged_path=Path("/fake/merged.png"),
-        )
-        self.assertEqual(metric.stage, Stage.RAW)
-
-    def test_fov_metric_name_contains_unique_id(self):
-        """build_fov_qc_metric name includes the unique_id."""
-        metric = build_fov_qc_metric(
-            unique_id="MOp_100",
-            raw_tif_path=Path("/fake/parent.tif"),
-            intended_depth=100,
-            targeted_structure_id="MOp",
-            closest_z=-100.0,
-            merged_path=Path("/fake/merged.png"),
-        )
-        self.assertIn("MOp_100", metric.name)
-
-    def test_vasculature_metric_stage(self):
-        """build_vasculature_qc_metric returns Stage.RAW."""
-        metric = build_vasculature_qc_metric(Path("/fake/vasculature.png"))
-        self.assertEqual(metric.stage, Stage.RAW)
-
-    def test_vasculature_metric_reference(self):
-        """build_vasculature_qc_metric reference matches input path."""
-        fp = Path("/fake/vasculature.png")
+    def test_multi_plane_uses_structure_index(self):
+        """Multi-plane -> '{acronym}_{plane_index}'."""
         self.assertEqual(
-            build_vasculature_qc_metric(fp).reference, str(fp)
+            _fov_id(3, "VISp", single_plane=False), "VISp_3"
+        )
+
+    def test_single_plane_uses_plane_index(self):
+        """Single-plane -> 'plane_{plane_index}' regardless of structure."""
+        self.assertEqual(_fov_id(0, "DLS", single_plane=True), "plane_0")
+
+    def test_missing_acronym_falls_back_to_plane_index(self):
+        """A multi-plane plane with no acronym never yields 'None_0'."""
+        self.assertEqual(_fov_id(2, None, single_plane=False), "plane_2")
+
+    def test_build_fov_ids_single_vs_multi(self):
+        """_build_fov_ids: lone plane -> plane_0; multiple -> structure ids;
+        sorted by plane index; empty -> ()."""
+        self.assertEqual(_build_fov_ids([(0, "DLS")]), ("plane_0",))
+        self.assertEqual(
+            _build_fov_ids([(1, "MOp"), (0, "VISp")]),
+            ("VISp_0", "MOp_1"),
+        )
+        self.assertEqual(_build_fov_ids([]), ())
+
+    def test_build_fov_ids_multi_missing_acronym_falls_back(self):
+        """A multi-plane plane with no acronym falls back to plane_{index}."""
+        self.assertEqual(
+            _build_fov_ids([(0, "VISp"), (1, None)]),
+            ("VISp_0", "plane_1"),
         )
 
 
@@ -319,6 +255,7 @@ class TestBuildProcessing(unittest.TestCase):
     """Tests for build_processing."""
 
     def _params(self) -> dict:
+        """Return a sample JobSettings parameter dict."""
         return {
             "input_dir": "/data",
             "output_dir": "/results",
@@ -327,6 +264,7 @@ class TestBuildProcessing(unittest.TestCase):
         }
 
     def _times(self):
+        """Return a (start, end) pair of tz-aware datetimes."""
         start = datetime(2025, 5, 17, 10, 0, 0, tzinfo=timezone.utc)
         end = datetime(2025, 5, 17, 11, 0, 0, tzinfo=timezone.utc)
         return start, end
@@ -370,10 +308,9 @@ class TestBuildProcessing(unittest.TestCase):
         )
         # Parameters in v2 are GenericModel (BaseModel) — convert to dict
         recorded = proc.data_processes[0].code.parameters
-        self.assertEqual(
-            recorded.model_dump() if hasattr(recorded, "model_dump") else recorded,
-            params,
-        )
+        if hasattr(recorded, "model_dump"):
+            recorded = recorded.model_dump()
+        self.assertEqual(recorded, params)
 
     def test_round_trip_json(self):
         """Processing object survives a JSON round-trip."""
@@ -419,22 +356,16 @@ class TestConverterMetadataEquality(unittest.TestCase):
     def test_equal_when_fields_match(self):
         """Two identically-populated ConverterMetadata compare equal."""
         a = ConverterMetadata(
-            source_schema_version="x",
-            source_acquisition_file=Path("a"),
-            source_data_description_file=Path("b"),
             instrument_id="x",
+            fov_ids=("VISp_0",),
             dataset_name="y",
             subject_id="z",
-            planes=(PlaneInfo(0, "VISp"),),
         )
         b = ConverterMetadata(
-            source_schema_version="x",
-            source_acquisition_file=Path("a"),
-            source_data_description_file=Path("b"),
             instrument_id="x",
+            fov_ids=("VISp_0",),
             dataset_name="y",
             subject_id="z",
-            planes=(PlaneInfo(0, "VISp"),),
         )
         self.assertEqual(a, b)
 

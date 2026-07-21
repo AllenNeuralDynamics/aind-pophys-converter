@@ -28,30 +28,31 @@ wheels = [
 
 [[package]]
 name = "aind-data-schema"
-version = "2.6.0"
+version = "2.8.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aind-data-schema-models" },
     { name = "pydantic" },
     { name = "pydantic-extra-types" },
+    { name = "tzdata" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/3e/04/fb661b20352d9768f1a777f5a26a4948ebeb40b49c6d0ddbe2004351aa97/aind_data_schema-2.6.0.tar.gz", hash = "sha256:921bf9e45a4d9671f883a79219119841de3d907928568c0f6f610d029ab2babf", size = 901339, upload-time = "2026-03-09T18:25:36.958Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/1b/4d/6e1a5175da36d65c0467cab77bc508b7a4b9de4f27f9e6385288cdbece08/aind_data_schema-2.8.1.tar.gz", hash = "sha256:5f3dc809765bd25f27b667d1496499b1a5601c75e89e3804ccb2b0609f8ab84a", size = 960610, upload-time = "2026-06-09T16:15:45.62Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a5/71/905924fa2483bb4bcc08218cc43119a790a859e695a1c28253711b11ec0d/aind_data_schema-2.6.0-py3-none-any.whl", hash = "sha256:dfc868930c9e2ee2fe8ca40ef3dc2d0502db59e44bd76c577fdecde77d73ac48", size = 92081, upload-time = "2026-03-09T18:25:35.332Z" },
+    { url = "https://files.pythonhosted.org/packages/4c/d2/84fe4192caceb64a3f12d02d25aa3f25d7cf019d58890a24c75ab33c8791/aind_data_schema-2.8.1-py3-none-any.whl", hash = "sha256:71ea58072250719858cd8727bae3a8d974bfccd54b7e37aba21161172b54be41", size = 93863, upload-time = "2026-06-09T16:15:44.154Z" },
 ]
 
 [[package]]
 name = "aind-data-schema-models"
-version = "5.4.1"
+version = "5.7.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "importlib-resources" },
     { name = "pydantic" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/06/83/ac795e044cc4a44da7e61e4ca1afbf12030cd723ce7f03d85f69977e3860/aind_data_schema_models-5.4.1.tar.gz", hash = "sha256:f6550a1fc945c1954ea2c074d09df880cc8b44755f000d5ebe13f8b2507aa08c", size = 340521, upload-time = "2026-03-09T18:20:52.334Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/2a/4f/9b3c124c7b43bc0318b247c933ad945d0613f3f6088290db3542bbdf97fa/aind_data_schema_models-5.7.3.tar.gz", hash = "sha256:d68db456c0ce0aafa9b7f4da2f2c0e0925c724d1a4f1a509ca43e3a5f945a92c", size = 342029, upload-time = "2026-06-04T03:59:01.784Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/bc/d7/51e8abfd0919035f719ecc3d8223e6cca4de87f1a263da527fcda34df59f/aind_data_schema_models-5.4.1-py3-none-any.whl", hash = "sha256:2996e2856b04874019d336172b934bacbc7cb3c5079deed52cda09f063d3a856", size = 309923, upload-time = "2026-03-09T18:20:50.921Z" },
+    { url = "https://files.pythonhosted.org/packages/45/1a/b4706006fb390d4e64e1df6e9137683aca082e754b79d91e488c756bbf59/aind_data_schema_models-5.7.3-py3-none-any.whl", hash = "sha256:cd7c1a311338aeecfc1463ac069ef34db67f15508be17daa47d6155a00f1cbe0", size = 310756, upload-time = "2026-06-04T03:59:00.492Z" },
 ]
 
 [[package]]
@@ -81,6 +82,7 @@ dependencies = [
     { name = "aind-ophys-utils" },
     { name = "aind-qcportal-schema" },
     { name = "h5py" },
+    { name = "log-schema", extra = ["cloudwatch"] },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "pillow" },
@@ -88,12 +90,10 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "python-dateutil" },
     { name = "pytz" },
-    { name = "pyyaml" },
     { name = "scanimage-tiff-reader" },
     { name = "scikit-image", version = "0.25.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "scikit-image", version = "0.26.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "tifffile" },
-    { name = "watchtower" },
 ]
 
 [package.optional-dependencies]
@@ -111,8 +111,8 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aind-data-schema", specifier = "==2.6.0" },
-    { name = "aind-data-schema-models", specifier = "==5.4.1" },
+    { name = "aind-data-schema", specifier = "==2.8.1" },
+    { name = "aind-data-schema-models", specifier = "==5.7.3" },
     { name = "aind-ophys-utils", specifier = "==0.0.8" },
     { name = "aind-pophys-converter", extras = ["full"], marker = "extra == 'dev'" },
     { name = "aind-qcportal-schema", specifier = "==0.6.4" },
@@ -123,18 +123,17 @@ requires-dist = [
     { name = "h5py", specifier = "==3.16.0" },
     { name = "interrogate", marker = "extra == 'dev'" },
     { name = "isort", marker = "extra == 'dev'" },
+    { name = "log-schema", extras = ["cloudwatch"], git = "https://github.com/AllenNeuralDynamics/aind-log-utils.git?subdirectory=python&rev=f09685e" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "pillow", specifier = "==12.1.1" },
     { name = "pydantic", specifier = "==2.11.10" },
     { name = "pydantic-settings", specifier = "==2.8.1" },
     { name = "python-dateutil", specifier = "==2.9.0.post0" },
     { name = "pytz", specifier = "==2025.2" },
-    { name = "pyyaml" },
     { name = "scanimage-tiff-reader", specifier = "==1.4.1.4" },
     { name = "scikit-image", specifier = ">=0.25.0" },
     { name = "sphinx", marker = "extra == 'dev'" },
     { name = "tifffile", specifier = "==2024.2.12" },
-    { name = "watchtower" },
 ]
 provides-extras = ["dev"]
 
@@ -843,6 +842,23 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/49/ac/21a1f8aa3777f5658576777ea76bfb124b702c520bbe90edf4ae9915eafa/lazy_loader-0.5.tar.gz", hash = "sha256:717f9179a0dbed357012ddad50a5ad3d5e4d9a0b8712680d4e687f5e6e6ed9b3", size = 15294, upload-time = "2026-03-06T15:45:09.054Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/8a/a1/8d812e53a5da1687abb10445275d41a8b13adb781bbf7196ddbcf8d88505/lazy_loader-0.5-py3-none-any.whl", hash = "sha256:ab0ea149e9c554d4ffeeb21105ac60bed7f3b4fd69b1d2360a4add51b170b005", size = 8044, upload-time = "2026-03-06T15:45:07.668Z" },
+]
+
+[[package]]
+name = "log-schema"
+version = "0.2.9"
+source = { git = "https://github.com/AllenNeuralDynamics/aind-log-utils.git?subdirectory=python&rev=f09685e#f09685e8b6f4228d0dd37e867b52de0286fffccb" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "python-json-logger" },
+    { name = "pyyaml" },
+    { name = "types-pyyaml" },
+]
+
+[package.optional-dependencies]
+cloudwatch = [
+    { name = "watchtower" },
 ]
 
 [[package]]
@@ -1742,6 +1758,15 @@ wheels = [
 ]
 
 [[package]]
+name = "python-json-logger"
+version = "4.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f7/ff/3cc9165fd44106973cd7ac9facb674a65ed853494592541d339bdc9a30eb/python_json_logger-4.1.0.tar.gz", hash = "sha256:b396b9e3ed782b09ff9d6e4f1683d46c83ad0d35d2e407c09a9ebbf038f88195", size = 17573, upload-time = "2026-03-29T04:39:56.805Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/27/be/0631a861af4d1c875f096c07d34e9a63639560a717130e7a87cbc82b7e3f/python_json_logger-4.1.0-py3-none-any.whl", hash = "sha256:132994765cf75bf44554be9aa49b06ef2345d23661a96720262716438141b6b2", size = 15021, upload-time = "2026-03-29T04:39:55.266Z" },
+]
+
+[[package]]
 name = "pytokens"
 version = "0.4.1"
 source = { registry = "https://pypi.org/simple" }
@@ -2526,6 +2551,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/8f/af/9904ec6d3c93d9b24e5ec360445bbdf758b7f00bfbeedb89cb0eb64eb8bb/triton-3.7.0-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:b9b85e72968a9d8bba5ddb24e9b64aaabaf48affb042f2755cb7cfa92b7531ce", size = 201460637, upload-time = "2026-05-07T18:46:34.749Z" },
     { url = "https://files.pythonhosted.org/packages/a1/f9/4835a8ea746b88727d8899f4e3ccce4f9cacb38abfc3bb0a638266c53111/triton-3.7.0-cp314-cp314t-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:18a160de426fd99f92b0baf509045360afbd3bfaa0b4a5171dde800ec9f09684", size = 188608706, upload-time = "2026-05-07T19:05:39.218Z" },
     { url = "https://files.pythonhosted.org/packages/c1/68/fa86e5a39608000f645535b2c124920126327ab731f8c4fafd5b07ff8d4b/triton-3.7.0-cp314-cp314t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:ce061073102714b725f3660ec6939d94a1da7984b3aa99c921417cae273672f5", size = 201546766, upload-time = "2026-05-07T18:46:42.088Z" },
+]
+
+[[package]]
+name = "types-pyyaml"
+version = "6.0.12.20260518"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b8/83/4a1afc3fbfcf5b8d46fc390cd95ed6b0dc9010a265f4e9f46314efffa37a/types_pyyaml-6.0.12.20260518.tar.gz", hash = "sha256:d917f83fb38462550338c1297faedd860b3ec83912b96b1e3d73255f7473e466", size = 17850, upload-time = "2026-05-18T06:01:58.675Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/06/a2/c01db32be2ae7d6a1689972f3c492b149ee4e164b12fdfd9f64b50888215/types_pyyaml-6.0.12.20260518-py3-none-any.whl", hash = "sha256:d2150f75a231c9fe9c7463bd29487d93e60bac90400287351384bc2284eba7cd", size = 20312, upload-time = "2026-05-18T06:01:57.368Z" },
 ]
 
 [[package]]

@@ -24,8 +24,6 @@ from aind_pophys_converter.utils.full_field_utils import (
 )
 from aind_pophys_converter.utils.metadata_utils import (
     ConverterMetadata,
-    PlaneInfo,
-    fov_id_from_plane,
     load_converter_metadata,
 )
 from aind_pophys_converter.utils.tiff_metadata import ScanImageMetadata
@@ -158,22 +156,21 @@ class TiffSplitterCLI:
             msg += "the TIFF splitting code no longer handles that file."
             logging.warning(msg)
 
-    def _create_experiment_metadata(
-        self, plane: PlaneInfo
-    ) -> Tuple[dict, str]:
-        """Create experiment metadata structure for a given imaging plane.
+    def _create_experiment_metadata(self, fov_id: str) -> dict:
+        """Create the experiment metadata structure for one imaging plane.
 
         Parameters
         ----------
-        plane : PlaneInfo
-            Plane info from the schema-agnostic metadata model.
+        fov_id : str
+            Canonical FOV id for the plane (from
+            ``self.metadata.fov_ids``).
 
         Returns
         -------
-        tuple[dict, str]
-            Metadata dict and the fov_id string.
+        dict
+            Experiment metadata keyed by ``"fov"`` plus empty per-file-type
+            sub-dicts to be populated by the splitters.
         """
-        fov_id = fov_id_from_plane(plane)
         this_exp_metadata = {"fov": fov_id}
 
         for file_key in (
@@ -184,23 +181,35 @@ class TiffSplitterCLI:
         ):
             this_exp_metadata[file_key] = {}
 
-        return this_exp_metadata, fov_id
+        return this_exp_metadata
 
-    def _get_imaging_planes(
-        self,
-    ) -> Tuple[PlaneInfo, ...]:
-        """Return imaging planes sorted by plane_index.
+    def _get_imaging_planes(self) -> Tuple[str, ...]:
+        """Return the FOV ids for this acquisition (one per plane).
 
         Returns
         -------
-        tuple of PlaneInfo
-            Plane info objects from ``self.metadata.planes``.
+        tuple of str
+            ``self.metadata.fov_ids``, ordered by plane index (i.e. TIFF
+            scan order). Enumerate to recover each plane's index.
+
+        Raises
+        ------
+        ValueError
+            If no imaging planes were parsed from the input metadata.
+            Splitting with zero planes would silently produce no output,
+            so fail loudly instead (fail-fast).
         """
-        return self.metadata.planes
+        if not self.metadata.fov_ids:
+            raise ValueError(
+                f"No imaging planes found in {self.input_dir}; cannot "
+                "split TIFFs. Check that the acquisition/session metadata "
+                "defines imaging FOVs/planes."
+            )
+        return self.metadata.fov_ids
 
     def _process_single_fov(
         self,
-        plane: PlaneInfo,
+        fov_id: str,
         roi_index: int,
         z_value: float,
         timeseries_splitter: "TimeSeriesSplitter",
@@ -221,7 +230,7 @@ class TiffSplitterCLI:
         roi_index so depth/surface/zstack TIFFs that index ROIs in a
         different order are still addressed correctly.
         """
-        this_exp_metadata, fov_id = self._create_experiment_metadata(plane)
+        this_exp_metadata = self._create_experiment_metadata(fov_id)
         scanfield_z = z_value
 
         ts_center = timeseries_splitter.roi_center(i_roi=roi_index)
@@ -308,7 +317,7 @@ class TiffSplitterCLI:
         """Process timeseries data and return output path lookup."""
         output_path_lookup = {}
 
-        for plane in self._get_imaging_planes():
+        for plane_index, fov_id in enumerate(self._get_imaging_planes()):
             # Assumes plane_index order in the v2 acquisition schema matches
             # the sequential scan order encoded in the TIFF's zsAllActuators.
             # In v1, session.json carried scanfield_z explicitly (the raw
@@ -316,10 +325,9 @@ class TiffSplitterCLI:
             # depth is stored in physical micrometers and cannot be matched to
             # the TIFF z-values, so we rely on ordering being preserved by the
             # metadata auto-upgrader.
-            roi_z = timeseries_splitter.roi_z_int_manifest[plane.plane_index]
+            roi_z = timeseries_splitter.roi_z_int_manifest[plane_index]
             roi_index, z_int = roi_z
             z_value = timeseries_splitter._z_from_int(z_int)
-            _, fov_id = self._create_experiment_metadata(plane)
             fname = f"{fov_id}.h5"
             output_path = self.output_dir / fov_id / fname
             output_path_lookup[(roi_index, z_value)] = output_path
@@ -416,15 +424,15 @@ class TiffSplitterCLI:
 
             # Process experiment metadata for each imaging plane
             experiment_metadata = []
-            for plane in self._get_imaging_planes():
+            for plane_index, fov_id in enumerate(self._get_imaging_planes()):
                 # See ordering assumption comment in _process_timeseries_data.
                 roi_z = timeseries_splitter.roi_z_int_manifest[
-                    plane.plane_index
+                    plane_index
                 ]
                 roi_index, z_int = roi_z
                 z_value = timeseries_splitter._z_from_int(z_int)
                 this_exp_metadata = self._process_single_fov(
-                    plane,
+                    fov_id,
                     roi_index,
                     z_value,
                     timeseries_splitter,

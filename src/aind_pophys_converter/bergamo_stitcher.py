@@ -8,7 +8,6 @@ import re
 import sys
 from collections import defaultdict
 from datetime import datetime as dt
-from importlib import resources
 from pathlib import Path
 from typing import List, Tuple
 
@@ -20,12 +19,7 @@ from ScanImageTiffReader import ScanImageTiffReader
 
 from aind_pophys_converter.utils.metadata_utils import (
     ConverterMetadata,
-    fov_id_from_plane,
     load_converter_metadata,
-)
-
-_LOGGING_CONFIG = str(
-    resources.files("aind_pophys_converter.utils") / "logging.yml"
 )
 
 
@@ -300,7 +294,13 @@ class BergamoTiffStitcher(BaseStitcher):
         Path
             converted filepath
         """
-        unique_id = fov_id_from_plane(self.metadata.planes[0])
+        if not self.metadata.fov_ids:
+            raise ValueError(
+                f"No imaging planes found in {self.input_dir}; cannot "
+                "derive the Bergamo output name. Check that the "
+                "acquisition/session metadata defines an imaging FOV/plane."
+            )
+        unique_id = self.metadata.fov_ids[0]
         self.output_dir = self.output_dir / unique_id
         self.output_dir.mkdir(exist_ok=True)
         # Convert the file and build the final metadata structure
@@ -381,7 +381,7 @@ class BergamoTiffStitcher(BaseStitcher):
 
 if __name__ == "__main__":
     setup_logging(
-        path_to_config=_LOGGING_CONFIG,
+        use_cloudwatch=True,
         model={"process_name": "aind-pophys-converter"},
     )
     sys_args = sys.argv[1:]

@@ -105,22 +105,29 @@ class TestCreateVasculature(unittest.TestCase):
         self.tmpdir.cleanup()
 
     def test_skips_when_no_vasculature_tif(self):
-        """Does not create output directory when no vasculature TIF."""
-        self.fn(self.pophys_dir, self.output_dir)
+        """Returns None and creates no output dir when no vasculature TIF."""
+        result = self.fn(self.pophys_dir, self.output_dir)
+        self.assertIsNone(result)
         self.assertFalse((self.output_dir / "vasculature").exists())
 
-    def test_creates_png_and_metric(self):
-        """Creates vasculature.png and vasculature_metric.json."""
+    def test_creates_png_and_returns_metric(self):
+        """Creates vasculature.png and returns a QCMetric (no per-metric
+        JSON — the metric is aggregated into quality_control.json)."""
+        from aind_data_schema.core.quality_control import QCMetric
+
         # Write a minimal grayscale TIFF as the vasculature source
         src = self.pophys_dir / "session_vasculature.tif"
         img = Image.fromarray(np.zeros((64, 64), dtype=np.uint8), mode="L")
         img.save(src)
 
-        self.fn(self.pophys_dir, self.output_dir)
+        metric = self.fn(self.pophys_dir, self.output_dir)
 
         vas_dir = self.output_dir / "vasculature"
         self.assertTrue((vas_dir / "vasculature.png").exists())
-        self.assertTrue((vas_dir / "vasculature_metric.json").exists())
+        # No standalone metric JSON is written anymore
+        self.assertFalse((vas_dir / "vasculature_metric.json").exists())
+        self.assertIsInstance(metric, QCMetric)
+        self.assertEqual(metric.name, "Vasculature Image")
 
 
 class TestPairDepthTifsWithAvgDepthPngs(unittest.TestCase):
@@ -154,13 +161,14 @@ class TestPairDepthTifsWithAvgDepthPngs(unittest.TestCase):
         return fp
 
     def test_skips_when_no_imaging_planes(self):
-        """Does nothing when platform.json has no imaging planes."""
+        """Returns [] when platform.json has no imaging planes."""
         fp = self._write_platform([])
-        self.fn(self.pophys_dir, self.avg_dir, fp, self.output_dir)
+        result = self.fn(self.pophys_dir, self.avg_dir, fp, self.output_dir)
+        self.assertEqual(result, [])
         self.assertEqual(list(self.output_dir.glob("*.json")), [])
 
     def test_skips_when_no_child_tifs(self):
-        """Does nothing when avg_slice_dir has no TIF files."""
+        """Returns [] when avg_slice_dir has no TIF files."""
         planes = [
             {
                 "intended_depth": 200,
@@ -169,11 +177,15 @@ class TestPairDepthTifsWithAvgDepthPngs(unittest.TestCase):
             }
         ]
         fp = self._write_platform(planes)
-        self.fn(self.pophys_dir, self.avg_dir, fp, self.output_dir)
+        result = self.fn(self.pophys_dir, self.avg_dir, fp, self.output_dir)
+        self.assertEqual(result, [])
         self.assertEqual(list(self.output_dir.glob("*.json")), [])
 
-    def test_writes_metric_and_png(self):
-        """Writes merged PNG and fov metric JSON for a matched plane."""
+    def test_returns_metric_and_writes_png(self):
+        """Returns a QCMetric per matched plane and writes the merged PNG
+        (no per-metric JSON — the metric goes into quality_control.json)."""
+        from aind_data_schema.core.quality_control import QCMetric
+
         planes = [
             {
                 "intended_depth": 200,
@@ -193,11 +205,13 @@ class TestPairDepthTifsWithAvgDepthPngs(unittest.TestCase):
         child_arr = np.random.uniform(4, 32, (64, 64)).astype(np.float32)
         tifffile.imwrite(self.avg_dir / "276.0.tif", child_arr)
 
-        self.fn(self.pophys_dir, self.avg_dir, fp, self.output_dir)
+        metrics = self.fn(self.pophys_dir, self.avg_dir, fp, self.output_dir)
 
-        # Metric written
-        metric_fp = self.output_dir / "VISp_200_fov_metric.json"
-        self.assertTrue(metric_fp.exists())
+        # One metric returned, no standalone metric JSON written
+        self.assertEqual(len(metrics), 1)
+        self.assertIsInstance(metrics[0], QCMetric)
+        self.assertIn("VISp_200", metrics[0].name)
+        self.assertEqual(list(self.output_dir.glob("*_fov_metric.json")), [])
         # Merged PNG written
         pngs = list(self.output_dir.glob("*_merged.png"))
         self.assertEqual(len(pngs), 1)

@@ -66,7 +66,8 @@ Output: `<output_dir>/<fov_id>/<fov_id>.h5`
 
 ### Mesoscope (multi-plane)
 
-**Trigger:** `"multiplane" in data_description.name`
+**Trigger:** `instrument_id.startswith("MESO")` (mesoscope rigs are named
+`MESO.*`).
 
 The mesoscope produces multiplexed ScanImage TIFFs that interleave frames from
 multiple ROIs and depths. `TiffSplitterCLI.run_job()`:

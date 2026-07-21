@@ -17,7 +17,6 @@ from aind_pophys_converter.bergamo_stitcher import (
 )
 from aind_pophys_converter.utils.metadata_utils import (
     ConverterMetadata,
-    PlaneInfo,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -33,20 +32,14 @@ def _make_settings(input_dir, output_dir, debug: bool = False):
 
 
 def _make_metadata(
-    acq_path: Path,
-    dd_path: Path,
     instrument_id: str = "Bergamo",
-    acronym: str = "MO",
 ) -> ConverterMetadata:
-    """Build a ConverterMetadata stub for stitcher tests."""
+    """Build a ConverterMetadata stub for stitcher tests (single plane)."""
     return ConverterMetadata(
-        source_schema_version="2.4.0",
-        source_acquisition_file=acq_path,
-        source_data_description_file=dd_path,
         instrument_id=instrument_id,
+        fov_ids=("plane_0",),
         dataset_name="bergamo-test",
         subject_id="000000",
-        planes=(PlaneInfo(plane_index=0, targeted_structure_acronym=acronym),),
     )
 
 
@@ -81,7 +74,19 @@ class TestBergamoTiffStitcher(unittest.TestCase):
 
         self.tiff_files = ["test_tiff_00001.tif", "test_tiff_00002.tif"]
         self.settings = _make_settings(self.input_dir, self.output_dir)
-        self.metadata = _make_metadata(self.acquisition_file, self.dd_file)
+        self.metadata = _make_metadata()
+
+    def test_run_converter_empty_planes_raises(self):
+        """run_converter fails fast when metadata has no planes."""
+        from dataclasses import replace
+
+        stitcher = BergamoTiffStitcher(
+            self.settings,
+            metadata=replace(self.metadata, fov_ids=()),
+        )
+        with self.assertRaises(ValueError) as cm:
+            stitcher.run_converter()
+        self.assertIn("No imaging planes", str(cm.exception))
 
     def tearDown(self):
         """Clean up after tests."""
@@ -154,7 +159,7 @@ class TestBergamoTiffStitcher(unittest.TestCase):
             stitcher = BergamoTiffStitcher.from_args(args)
             # v1 fixture instrument_id is MESO.1 (not actually a Bergamo
             # rig — this test only confirms the wiring works)
-            self.assertEqual(stitcher.metadata.source_schema_version, "1.1.2")
+            self.assertEqual(stitcher.metadata.instrument_id, "MESO.1")
 
     def test_discover_tiff_epochs_groups_by_stem(self):
         """Test that tiff files are grouped by stem and sorted numerically."""
