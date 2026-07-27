@@ -11,12 +11,10 @@ calls ``build_quality_control`` + ``write_quality_control_json`` to emit one
 import json
 import logging
 import tempfile
-from datetime import datetime as dt
 from pathlib import Path
 from typing import List, Optional
 
 import numpy as np
-import pytz
 import tifffile
 from aind_data_schema.core.quality_control import (
     QCMetric,
@@ -25,17 +23,13 @@ from aind_data_schema.core.quality_control import (
     Stage,
     Status,
 )
-from aind_data_schema_models.modalities import Modality
-from aind_qcportal_schema.metric_value import DropdownMetric
+from aind_pophys_metadata import quality_control as shared_qc
 from PIL import Image
 
 from aind_pophys_converter.utils.image_utils import add_border_and_label
 
-# Tag *keys* used to group metrics hierarchically for visualization. Every
-# QCMetric built here carries an ``"evaluation"`` tag whose value names the
-# operational-QC evaluation it belongs to (e.g. "Op. QC: Window Clarity"),
-# so grouping by that key reproduces the old per-evaluation QC layout.
-_QC_DEFAULT_GROUPING: List[str] = ["evaluation"]
+# Evaluator label recorded on every pending status this capsule emits.
+_EVALUATOR = "Automated"
 
 
 def pending_qc_status() -> QCStatus:
@@ -46,12 +40,7 @@ def pending_qc_status() -> QCStatus:
     QCStatus
         A QCStatus with status=PENDING and evaluator='Automated'.
     """
-    seattle_tz = pytz.timezone("America/Los_Angeles")
-    return QCStatus(
-        evaluator="Automated",
-        status=Status.PENDING,
-        timestamp=dt.now(seattle_tz).isoformat(),
-    )
+    return shared_qc.pending_qc_status(_EVALUATOR)
 
 
 def build_fov_qc_metric(
@@ -84,14 +73,15 @@ def build_fov_qc_metric(
     QCMetric
         Constructed QCMetric object, not yet serialized.
     """
-    return QCMetric(
+    return shared_qc.dropdown_metric(
         name=f"{unique_id} Parent-Child FOV",
-        modality=Modality.POPHYS,
-        stage=Stage.RAW,
-        tags={
-            "evaluation": "Op. QC: Field-of-view Matching",
-            "type": "Operational QC",
-        },
+        evaluation="Op. QC: Field-of-view Matching",
+        options=[
+            "FOV Matches parent FOV",
+            "FOV does not match parent FOV.",
+        ],
+        status=[Status.PASS, Status.FAIL],
+        reference=str(merged_path),
         description=(
             f"Side-by-side comparison of the parent session depth snapshot "
             f"({raw_tif_path.stem}, intended_depth={intended_depth}µm, "
@@ -100,16 +90,8 @@ def build_fov_qc_metric(
             f"(child z: {closest_z}µm). "
             f"Pass if the fields of view align spatially across sessions."
         ),
-        status_history=[pending_qc_status()],
-        reference=str(merged_path),
-        value=DropdownMetric(
-            value="",
-            options=[
-                "FOV Matches parent FOV",
-                "FOV does not match parent FOV.",
-            ],
-            status=[Status.PASS, Status.FAIL],
-        ),
+        stage=Stage.RAW,
+        evaluator=_EVALUATOR,
     )
 
 
@@ -126,14 +108,33 @@ def build_vasculature_qc_metric(vasculature_output_fp: Path) -> QCMetric:
     QCMetric
         Constructed QCMetric object, not yet serialized.
     """
-    return QCMetric(
+    return shared_qc.dropdown_metric(
         name="Vasculature Image",
-        modality=Modality.POPHYS,
-        stage=Stage.RAW,
-        tags={
-            "evaluation": "Op. QC: Window Clarity",
-            "type": "Operational QC",
-        },
+        evaluation="Op. QC: Window Clarity",
+        options=[
+            "Quality is sufficient",
+            "Poor vasculature image quality",
+            "Light bruising on surface of brain",
+            "Severe bruising on surface of brain",
+            "Vascularization of brain surface",
+            "Discoloration of brain surface (white)",
+            (
+                "Bubbles in objective immersion present, but do NOT"
+                " impact imaging quality"
+            ),
+            "Bubbles in objective immersion impact imaging quality",
+        ],
+        status=[
+            Status.PASS,
+            Status.PASS,
+            Status.PASS,
+            Status.FAIL,
+            Status.PASS,
+            Status.PASS,
+            Status.PASS,
+            Status.FAIL,
+        ],
+        reference=str(vasculature_output_fp),
         description=(
             "Vasculature image captured at session start to assess brain "
             "surface health and cranial window clarity. Select the option "
@@ -141,34 +142,8 @@ def build_vasculature_qc_metric(vasculature_output_fp: Path) -> QCMetric:
             "bubbles, or discoloration may indicate compromised tissue or "
             "optical path quality."
         ),
-        status_history=[pending_qc_status()],
-        reference=str(vasculature_output_fp),
-        value=DropdownMetric(
-            value="",
-            options=[
-                "Quality is sufficient",
-                "Poor vasculature image quality",
-                "Light bruising on surface of brain",
-                "Severe bruising on surface of brain",
-                "Vascularization of brain surface",
-                "Discoloration of brain surface (white)",
-                (
-                    "Bubbles in objective immersion present, but do NOT"
-                    " impact imaging quality"
-                ),
-                "Bubbles in objective immersion impact imaging quality",
-            ],
-            status=[
-                Status.PASS,
-                Status.PASS,
-                Status.PASS,
-                Status.FAIL,
-                Status.PASS,
-                Status.PASS,
-                Status.PASS,
-                Status.FAIL,
-            ],
-        ),
+        stage=Stage.RAW,
+        evaluator=_EVALUATOR,
     )
 
 
@@ -178,8 +153,9 @@ def build_quality_control(metrics: List[QCMetric]) -> QualityControl:
     The project's output contract is that each capsule emits one complete
     ``quality_control.json`` (a ``QualityControl`` object), not loose
     per-metric fragments; the QC aggregator later merges these via
-    ``QualityControl.__add__``. This sets the required ``default_grouping``
-    so the aggregator and every capsule agree on the grouping key.
+    ``QualityControl.__add__``. The shared builder sets the required
+    ``default_grouping`` so the aggregator and every capsule agree on the
+    grouping key.
 
     Parameters
     ----------
@@ -192,10 +168,7 @@ def build_quality_control(metrics: List[QCMetric]) -> QualityControl:
     QualityControl
         v2 QualityControl object ready for serialization.
     """
-    return QualityControl(
-        metrics=metrics,
-        default_grouping=_QC_DEFAULT_GROUPING,
-    )
+    return shared_qc.build_quality_control(metrics)
 
 
 def write_quality_control_json(
@@ -203,9 +176,9 @@ def write_quality_control_json(
 ) -> Path:
     """Write ``quality_control.json`` to ``output_dir`` via the schema helper.
 
-    Uses ``QualityControl.write_standard_file`` so the file format matches
-    other v2 metadata artifacts (``describedBy`` / ``schema_version``
-    populated).
+    Uses the shared writer (``QualityControl.write_standard_file``) so the
+    file format matches other v2 metadata artifacts (``describedBy`` /
+    ``schema_version`` populated).
 
     Parameters
     ----------
@@ -219,12 +192,7 @@ def write_quality_control_json(
     Path
         Absolute path to the written ``quality_control.json``.
     """
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    quality_control.write_standard_file(output_directory=str(output_dir))
-    written = output_dir / "quality_control.json"
-    logging.info(f"quality_control.json written to {written}")
-    return written
+    return shared_qc.write_quality_control_json(quality_control, output_dir)
 
 
 def write_avg_depth_slices(splitter, output_dir: Path) -> None:
@@ -388,9 +356,7 @@ def pair_depth_tifs_with_avg_depth_pngs(
 
         try:
             child_tif_path.unlink()
-            logging.info(
-                f"Deleted original averaged TIF -> {child_tif_path}"
-            )
+            logging.info(f"Deleted original averaged TIF -> {child_tif_path}")
         except Exception as e:
             logging.warning(f"Failed to delete {child_tif_path}: {e}")
 
