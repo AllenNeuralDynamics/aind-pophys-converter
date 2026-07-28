@@ -163,6 +163,20 @@ def _finalize_quality_control(
         )
 
 
+def _mounted_input_assets(input_dir: Path) -> Optional[list]:
+    """Return the names of the data assets mounted under ``input_dir``.
+
+    Each immediate subdirectory of the capsule's data directory is one
+    attached asset, so their names are the input-data provenance. Returns
+    ``None`` when nothing is mounted or the directory is unreadable.
+    """
+    try:
+        names = sorted(p.name for p in Path(input_dir).iterdir() if p.is_dir())
+    except OSError:
+        return None
+    return names or None
+
+
 def _write_processing_metadata(
     job_settings: JobSettings,
     start_time: datetime,
@@ -181,6 +195,7 @@ def _write_processing_metadata(
             start_time=start_time,
             end_time=datetime.now(timezone.utc),
             error=error,
+            input_data=_mounted_input_assets(job_settings.input_dir),
         )
         write_processing_json(processing, output_dir)
     except Exception as proc_exc:

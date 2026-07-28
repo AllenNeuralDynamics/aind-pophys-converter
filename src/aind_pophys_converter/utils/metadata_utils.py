@@ -16,7 +16,7 @@ All ``quality_control.json`` generation lives in ``qc.py``.
 from dataclasses import dataclass
 from datetime import datetime as dt
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 from aind_data_schema.core.processing import Processing
 from aind_data_schema_models.process_names import ProcessName
@@ -120,7 +120,6 @@ def load_converter_metadata(input_dir: Path) -> ConverterMetadata:
 
 _REPO_URL = "https://github.com/AllenNeuralDynamics/aind-pophys-converter"
 _CODE_NAME = "AIND Pophys Converter"
-_PIPELINE_NAME = "aind-pophys-converter"
 
 
 def build_processing(
@@ -129,6 +128,7 @@ def build_processing(
     start_time: dt,
     end_time: dt,
     error: Optional[BaseException] = None,
+    input_data: Optional[List[str]] = None,
 ) -> Processing:
     """Build a v2 aind-data-schema Processing object for this run.
 
@@ -136,6 +136,12 @@ def build_processing(
     with the CLI-driven ``JobSettings`` parameters on ``code.parameters``.
     Runtime status (success vs failure + the error message on failure) goes
     into ``notes``.
+
+    Pipeline identity (``Processing.pipelines`` and
+    ``DataProcess.pipeline_name``) is supplied by the shared builders from
+    the ``PIPELINE_*`` environment variables the pipeline exports — it
+    describes the pipeline, never this capsule, and is omitted entirely on
+    a standalone run.
 
     Parameters
     ----------
@@ -151,6 +157,8 @@ def build_processing(
         Timezone-aware end time of the run.
     error : Exception, optional
         The exception that terminated the run, or ``None`` on success.
+    input_data : list of str, optional
+        Names of the input data assets consumed, for provenance.
 
     Returns
     -------
@@ -167,26 +175,18 @@ def build_processing(
         name=_CODE_NAME,
         version=library_version,
         parameters=job_parameters,
+        input_data=input_data,
     )
     data_process = shared_processing.build_data_process(
         process_type=ProcessName.FILE_FORMAT_CONVERSION,
         code=code,
         start_time=start_time,
         end_time=end_time,
-        experimenters=["Allen Institute for Neural Dynamics"],
-        pipeline_name=_PIPELINE_NAME,
         notes=notes,
         resources=shared_processing.resource_usage(),
     )
     return shared_processing.build_processing(
         [data_process],
-        pipelines=[
-            shared_processing.build_code(
-                url=_REPO_URL,
-                name=_PIPELINE_NAME,
-                version=library_version,
-            )
-        ],
         notes=(
             None
             if error is None

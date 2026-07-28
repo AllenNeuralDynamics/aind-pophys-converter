@@ -80,6 +80,7 @@ dependencies = [
     { name = "aind-data-schema" },
     { name = "aind-data-schema-models" },
     { name = "aind-ophys-utils" },
+    { name = "aind-pophys-metadata" },
     { name = "aind-qcportal-schema" },
     { name = "h5py" },
     { name = "log-schema", extra = ["cloudwatch"] },
@@ -115,6 +116,7 @@ requires-dist = [
     { name = "aind-data-schema-models", specifier = "==5.7.3" },
     { name = "aind-ophys-utils", specifier = "==0.0.8" },
     { name = "aind-pophys-converter", extras = ["full"], marker = "extra == 'dev'" },
+    { name = "aind-pophys-metadata", git = "https://github.com/AllenNeuralDynamics/aind-pophys-metadata.git?rev=ad94805247b21a55c8e4bc03eda3f9650b41240d" },
     { name = "aind-qcportal-schema", specifier = "==0.6.4" },
     { name = "black", marker = "extra == 'dev'" },
     { name = "coverage", marker = "extra == 'dev'" },
@@ -136,6 +138,17 @@ requires-dist = [
     { name = "tifffile", specifier = "==2024.2.12" },
 ]
 provides-extras = ["dev"]
+
+[[package]]
+name = "aind-pophys-metadata"
+version = "0.1.0"
+source = { git = "https://github.com/AllenNeuralDynamics/aind-pophys-metadata.git?rev=ad94805247b21a55c8e4bc03eda3f9650b41240d#ad94805247b21a55c8e4bc03eda3f9650b41240d" }
+dependencies = [
+    { name = "aind-data-schema" },
+    { name = "aind-data-schema-models" },
+    { name = "aind-qcportal-schema" },
+    { name = "pytz" },
+]
 
 [[package]]
 name = "aind-qcportal-schema"
