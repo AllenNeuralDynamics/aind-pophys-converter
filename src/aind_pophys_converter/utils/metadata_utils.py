@@ -121,6 +121,13 @@ def load_converter_metadata(input_dir: Path) -> ConverterMetadata:
 _REPO_URL = "https://github.com/AllenNeuralDynamics/aind-pophys-converter"
 _CODE_NAME = "AIND Pophys Converter"
 
+#: ``DataProcess.name``. Set explicitly because ``ophys_nwb`` also uses
+#: ``ProcessName.FILE_FORMAT_CONVERSION``, so both would otherwise derive the
+#: same default name ("File format conversion") and the run-level aggregator
+#: rejects a merged document with duplicate process names. Both capsules run
+#: once per session, so a plane id cannot separate them.
+_DATA_PROCESS_NAME = "Raw movie conversion to HDF5"
+
 
 def build_processing(
     job_parameters: dict,
@@ -179,6 +186,7 @@ def build_processing(
     )
     data_process = shared_processing.build_data_process(
         process_type=ProcessName.FILE_FORMAT_CONVERSION,
+        name=_DATA_PROCESS_NAME,
         code=code,
         start_time=start_time,
         end_time=end_time,
