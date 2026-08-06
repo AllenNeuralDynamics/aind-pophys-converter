@@ -63,7 +63,10 @@ class TestMalformedZStack(unittest.TestCase):
                 rois[1]["discretePlaneMode"] = 0
             else:
                 rois[ii]["discretePlaneMode"] = 0
-            path_to_metadata[tmp_path] = metadata
+            # Key on the resolved path: the lookup below resolves too,
+            # and on macOS /var is a symlink to /private/var.
+            resolved = str(pathlib.Path(tmp_path).resolve())
+            path_to_metadata[resolved] = metadata
         return path_to_metadata
 
     def test_many_discrete_planes(self):
@@ -99,7 +102,10 @@ class TestMalformedZStack(unittest.TestCase):
             rois = metadata[1]["RoiGroups"]["imagingRoiGroup"]["rois"]
             if ii != 1:
                 rois[ii]["discretePlaneMode"] = 0
-            path_to_metadata[tmp_path] = metadata
+            # Key on the resolved path: the lookup below resolves too,
+            # and on macOS /var is a symlink to /private/var.
+            resolved = str(pathlib.Path(tmp_path).resolve())
+            path_to_metadata[resolved] = metadata
         return path_to_metadata
 
     def test_no_discrete_planes(self):
@@ -138,7 +144,10 @@ class TestMalformedZStack(unittest.TestCase):
                 key_name = "SI.hStackManager.zsAllActuators"
                 metadata[0].pop(key_name)
                 metadata[0][key_name] = [[1, 2, 3], [1, 2, 3]]
-            path_to_metadata[tmp_path] = metadata
+            # Key on the resolved path: the lookup below resolves too,
+            # and on macOS /var is a symlink to /private/var.
+            resolved = str(pathlib.Path(tmp_path).resolve())
+            path_to_metadata[resolved] = metadata
         return path_to_metadata
 
     def test_z_odd_shape(self):
@@ -176,7 +185,10 @@ class TestMalformedZStack(unittest.TestCase):
                 rois[0]["discretePlaneMode"] = 0
             else:
                 rois[ii]["discretePlaneMode"] = 0
-            path_to_metadata[tmp_path] = metadata
+            # Key on the resolved path: the lookup below resolves too,
+            # and on macOS /var is a symlink to /private/var.
+            resolved = str(pathlib.Path(tmp_path).resolve())
+            path_to_metadata[resolved] = metadata
         return path_to_metadata
 
     def test_roi_missing_tiff(self):
@@ -213,7 +225,10 @@ class TestMalformedZStack(unittest.TestCase):
             metadata = copy.deepcopy(self.baseline_zstack_metadata)
             if ii == 1:
                 metadata[0]["SI.hChannels.channelSave"] = 1
-            path_to_metadata[tmp_path] = metadata
+            # Key on the resolved path: the lookup below resolves too,
+            # and on macOS /var is a symlink to /private/var.
+            resolved = str(pathlib.Path(tmp_path).resolve())
+            path_to_metadata[resolved] = metadata
         return path_to_metadata
 
     def test_zstack_bad_channelSave(self):

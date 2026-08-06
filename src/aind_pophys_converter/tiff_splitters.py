@@ -311,13 +311,27 @@ def _split_timeseries_tiff(
         current_offset = -1
         cache_ct = 0
 
-        if debug:
-            logger.debug(
-                f"Debug mode active: clipping timeseries to "
-                f"{DEBUG_N_FRAMES} frames per plane."
+        n_planes = max_offset + 1
+        page_cap = n_planes * DEBUG_N_FRAMES if debug else None
+        if page_cap is not None:
+            logger.info(
+                "Debug frame cap active: writing at most %s frames per "
+                "plane (%s planes, %s pages) from %s. Every downstream "
+                "stage sees this count, whatever truncation it reports.",
+                DEBUG_N_FRAMES,
+                n_planes,
+                page_cap,
+                tiff_path,
             )
         for page in tiff_file.pages:
-            if debug and page_ct >= (max_offset + 1) * DEBUG_N_FRAMES:
+            if page_cap is not None and page_ct >= page_cap:
+                logger.warning(
+                    "Debug frame cap reached: stopping %s after %s pages, "
+                    "so each plane holds %s frames.",
+                    tiff_path,
+                    page_ct,
+                    DEBUG_N_FRAMES,
+                )
                 break
             page_ct += 1
             arr = page.asarray()

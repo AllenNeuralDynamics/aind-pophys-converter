@@ -24,6 +24,7 @@ from aind_data_schema.core.quality_control import (
     Status,
 )
 from aind_pophys_metadata import quality_control as shared_qc
+from aind_pophys_metadata.paths import find_one
 from PIL import Image
 
 from aind_pophys_converter.utils.image_utils import add_border_and_label
@@ -393,7 +394,9 @@ def create_vasculature(
         The window-clarity metric, or ``None`` if no vasculature TIFF was
         found (nothing to assess).
     """
-    vasculature_fp = next(pophys_dir.glob("*_vasculature.tif"), None)
+    vasculature_fp = find_one(
+        pophys_dir, "*_vasculature.tif", recursive=False, required=False
+    )
     if not vasculature_fp:
         logging.info("No vasculature TIFF found; skipping.")
         return None

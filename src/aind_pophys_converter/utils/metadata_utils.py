@@ -7,19 +7,17 @@ library; this module only:
 
 1. assembles the converter's schema-agnostic ``ConverterMetadata`` view from
    the shared field getters (``load_converter_metadata``), and
-2. builds the conversion-specific ``Processing`` document
-   (``build_processing`` / ``write_processing_json``).
+2. builds the conversion-specific ``Code`` block (``build_converter_code``)
+   that ``aind_pophys_metadata.runner.stage_guard`` writes out.
 
 All ``quality_control.json`` generation lives in ``qc.py``.
 """
 
 from dataclasses import dataclass
-from datetime import datetime as dt
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from aind_data_schema.core.processing import Processing
-from aind_data_schema_models.process_names import ProcessName
+from aind_data_schema.components.identifiers import Code
 from aind_pophys_metadata import fields, io
 from aind_pophys_metadata import processing as shared_processing
 
@@ -97,28 +95,30 @@ def load_converter_metadata(input_dir: Path) -> ConverterMetadata:
     KeyError
         If the required ``instrument_id`` (v1 ``rig_id``) is missing.
     """
-    core_path = io.find_acquisition_file(input_dir)
-    version = io.detect_schema_version(core_path)
-    core_raw = io.load_json(core_path)
-
-    dd_path = io.find(input_dir, "data_description.json")
-    dd_raw = io.load_json(dd_path) if dd_path else {}
-
+    common = io.load_common(input_dir)
     return ConverterMetadata(
         instrument_id=fields.get_instrument_id(
-            version, core_raw, required=True, file_path=core_path
+            common.version,
+            common.core_raw,
+            required=True,
+            file_path=common.core_path,
         ),
-        fov_ids=fields.get_fov_ids(version, core_raw),
-        dataset_name=fields.get_dataset_name(dd_raw),
-        subject_id=fields.get_subject_id(core_raw),
+        fov_ids=fields.get_fov_ids(common.version, common.core_raw),
+        dataset_name=fields.get_dataset_name(
+            common.data_description_raw or {}
+        ),
+        subject_id=fields.get_subject_id(common.core_raw),
     )
 
 
 # ---------------------------------------------------------------------------
-# Processing writer
+# Code block
 # ---------------------------------------------------------------------------
 
-_REPO_URL = "https://github.com/AllenNeuralDynamics/aind-pophys-converter"
+#: Distribution name. The shared builder derives both ``code.url`` and
+#: ``code.version`` from it; this repo is its own backing library.
+LIBRARY_NAME = "aind-pophys-converter"
+
 _CODE_NAME = "AIND Pophys Converter"
 
 #: ``DataProcess.name``. Set explicitly because ``ophys_nwb`` also uses
@@ -126,29 +126,19 @@ _CODE_NAME = "AIND Pophys Converter"
 #: same default name ("File format conversion") and the run-level aggregator
 #: rejects a merged document with duplicate process names. Both capsules run
 #: once per session, so a plane id cannot separate them.
-_DATA_PROCESS_NAME = "Raw movie conversion to HDF5"
+DATA_PROCESS_NAME = "Raw movie conversion to HDF5"
 
 
-def build_processing(
+def build_converter_code(
     job_parameters: dict,
-    library_version: str,
-    start_time: dt,
-    end_time: dt,
-    error: Optional[BaseException] = None,
     input_data: Optional[List[str]] = None,
-) -> Processing:
-    """Build a v2 aind-data-schema Processing object for this run.
+) -> Code:
+    """Build the v2 ``Code`` block describing this conversion.
 
-    Produces a single ``DataProcess`` describing the conversion, annotated
-    with the CLI-driven ``JobSettings`` parameters on ``code.parameters``.
-    Runtime status (success vs failure + the error message on failure) goes
-    into ``notes``.
-
-    Pipeline identity (``Processing.pipelines`` and
-    ``DataProcess.pipeline_name``) is supplied by the shared builders from
-    the ``PIPELINE_*`` environment variables the pipeline exports — it
-    describes the pipeline, never this capsule, and is omitted entirely on
-    a standalone run.
+    The ``DataProcess`` and ``Processing`` documents around it are assembled
+    by ``aind_pophys_metadata.runner.stage_guard``, which also supplies the
+    timings, the static resource capture and the pipeline identity from the
+    ``PIPELINE_*`` environment variables.
 
     Parameters
     ----------
@@ -156,66 +146,24 @@ def build_processing(
         Dict of CLI-driven JobSettings fields (input_dir, output_dir,
         temp_dir, debug). Caller produces this via
         ``job_settings.model_dump(mode="json")``.
-    library_version : str
-        Library version string (e.g. ``aind_pophys_converter.__version__``).
-    start_time : datetime.datetime
-        Timezone-aware start time of the run.
-    end_time : datetime.datetime
-        Timezone-aware end time of the run.
-    error : Exception, optional
-        The exception that terminated the run, or ``None`` on success.
     input_data : list of str, optional
-        Names of the input data assets consumed, for provenance.
+        Raw source files this run read, as paths relative to the mounted
+        data root (see ``job.raw_input_data``).
 
     Returns
     -------
-    Processing
-        v2 Processing object ready for serialization.
+    Code
+        The populated code block.
+
+    Raises
+    ------
+    ValueError
+        If ``job_parameters`` or ``input_data`` carry an ephemeral Nextflow
+        task scratch path.
     """
-    notes = (
-        None
-        if error is None
-        else f"Run failed with {type(error).__name__}: {error}"
-    )
-    code = shared_processing.build_code(
-        url=_REPO_URL,
+    return shared_processing.build_code(
         name=_CODE_NAME,
-        version=library_version,
+        library_name=LIBRARY_NAME,
         parameters=job_parameters,
         input_data=input_data,
     )
-    data_process = shared_processing.build_data_process(
-        process_type=ProcessName.FILE_FORMAT_CONVERSION,
-        name=_DATA_PROCESS_NAME,
-        code=code,
-        start_time=start_time,
-        end_time=end_time,
-        notes=notes,
-        resources=shared_processing.resource_usage(),
-    )
-    return shared_processing.build_processing(
-        [data_process],
-        notes=(
-            None
-            if error is None
-            else "Conversion finished with status=failed."
-        ),
-    )
-
-
-def write_processing_json(processing: Processing, output_dir: Path) -> Path:
-    """Write ``processing.json`` to ``output_dir`` via the shared writer.
-
-    Parameters
-    ----------
-    processing : Processing
-        Object built by ``build_processing``.
-    output_dir : Path
-        Destination directory. Created if it does not exist.
-
-    Returns
-    -------
-    Path
-        Path to the written ``processing.json``.
-    """
-    return shared_processing.write_processing_json(processing, output_dir)

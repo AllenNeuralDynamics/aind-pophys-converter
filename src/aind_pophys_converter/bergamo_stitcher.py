@@ -13,6 +13,7 @@ from typing import List, Tuple
 
 import h5py as h5
 import numpy as np
+from aind_pophys_metadata.paths import find_one
 from log_schema.main import setup_logging
 from pydantic import BaseModel, Field
 from ScanImageTiffReader import ScanImageTiffReader
@@ -196,7 +197,7 @@ class BergamoTiffStitcher(BaseStitcher):
 
     def _get_image_dim(self) -> Tuple[int, ...]:
         """Grab image shape from metdata"""
-        file_path = next(self.input_dir.glob("*.tif"))
+        file_path = find_one(self.input_dir, "*.tif", recursive=False)
         with ScanImageTiffReader(str(file_path)) as reader:
             return reader.shape()[1:]
 

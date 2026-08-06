@@ -256,5 +256,50 @@ class TestWriteAvgDepthSlices(unittest.TestCase):
         self.assertEqual(len(tifs), 2)
 
 
+class TestRawInputData(unittest.TestCase):
+    """Tests for raw_input_data, the converter's input_data provenance."""
+
+    def setUp(self):
+        """Build a data root holding one asset with a pophys directory."""
+        from aind_pophys_converter.job import raw_input_data
+
+        self.fn = raw_input_data
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.input_dir = Path(self.tmpdir.name)
+        self.pophys_dir = self.input_dir / "asset" / "pophys"
+        self.pophys_dir.mkdir(parents=True)
+
+    def tearDown(self):
+        """Clean up."""
+        self.tmpdir.cleanup()
+
+    def test_returns_none_without_a_pophys_directory(self):
+        """No pophys directory means no file-level provenance."""
+        self.assertIsNone(self.fn(self.input_dir, None, "MESO.1"))
+
+    def test_returns_none_when_nothing_matches(self):
+        """An empty pophys directory yields None, not an empty list."""
+        self.assertIsNone(self.fn(self.input_dir, self.pophys_dir, "MESO.1"))
+
+    def test_mesoscope_paths_are_relative_to_the_data_root(self):
+        """Mesoscope sources are recorded as data-root-relative paths."""
+        (self.pophys_dir / "s_timeseries.tiff").touch()
+        (self.pophys_dir / "s_platform.json").touch()
+        result = self.fn(self.input_dir, self.pophys_dir, "MESO.1")
+        self.assertEqual(
+            result,
+            ["asset/pophys/s_platform.json", "asset/pophys/s_timeseries.tiff"],
+        )
+        for entry in result:
+            self.assertFalse(Path(entry).is_absolute())
+
+    def test_bergamo_route_records_the_epoch_tiffs(self):
+        """The Bergamo route records the tiff files it stitches."""
+        (self.pophys_dir / "epoch_00001.tif").touch()
+        (self.pophys_dir / "s_timeseries.tiff").touch()
+        result = self.fn(self.input_dir, self.pophys_dir, "Bergamo photostim")
+        self.assertEqual(result, ["asset/pophys/epoch_00001.tif"])
+
+
 if __name__ == "__main__":
     unittest.main()

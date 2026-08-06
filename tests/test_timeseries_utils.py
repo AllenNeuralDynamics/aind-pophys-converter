@@ -13,6 +13,7 @@ import numpy as np
 import tifffile
 
 from aind_pophys_converter.tiff_splitters import (
+    DEBUG_N_FRAMES,
     _dump_timeseries_caches,
     _gather_timeseries_caches,
     _split_timeseries_tiff,
@@ -256,6 +257,38 @@ class TestTimeseriesUtils(unittest.TestCase):
                     np.testing.assert_allclose(expected, actual)
                 cache_paths = [f for f in tmpdir.iterdir()]
                 self.assertEqual(len(cache_paths), 0)
+
+    def test_split_timeseries_tiff_debug_cap_is_logged(self):
+        """debug=True caps the movie and says so, naming the frame count."""
+        import logging
+        import tempfile
+
+        n_extra_pages = 5
+        tmpdir = pathlib.Path(tempfile.mkdtemp(prefix="split_tiff_debug"))
+        tiff_path = tmpdir / "debug_timeseries.tiff"
+        tifffile.imwrite(
+            tiff_path,
+            np.zeros((DEBUG_N_FRAMES + n_extra_pages, 12, 12)),
+        )
+        offset_to_path = {0: tmpdir / "final0.h5"}
+
+        with self.assertLogs(
+            "aind_pophys_converter.tiff_splitters", level=logging.INFO
+        ) as captured:
+            split_timeseries_tiff(
+                tiff_path=tiff_path,
+                offset_to_path=offset_to_path,
+                tmp_dir=tmpdir,
+                dump_every=10,
+                debug=True,
+            )
+
+        messages = "\n".join(captured.output)
+        self.assertIn("Debug frame cap active", messages)
+        self.assertIn("Debug frame cap reached", messages)
+        self.assertIn(str(DEBUG_N_FRAMES), messages)
+        with h5py.File(offset_to_path[0], "r") as in_file:
+            self.assertEqual(in_file["data"].shape[0], DEBUG_N_FRAMES)
 
 
 if __name__ == "__main__":

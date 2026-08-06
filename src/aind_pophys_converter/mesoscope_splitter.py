@@ -8,6 +8,8 @@ import time
 from pathlib import Path
 from typing import Dict, List, Tuple, Union
 
+from aind_pophys_metadata.paths import find_one
+
 from aind_pophys_converter.settings import JobSettings
 from aind_pophys_converter.tiff_splitters import (
     AvgImageTiffSplitter,
@@ -86,21 +88,17 @@ class TiffSplitterCLI:
         if isinstance(self.output_dir, str):
             self.output_dir = Path(self.output_dir)
         self.metadata = metadata
-        self.timeseries_tif = next(
-            self.input_dir.glob("*timeseries.tiff"), None
+        # recursive=False throughout: the splitter's inputs sit directly in
+        # input_dir, and rglob does not follow the symlink it can be.
+        self.timeseries_tif = find_one(
+            self.input_dir, "*timeseries.tiff", recursive=False
         )
-        if not self.timeseries_tif:
-            raise ValueError("No timeseries.tiff file found")
-        self.depths_tif = next(
-            self.input_dir.glob("*averaged_depth.tiff"), None
+        self.depths_tif = find_one(
+            self.input_dir, "*averaged_depth.tiff", recursive=False
         )
-        if not self.depths_tif:
-            raise ValueError("No averaged_depth.tiff file found")
-        self.surface_tif = next(
-            self.input_dir.glob("*averaged_surface.tiff"), None
+        self.surface_tif = find_one(
+            self.input_dir, "*averaged_surface.tiff", recursive=False
         )
-        if not self.surface_tif:
-            raise ValueError("No averaged_surface.tiff file found")
         self.temp_dir = job_settings.temp_dir
         if self.temp_dir is not None:
             # Ensure temp directory exists before mkdtemp is called downstream
@@ -151,7 +149,12 @@ class TiffSplitterCLI:
 
     def _check_deprecated_files(self) -> None:
         """Check for deprecated file types and warn accordingly."""
-        if next(self.input_dir.glob("*cortical_z_stack*.tiff"), None):
+        if find_one(
+            self.input_dir,
+            "*cortical_z_stack*.tiff",
+            recursive=False,
+            required=False,
+        ):
             msg = "'column_z_stack_tif' detected in 'plane_groups'; "
             msg += "the TIFF splitting code no longer handles that file."
             logging.warning(msg)
@@ -348,7 +351,12 @@ class TiffSplitterCLI:
 
     def _process_full_field_image(self) -> None:
         """Process full field image if it exists."""
-        full_field_path = next(self.input_dir.glob("*fullfield*.tiff"), None)
+        full_field_path = find_one(
+            self.input_dir,
+            "*fullfield*.tiff",
+            recursive=False,
+            required=False,
+        )
 
         if full_field_path is not None:
             avg_path = self.surface_tif

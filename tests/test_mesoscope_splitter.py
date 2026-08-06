@@ -252,26 +252,24 @@ class TestMesoscopeSplitter(unittest.TestCase):
             job_settings.temp_dir = temp_path / "temp"
             job_settings.debug = False
 
-            # Missing timeseries.tiff
-            with self.assertRaises(ValueError) as cm:
+            # Missing timeseries.tiff. The shared find_one names both the
+            # pattern and the directory it searched.
+            with self.assertRaises(FileNotFoundError) as cm:
                 TiffSplitterCLI(job_settings, metadata=metadata)
-            self.assertIn("No timeseries.tiff file found", str(cm.exception))
+            self.assertIn("*timeseries.tiff", str(cm.exception))
+            self.assertIn(str(input_dir), str(cm.exception))
 
             # Create timeseries.tiff but leave depth file missing
             (input_dir / "test_timeseries.tiff").touch()
-            with self.assertRaises(ValueError) as cm:
+            with self.assertRaises(FileNotFoundError) as cm:
                 TiffSplitterCLI(job_settings, metadata=metadata)
-            self.assertIn(
-                "No averaged_depth.tiff file found", str(cm.exception)
-            )
+            self.assertIn("*averaged_depth.tiff", str(cm.exception))
 
             # Create depth file but leave surface file missing
             (input_dir / "test_averaged_depth.tiff").touch()
-            with self.assertRaises(ValueError) as cm:
+            with self.assertRaises(FileNotFoundError) as cm:
                 TiffSplitterCLI(job_settings, metadata=metadata)
-            self.assertIn(
-                "No averaged_surface.tiff file found", str(cm.exception)
-            )
+            self.assertIn("*averaged_surface.tiff", str(cm.exception))
 
     def test_split_timeseries_tiff_logger_messages(self):
         """Test that split_timeseries_tiff emits log records via the

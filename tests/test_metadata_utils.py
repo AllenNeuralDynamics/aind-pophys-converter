@@ -4,22 +4,20 @@ The v1/v2 field getters and FOV-naming rule now live in the shared
 ``aind_pophys_metadata`` library (tested there); these tests cover the
 converter-specific surface: ``load_converter_metadata`` assembling a
 ``ConverterMetadata`` from fixtures, its require/ambiguity/missing contracts,
-and the conversion ``Processing`` builder.
+and the conversion ``Code`` builder.
 """
 
 import json
 import tempfile
 import unittest
-from datetime import datetime, timezone
+from importlib.metadata import version
 from pathlib import Path
 
-from aind_data_schema.core.processing import Processing
-
 from aind_pophys_converter.utils.metadata_utils import (
+    LIBRARY_NAME,
     ConverterMetadata,
-    build_processing,
+    build_converter_code,
     load_converter_metadata,
-    write_processing_json,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -131,8 +129,8 @@ class TestLoaderContracts(unittest.TestCase):
             load_converter_metadata(self.root)
 
 
-class TestBuildProcessing(unittest.TestCase):
-    """Tests for build_processing."""
+class TestBuildConverterCode(unittest.TestCase):
+    """Tests for build_converter_code."""
 
     def _params(self) -> dict:
         """Return a sample JobSettings parameter dict."""
@@ -143,90 +141,46 @@ class TestBuildProcessing(unittest.TestCase):
             "debug": False,
         }
 
-    def _times(self):
-        """Return a (start, end) pair of tz-aware datetimes."""
-        start = datetime(2025, 5, 17, 10, 0, 0, tzinfo=timezone.utc)
-        end = datetime(2025, 5, 17, 11, 0, 0, tzinfo=timezone.utc)
-        return start, end
-
-    def test_success_path(self):
-        """build_processing with error=None yields notes=None."""
-        start, end = self._times()
-        proc = build_processing(
-            job_parameters=self._params(),
-            library_version="0.0.1",
-            start_time=start,
-            end_time=end,
-            error=None,
+    def test_url_is_the_repository_landing_page(self):
+        """code.url is the repo root, with no /tree/<ref>/code suffix."""
+        code = build_converter_code(self._params())
+        self.assertEqual(
+            code.url,
+            f"https://github.com/AllenNeuralDynamics/{LIBRARY_NAME}",
         )
-        self.assertEqual(len(proc.data_processes), 1)
-        self.assertIsNone(proc.data_processes[0].notes)
+        self.assertNotIn("/tree/", code.url)
 
-    def test_failure_path(self):
-        """build_processing with an error populates notes."""
-        start, end = self._times()
-        proc = build_processing(
-            job_parameters=self._params(),
-            library_version="0.0.1",
-            start_time=start,
-            end_time=end,
-            error=ValueError("boom"),
-        )
-        self.assertIsNotNone(proc.data_processes[0].notes)
-        self.assertIn("ValueError", proc.data_processes[0].notes)
-        self.assertIn("boom", proc.data_processes[0].notes)
+    def test_version_comes_from_the_installed_distribution(self):
+        """code.version identifies the backing library, never empty."""
+        code = build_converter_code(self._params())
+        self.assertEqual(code.version, version(LIBRARY_NAME))
 
     def test_code_parameters_are_only_job_parameters(self):
         """code.parameters reflects exactly the JobSettings dict."""
-        start, end = self._times()
         params = self._params()
-        proc = build_processing(
-            job_parameters=params,
-            library_version="0.0.1",
-            start_time=start,
-            end_time=end,
-        )
-        recorded = proc.data_processes[0].code.parameters
+        recorded = build_converter_code(params).parameters
         if hasattr(recorded, "model_dump"):
             recorded = recorded.model_dump()
         self.assertEqual(recorded, params)
 
-    def test_round_trip_json(self):
-        """Processing object survives a JSON round-trip."""
-        start, end = self._times()
-        proc = build_processing(
-            job_parameters=self._params(),
-            library_version="0.0.1",
-            start_time=start,
-            end_time=end,
+    def test_input_data_records_the_raw_sources(self):
+        """Raw source paths become named input data assets."""
+        code = build_converter_code(
+            self._params(),
+            input_data=["asset/pophys/x_timeseries.tiff"],
         )
-        Processing.model_validate_json(proc.model_dump_json())
+        self.assertEqual(
+            [asset.name for asset in code.input_data],
+            ["asset/pophys/x_timeseries.tiff"],
+        )
 
-
-class TestWriteProcessingJson(unittest.TestCase):
-    """Tests for write_processing_json."""
-
-    def test_writes_file(self):
-        """write_processing_json creates a parseable processing.json."""
-        start = datetime(2025, 5, 17, 10, 0, 0, tzinfo=timezone.utc)
-        end = datetime(2025, 5, 17, 11, 0, 0, tzinfo=timezone.utc)
-        with tempfile.TemporaryDirectory() as tmp:
-            out = Path(tmp) / "results"
-            proc = build_processing(
-                job_parameters={
-                    "input_dir": "/data",
-                    "output_dir": str(out),
-                    "temp_dir": None,
-                    "debug": False,
-                },
-                library_version="0.0.1",
-                start_time=start,
-                end_time=end,
+    def test_ephemeral_input_path_is_rejected(self):
+        """A Nextflow work path in input_data fails loudly."""
+        with self.assertRaises(ValueError):
+            build_converter_code(
+                self._params(),
+                input_data=["/tmp/nxf.abc/capsule/data/x.tiff"],
             )
-            written = write_processing_json(proc, out)
-            self.assertTrue(written.exists())
-            content = json.loads(written.read_text())
-            self.assertIn("schema_version", content)
 
 
 class TestConverterMetadataEquality(unittest.TestCase):
