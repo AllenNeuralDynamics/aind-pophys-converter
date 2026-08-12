@@ -8,7 +8,7 @@ from aind_pophys_converter.tiff_splitters import IntFromZMapperMixin
 class TestIntFromZMapperMixin(unittest.TestCase):
     """Test mapper mixin"""
 
-    def test_int_from_z_mapper(self):
+    def test_int_from_z_mapper(self) -> None:
         """test mixin"""
         for atol in [0.01, 0.001, 0.0001]:
             with self.subTest(atol=atol):

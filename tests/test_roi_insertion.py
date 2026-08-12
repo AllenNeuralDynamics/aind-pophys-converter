@@ -2,6 +2,7 @@
 
 import pathlib
 import unittest
+from typing import List, Tuple
 from unittest.mock import Mock, patch
 
 import numpy as np
@@ -31,7 +32,7 @@ def _create_avg_surface_tiff(
     origin_x: float,
     origin_y: float,
     output_dir: pathlib.Path,
-):
+) -> Tuple[pathlib.Path, List[np.ndarray], List[dict]]:
     """
     Returns 12 x 12 ROIs where each pixel in the ROI
     corresponds to pixel_size physical units
@@ -108,7 +109,7 @@ def _create_avg_surface_tiff(
 class TestRoiInsertion(unittest.TestCase):
     """Tests for inserting ROIs into stitched full field images"""
 
-    def test_insertion_worker(self):
+    def test_insertion_worker(self) -> None:
         """
         Test the insertion worker by creating a set of average images
         """
@@ -209,7 +210,7 @@ class TestRoiInsertion(unittest.TestCase):
                 # still NaNs
                 self.assertTrue(np.all(np.isnan(img[mask_missing])))
 
-    def test_user_facing_insertion(self):
+    def test_user_facing_insertion(self) -> None:
         """
         This is really just a smoke test of stitch_tiff_with_rois
         """
@@ -250,7 +251,7 @@ class TestRoiInsertion(unittest.TestCase):
         )
         bckgd_metadata.append(roi_metadata)
 
-        def mock_read_metadata(tiff_path):
+        def mock_read_metadata(tiff_path: pathlib.Path) -> List[dict]:
             """
             Mock function to return metadata based on the tiff path.
             """

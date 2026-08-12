@@ -23,7 +23,9 @@ from aind_pophys_converter.tiff_splitters import (
 )
 
 
-def _create_tiff_pages_and_lookup(z_value_list, n_rois):
+def _create_tiff_pages_and_lookup(
+    z_value_list: List[int], n_rois: int
+) -> Tuple[List[np.ndarray], Dict[Tuple[int, int], List[np.ndarray]]]:
     """Create TIFF pages and page lookup dictionary."""
     page_lookup = dict()
     tiff_pages = []
@@ -44,7 +46,9 @@ def _create_tiff_pages_and_lookup(z_value_list, n_rois):
     return tiff_pages, page_lookup
 
 
-def _create_z_array(z_value_list, is_surface):
+def _create_z_array(
+    z_value_list: List[int], is_surface: bool
+) -> List[List[int]]:
     """Create z array based on surface type."""
     if is_surface:
         return [[z_value, 0] for z_value in z_value_list]
@@ -55,7 +59,13 @@ def _create_z_array(z_value_list, is_surface):
         ]
 
 
-def _create_metadata(z_array, use_zs, is_surface, z_value_list, n_rois):
+def _create_metadata(
+    z_array: List[List[int]],
+    use_zs: bool,
+    is_surface: bool,
+    z_value_list: List[int],
+    n_rois: int,
+) -> List[dict]:
     """Create metadata dictionary."""
     key_name = (
         "SI.hStackManager.zs" if use_zs else "SI.hStackManager.zsAllActuators"
@@ -141,17 +151,17 @@ class TestTiffSplitter(unittest.TestCase):
     and ZStackSplitter classes.
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test fixtures and suppress ResourceWarnings"""
         # Suppress ResourceWarnings during testing to reduce noise
         warnings.filterwarnings("ignore", category=ResourceWarning)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         """Clean up after tests"""
         # Reset warnings to default behavior
         warnings.resetwarnings()
 
-    def test_depth_splitter(self):
+    def test_depth_splitter(self) -> None:
         """Test the AvgImageTiffSplitter with various parameters."""
         param_list = [
             (list(range(8)), 2, True),
@@ -229,7 +239,7 @@ class TestTiffSplitter(unittest.TestCase):
                 if tiff_path.is_file():
                     tiff_path.unlink()
 
-    def test_splitter_manifest(self):
+    def test_splitter_manifest(self) -> None:
         """Test the AvgImageTiffSplitter manifest with various parameters."""
         param_list = [
             (list(range(8)), 2, True),
@@ -310,7 +320,7 @@ class TestTiffSplitter(unittest.TestCase):
                 if tiff_path.is_file():
                     tiff_path.unlink()
 
-    def test_surface_splitter(self):
+    def test_surface_splitter(self) -> None:
         """Test the AvgImageTiffSplitter with surface parameters."""
         param_list = [
             (list(range(3)), True),
@@ -375,7 +385,7 @@ class TestTiffSplitter(unittest.TestCase):
                 if tiff_path.is_file():
                     tiff_path.unlink()
 
-    def test_time_splitter(self):
+    def test_time_splitter(self) -> None:
         """Test the AvgImageTiffSplitter with time series parameters."""
         param_list = [
             (list(range(8)), 2, True),
@@ -445,7 +455,7 @@ class TestTiffSplitter(unittest.TestCase):
                 if tiff_path.is_file():
                     tiff_path.unlink()
 
-    def test_invalid_timeseries_output_map(self):
+    def test_invalid_timeseries_output_map(self) -> None:
         """Test the TimeSeriesSplitter with an invalid output path map."""
         import tempfile
 
@@ -504,7 +514,7 @@ class TestTiffSplitter(unittest.TestCase):
             splitter.write_output_files(output_path_map=output_path_map)
         self.assertIn("says it contains", str(cm.exception))
 
-    def test_z_stack_splitter(self):
+    def test_z_stack_splitter(self) -> None:
         """Test the ZStackSplitter with various parameters."""
         param_list = [
             (list(range(8)), True),
@@ -546,7 +556,9 @@ class TestTiffSplitter(unittest.TestCase):
                 tiff_pages_lookup = dataset[1]
                 tiff_path_lookup = dataset[2]
 
-                def mock_read_metadata(tiff_path):
+                def mock_read_metadata(
+                    tiff_path: pathlib.Path,
+                ) -> List[dict]:
                     """Mock function to return metadata for a TIFF path."""
                     str_path = str(tiff_path.resolve().absolute())
                     return z_stack_path_to_metadata[str_path]
@@ -594,7 +606,7 @@ class TestTiffSplitter(unittest.TestCase):
                         z_stack_path.unlink()
 
 
-def _create_roi_metadata(n_rois):
+def _create_roi_metadata(n_rois: int) -> dict:
     """Create the main ROI metadata structure."""
     main_roi_list = []
     for ii in range(n_rois):
@@ -607,7 +619,9 @@ def _create_roi_metadata(n_rois):
     return {"RoiGroups": {"imagingRoiGroup": {"rois": main_roi_list}}}
 
 
-def _create_z_values(roi_to_z_mapping, i_roi):
+def _create_z_values(
+    roi_to_z_mapping: List[List[int]], i_roi: int
+) -> Tuple[List[List[float]], np.ndarray]:
     """Create z values for a specific ROI."""
     z0 = roi_to_z_mapping[i_roi][0]
     z0_values = np.linspace(z0 - 5.0, z0 + 5.0, 7)
@@ -620,15 +634,15 @@ def _create_z_values(roi_to_z_mapping, i_roi):
 
 
 def _generate_tiff_pages(
-    rng,
-    i_roi,
-    z0_values,
-    roi_to_z_mapping,
-    n_repeats,
-    tiff_pages_lookup,
-    tiff_path_lookup,
-    str_path,
-):
+    rng: np.random.Generator,
+    i_roi: int,
+    z0_values: np.ndarray,
+    roi_to_z_mapping: List[List[int]],
+    n_repeats: int,
+    tiff_pages_lookup: Dict[Tuple[int, int], List[np.ndarray]],
+    tiff_path_lookup: Dict[Tuple[int, int], str],
+    str_path: str,
+) -> List[np.ndarray]:
     """Generate TIFF pages for a specific ROI."""
     this_tiff = []
     for i_z in range(len(z0_values)):
@@ -647,17 +661,17 @@ def _generate_tiff_pages(
 
 
 def _process_single_roi(
-    tmpdir,
-    i_roi,
-    roi_to_z_mapping,
-    main_roi_metadata,
-    z_key,
-    rng,
-    n_repeats,
-    tiff_pages_lookup,
-    z_stack_path_to_metadata,
-    tiff_path_lookup,
-):
+    tmpdir: pathlib.Path,
+    i_roi: int,
+    roi_to_z_mapping: List[List[int]],
+    main_roi_metadata: dict,
+    z_key: str,
+    rng: np.random.Generator,
+    n_repeats: int,
+    tiff_pages_lookup: Dict[Tuple[int, int], List[np.ndarray]],
+    z_stack_path_to_metadata: Dict[str, List[dict]],
+    tiff_path_lookup: Dict[Tuple[int, int], str],
+) -> None:
     """Process a single ROI to create TIFF stack and metadata."""
     stack_path = pathlib.Path(mkstemp_clean(dir=tmpdir, suffix=".tiff"))
     roi_metadata = copy.deepcopy(main_roi_metadata)

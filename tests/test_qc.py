@@ -27,7 +27,7 @@ from aind_pophys_converter.qc import (
 class TestBuildQcMetrics(unittest.TestCase):
     """Tests for build_fov_qc_metric and build_vasculature_qc_metric."""
 
-    def test_fov_metric_stage(self):
+    def test_fov_metric_stage(self) -> None:
         """build_fov_qc_metric returns Stage.RAW."""
         metric = build_fov_qc_metric(
             unique_id="VISp_200",
@@ -39,7 +39,7 @@ class TestBuildQcMetrics(unittest.TestCase):
         )
         self.assertEqual(metric.stage, Stage.RAW)
 
-    def test_fov_metric_modality_is_pophys(self):
+    def test_fov_metric_modality_is_pophys(self) -> None:
         """build_fov_qc_metric modality is POPHYS."""
         metric = build_fov_qc_metric(
             unique_id="VISp_200",
@@ -51,7 +51,7 @@ class TestBuildQcMetrics(unittest.TestCase):
         )
         self.assertEqual(metric.modality, Modality.POPHYS)
 
-    def test_fov_metric_name_contains_unique_id(self):
+    def test_fov_metric_name_contains_unique_id(self) -> None:
         """build_fov_qc_metric name includes the unique_id."""
         metric = build_fov_qc_metric(
             unique_id="MOp_100",
@@ -63,12 +63,12 @@ class TestBuildQcMetrics(unittest.TestCase):
         )
         self.assertIn("MOp_100", metric.name)
 
-    def test_vasculature_metric_stage(self):
+    def test_vasculature_metric_stage(self) -> None:
         """build_vasculature_qc_metric returns Stage.RAW."""
         metric = build_vasculature_qc_metric(Path("/fake/vasculature.png"))
         self.assertEqual(metric.stage, Stage.RAW)
 
-    def test_vasculature_metric_reference(self):
+    def test_vasculature_metric_reference(self) -> None:
         """build_vasculature_qc_metric reference matches input path."""
         fp = Path("/fake/vasculature.png")
         self.assertEqual(build_vasculature_qc_metric(fp).reference, str(fp))
@@ -77,22 +77,22 @@ class TestBuildQcMetrics(unittest.TestCase):
 class TestPendingQcStatus(unittest.TestCase):
     """Tests for pending_qc_status helper."""
 
-    def test_returns_qcstatus(self):
+    def test_returns_qcstatus(self) -> None:
         """pending_qc_status returns a QCStatus instance."""
         s = pending_qc_status()
         self.assertIsInstance(s, QCStatus)
 
-    def test_status_is_pending(self):
+    def test_status_is_pending(self) -> None:
         """pending_qc_status status field is PENDING."""
         s = pending_qc_status()
         self.assertEqual(s.status, Status.PENDING)
 
-    def test_evaluator_is_automated(self):
+    def test_evaluator_is_automated(self) -> None:
         """pending_qc_status evaluator is 'Automated'."""
         s = pending_qc_status()
         self.assertEqual(s.evaluator, "Automated")
 
-    def test_timestamp_is_datetime(self):
+    def test_timestamp_is_datetime(self) -> None:
         """pending_qc_status timestamp is a timezone-aware datetime."""
         s = pending_qc_status()
         self.assertIsInstance(s.timestamp, datetime)
@@ -116,30 +116,30 @@ def _sample_metrics() -> list:
 class TestBuildQualityControl(unittest.TestCase):
     """Tests for build_quality_control."""
 
-    def test_returns_quality_control(self):
+    def test_returns_quality_control(self) -> None:
         """build_quality_control returns a QualityControl object."""
         qc = build_quality_control(_sample_metrics())
         self.assertIsInstance(qc, QualityControl)
 
-    def test_contains_all_metrics(self):
+    def test_contains_all_metrics(self) -> None:
         """All supplied metrics are retained."""
         metrics = _sample_metrics()
         qc = build_quality_control(metrics)
         self.assertEqual(len(qc.metrics), len(metrics))
 
-    def test_metrics_are_qcmetrics(self):
+    def test_metrics_are_qcmetrics(self) -> None:
         """Wrapped metrics are QCMetric instances."""
         qc = build_quality_control(_sample_metrics())
         for m in qc.metrics:
             self.assertIsInstance(m, QCMetric)
 
-    def test_default_grouping_set(self):
+    def test_default_grouping_set(self) -> None:
         """default_grouping (required in v2.8) is populated."""
         qc = build_quality_control(_sample_metrics())
         self.assertTrue(qc.default_grouping)
         self.assertIn("evaluation", qc.default_grouping)
 
-    def test_round_trips_through_json(self):
+    def test_round_trips_through_json(self) -> None:
         """QualityControl survives a full JSON round-trip + validation."""
         qc = build_quality_control(_sample_metrics())
         QualityControl.model_validate_json(qc.model_dump_json())
@@ -148,16 +148,16 @@ class TestBuildQualityControl(unittest.TestCase):
 class TestWriteQualityControlJson(unittest.TestCase):
     """Tests for write_quality_control_json."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Per-test scratch directory."""
         self.tmpdir = tempfile.TemporaryDirectory()
         self.output_dir = Path(self.tmpdir.name)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         """Clean up."""
         self.tmpdir.cleanup()
 
-    def test_writes_single_quality_control_file(self):
+    def test_writes_single_quality_control_file(self) -> None:
         """Writes exactly one quality_control.json (not per-metric files)."""
         qc = build_quality_control(_sample_metrics())
         written = write_quality_control_json(qc, self.output_dir)
@@ -168,7 +168,7 @@ class TestWriteQualityControlJson(unittest.TestCase):
             list(self.output_dir.glob("*_metric.json")), []
         )
 
-    def test_written_file_validates(self):
+    def test_written_file_validates(self) -> None:
         """The written file validates as a QualityControl."""
         qc = build_quality_control(_sample_metrics())
         written = write_quality_control_json(qc, self.output_dir)

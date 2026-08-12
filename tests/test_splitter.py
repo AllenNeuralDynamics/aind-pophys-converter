@@ -179,7 +179,7 @@ def _create_image_tiff(
 class TestSplitter(unittest.TestCase):
     """Test cases for the mesoscope_splitter module."""
 
-    def test_depth_splitter(self):
+    def test_depth_splitter(self) -> None:
         """Test the AvgImageTiffSplitter with various parameters."""
         param_list = [
             (list(range(8)), 2, True),
@@ -257,7 +257,7 @@ class TestSplitter(unittest.TestCase):
                 if tiff_path.is_file():
                     tiff_path.unlink()
 
-    def test_splitter_manifest(self):
+    def test_splitter_manifest(self) -> None:
         """Test the manifest of AvgImageTiffSplitter."""
         param_list = [
             (list(range(8)), 2, True),
@@ -338,7 +338,7 @@ class TestSplitter(unittest.TestCase):
                 if tiff_path.is_file():
                     tiff_path.unlink()
 
-    def test_surface_splitter(self):
+    def test_surface_splitter(self) -> None:
         """Test the AvgImageTiffSplitter with surface images."""
         param_list = [
             (list(range(3)), True),
@@ -403,7 +403,7 @@ class TestSplitter(unittest.TestCase):
                 if tiff_path.is_file():
                     tiff_path.unlink()
 
-    def test_time_splitter(self):
+    def test_time_splitter(self) -> None:
         """Test the TimeSeriesSplitter with various parameters."""
         param_list = [
             (list(range(8)), 2, True),
@@ -473,7 +473,7 @@ class TestSplitter(unittest.TestCase):
                 if tiff_path.is_file():
                     tiff_path.unlink()
 
-    def test_invalid_timeseries_output_map(self):
+    def test_invalid_timeseries_output_map(self) -> None:
         """Test the TimeSeriesSplitter with an invalid output path map."""
         import tempfile
 
@@ -532,7 +532,7 @@ class TestSplitter(unittest.TestCase):
             splitter.write_output_files(output_path_map=output_path_map)
         self.assertIn("says it contains", str(cm.exception))
 
-    def test_z_stack_splitter(self):
+    def test_z_stack_splitter(self) -> None:
         """Test the ZStackSplitter with various parameters."""
         param_list = [
             (list(range(8)), True),
@@ -574,7 +574,9 @@ class TestSplitter(unittest.TestCase):
                 tiff_pages_lookup = dataset[1]
                 tiff_path_lookup = dataset[2]
 
-                def mock_read_metadata(tiff_path):
+                def mock_read_metadata(
+                    tiff_path: pathlib.Path,
+                ) -> List[dict]:
                     """Mock function to read metadata from TIFF file."""
                     str_path = str(tiff_path.resolve().absolute())
                     return z_stack_path_to_metadata[str_path]

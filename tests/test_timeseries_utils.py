@@ -25,7 +25,7 @@ class TestTimeseriesUtils(unittest.TestCase):
     """Test cases for the timeseries utilities in the
     aind_pophys_converter package."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test fixtures and suppress ResourceWarnings."""
         rng = np.random.RandomState(1123)
         # int16 matches the dtype ScanImage raw movies carry through the
@@ -36,7 +36,9 @@ class TestTimeseriesUtils(unittest.TestCase):
             rng.randint(-200, 3000, (36, 12, 12)).astype(np.int16),
         ]
 
-    def make_timeseries_tiff(self, tmpdir):
+    def make_timeseries_tiff(
+        self, tmpdir: pathlib.Path
+    ) -> pathlib.Path:
         """Create a TIFF file from the timeseries fixtures."""
         tiff_path = tmpdir / "eg_timeseries.tiff"
         all_data = []
@@ -48,7 +50,7 @@ class TestTimeseriesUtils(unittest.TestCase):
         tifffile.imwrite(tiff_path, all_data)
         return tiff_path
 
-    def test_dump_timeseries_caches(self):
+    def test_dump_timeseries_caches(self) -> None:
         """Test the _dump_timeseries_caches function with various
         chunk sizes.
         """
@@ -104,7 +106,7 @@ class TestTimeseriesUtils(unittest.TestCase):
                     else:
                         self.assertEqual(len(offset_to_tmp_files[offset]), 0)
 
-    def test_gather_timeseries_caches(self):
+    def test_gather_timeseries_caches(self) -> None:
         """Test the _gather_timeseries_caches function with various
         metadata parameters."""
         param_list = [{"a": 1, "b": 2}, None]
@@ -149,7 +151,7 @@ class TestTimeseriesUtils(unittest.TestCase):
                 filename_list = [f for f in tmpdir.iterdir()]
                 self.assertEqual(len(filename_list), 0)
 
-    def test_split_timeseries_tiff_worker(self):
+    def test_split_timeseries_tiff_worker(self) -> None:
         """Test the _split_timeseries_tiff function with various
         parameters including metadata and temporary directories."""
         param_list = list(
@@ -212,7 +214,7 @@ class TestTimeseriesUtils(unittest.TestCase):
                         actual = in_file["data"][()]
                     np.testing.assert_allclose(expected, actual)
 
-    def test_split_timeseries_tiff(self):
+    def test_split_timeseries_tiff(self) -> None:
         """Test the split_timeseries_tiff function with various
         parameters including metadata and temporary directories."""
         param_list = list(product((50, 17, 8), (None, {"a": 1, "b": 2})))
@@ -262,7 +264,7 @@ class TestTimeseriesUtils(unittest.TestCase):
                 cache_paths = [f for f in tmpdir.iterdir()]
                 self.assertEqual(len(cache_paths), 0)
 
-    def test_split_timeseries_tiff_debug_cap_is_logged(self):
+    def test_split_timeseries_tiff_debug_cap_is_logged(self) -> None:
         """debug=True caps the movie and says so, naming the frame count."""
         import logging
         import tempfile

@@ -32,7 +32,7 @@ def _write_input(root: Path, core_name: str, core: dict) -> Path:
 class TestLoadConverterMetadata(unittest.TestCase):
     """End-to-end loader tests (file-presence dispatch + mapping)."""
 
-    def test_v1_fixture(self):
+    def test_v1_fixture(self) -> None:
         """A v1 (session.json) input maps to expected ConverterMetadata."""
         meta = load_converter_metadata(FIXTURES / "v1")
         self.assertEqual(meta.instrument_id, "MESO.1")
@@ -44,21 +44,21 @@ class TestLoadConverterMetadata(unittest.TestCase):
         # Two planes (0=MOp, 1=VISp) -> multi-plane '{acronym}_{index}' ids.
         self.assertEqual(meta.fov_ids, ("MOp_0", "VISp_1"))
 
-    def test_v2_fixture(self):
+    def test_v2_fixture(self) -> None:
         """A v2 (acquisition.json) input maps to expected metadata."""
         meta = load_converter_metadata(FIXTURES / "v2")
         self.assertEqual(meta.instrument_id, "MESO.1")
         self.assertEqual(meta.subject_id, "000000")
         self.assertEqual(meta.fov_ids, ("MOp_0", "VISp_1"))
 
-    def test_v1_and_v2_equivalent(self):
+    def test_v1_and_v2_equivalent(self) -> None:
         """Semantically-equal v1/v2 fixtures map to equal metadata."""
         self.assertEqual(
             load_converter_metadata(FIXTURES / "v1"),
             load_converter_metadata(FIXTURES / "v2"),
         )
 
-    def test_multiplane_bare_string_structures(self):
+    def test_multiplane_bare_string_structures(self) -> None:
         """Real multi-plane v1 (bare-string structures, no dd)."""
         meta = load_converter_metadata(FIXTURES / "multiplane_v1")
         self.assertEqual(meta.instrument_id, "MESO.2")
@@ -67,7 +67,7 @@ class TestLoadConverterMetadata(unittest.TestCase):
         self.assertEqual(meta.fov_ids[0], "VISp_0")
         self.assertEqual(meta.fov_ids[7], "VISp_7")
 
-    def test_single_plane_fixture(self):
+    def test_single_plane_fixture(self) -> None:
         """Minimal single-plane session.json (no schema_version, no dd)."""
         meta = load_converter_metadata(FIXTURES / "singleplane_v1")
         self.assertIsNone(meta.dataset_name)
@@ -77,16 +77,16 @@ class TestLoadConverterMetadata(unittest.TestCase):
 class TestLoaderContracts(unittest.TestCase):
     """require / ambiguity / missing behaviors, exercised via the loader."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Per-test scratch directory."""
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         """Remove scratch directory."""
         self.tmp.cleanup()
 
-    def test_missing_rig_id_raises(self):
+    def test_missing_rig_id_raises(self) -> None:
         """A v1 input missing rig_id raises KeyError naming the field."""
         _write_input(
             self.root,
@@ -97,14 +97,14 @@ class TestLoaderContracts(unittest.TestCase):
             load_converter_metadata(self.root)
         self.assertIn("rig_id", str(cm.exception))
 
-    def test_missing_instrument_id_raises(self):
+    def test_missing_instrument_id_raises(self) -> None:
         """A v2 input missing instrument_id raises KeyError."""
         _write_input(self.root, "acquisition.json", {"data_streams": []})
         with self.assertRaises(KeyError) as cm:
             load_converter_metadata(self.root)
         self.assertIn("instrument_id", str(cm.exception))
 
-    def test_subject_id_optional(self):
+    def test_subject_id_optional(self) -> None:
         """subject_id is optional -> None when the core file omits it."""
         _write_input(
             self.root,
@@ -116,14 +116,14 @@ class TestLoaderContracts(unittest.TestCase):
         )
         self.assertIsNone(load_converter_metadata(self.root).subject_id)
 
-    def test_ambiguous_input_raises(self):
+    def test_ambiguous_input_raises(self) -> None:
         """Both core files present raises ValueError."""
         _write_input(self.root, "session.json", {"rig_id": "x"})
         _write_input(self.root, "acquisition.json", {"instrument_id": "x"})
         with self.assertRaises(ValueError):
             load_converter_metadata(self.root)
 
-    def test_missing_input_raises(self):
+    def test_missing_input_raises(self) -> None:
         """Neither core file present raises FileNotFoundError."""
         with self.assertRaises(FileNotFoundError):
             load_converter_metadata(self.root)
@@ -141,7 +141,7 @@ class TestBuildConverterCode(unittest.TestCase):
             "debug": False,
         }
 
-    def test_url_is_the_repository_landing_page(self):
+    def test_url_is_the_repository_landing_page(self) -> None:
         """code.url is the repo root, with no /tree/<ref>/code suffix."""
         code = build_converter_code(self._params())
         self.assertEqual(
@@ -150,12 +150,12 @@ class TestBuildConverterCode(unittest.TestCase):
         )
         self.assertNotIn("/tree/", code.url)
 
-    def test_version_comes_from_the_installed_distribution(self):
+    def test_version_comes_from_the_installed_distribution(self) -> None:
         """code.version identifies the backing library, never empty."""
         code = build_converter_code(self._params())
         self.assertEqual(code.version, version(LIBRARY_NAME))
 
-    def test_code_parameters_are_only_job_parameters(self):
+    def test_code_parameters_are_only_job_parameters(self) -> None:
         """code.parameters reflects exactly the JobSettings dict."""
         params = self._params()
         recorded = build_converter_code(params).parameters
@@ -163,7 +163,7 @@ class TestBuildConverterCode(unittest.TestCase):
             recorded = recorded.model_dump()
         self.assertEqual(recorded, params)
 
-    def test_input_data_records_the_raw_sources(self):
+    def test_input_data_records_the_raw_sources(self) -> None:
         """Raw source paths become named input data assets."""
         code = build_converter_code(
             self._params(),
@@ -174,7 +174,7 @@ class TestBuildConverterCode(unittest.TestCase):
             ["asset/pophys/x_timeseries.tiff"],
         )
 
-    def test_ephemeral_input_path_is_rejected(self):
+    def test_ephemeral_input_path_is_rejected(self) -> None:
         """A Nextflow work path in input_data fails loudly."""
         with self.assertRaises(ValueError):
             build_converter_code(
@@ -186,7 +186,7 @@ class TestBuildConverterCode(unittest.TestCase):
 class TestConverterMetadataEquality(unittest.TestCase):
     """Sanity: ConverterMetadata equality works for the equivalence test."""
 
-    def test_equal_when_fields_match(self):
+    def test_equal_when_fields_match(self) -> None:
         """Two identically-populated ConverterMetadata compare equal."""
         a = ConverterMetadata(
             instrument_id="x",

@@ -4,7 +4,7 @@ import copy
 import pathlib
 import unittest
 from itertools import product
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import numpy as np
 from aind_ophys_utils.array_utils import normalize_array
@@ -29,17 +29,17 @@ from .full_field_tiff_utils import (
 class TestFullFieldUtils(unittest.TestCase):
     """Test full field utils"""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Setup"""
         import tempfile
 
         self.tmpdir_factory = tempfile.TemporaryDirectory
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         """Teardown"""
         pass
 
-    def test_average_full_field_tiff(self):
+    def test_average_full_field_tiff(self) -> None:
         """
         Test that _average_full_field_tiff properly averages
         over the pages of a full field TIFF image.
@@ -70,7 +70,7 @@ class TestFullFieldUtils(unittest.TestCase):
                 self.assertEqual(len(actual_avg.shape), 2)
                 np.testing.assert_allclose(actual_avg, expected_avg)
 
-    def test_average_full_field_tiff_failures(self):
+    def test_average_full_field_tiff_failures(self) -> None:
         """
         Test that expected error is raised when number of pages
         in the full field TIFF is not as expected
@@ -97,7 +97,7 @@ class TestFullFieldUtils(unittest.TestCase):
                 _average_full_field_tiff(tiff_path=tiff_path)
             self.assertIn("implies n_pages", str(cm.exception))
 
-    def test_get_stitched_tiff_shapes(self):
+    def test_get_stitched_tiff_shapes(self) -> None:
         """
         Test that _get_stitched_tiff_shapes returns the expected
         values for 'shape' and 'gap'
@@ -138,7 +138,7 @@ class TestFullFieldUtils(unittest.TestCase):
                 self.assertEqual(result["gap"], gap)
                 self.assertEqual(result["shape"], (roiy, roix * nrois))
 
-    def test_get_stitched_tiff_shapes_validation(self):
+    def test_get_stitched_tiff_shapes_validation(self) -> None:
         """
         Test that _get_stitched_tiff_shapes throws expected error
         when the average image has the wrong shape
@@ -177,7 +177,7 @@ class TestFullFieldUtils(unittest.TestCase):
                     )
                 self.assertIn("expected average over pages", str(cm.exception))
 
-    def test_get_stitched_tiff_shapes_errors(self):
+    def test_get_stitched_tiff_shapes_errors(self) -> None:
         """
         Test that _get_stitched_tiff_shapes raises
         errors when the ROI metadata is not as expected
@@ -250,7 +250,7 @@ class TestFullFieldUtils(unittest.TestCase):
             )
         self.assertIn("different pixel resolutions", str(cm.exception))
 
-    def test_stitch_full_field_tiff(self):
+    def test_stitch_full_field_tiff(self) -> None:
         """
         Test that _stitch_full_field_tiff correctly disassembles and
         re-assembles the average image
@@ -307,7 +307,7 @@ class TestFullFieldUtils(unittest.TestCase):
                 self.assertTrue(np.all(np.logical_not(np.isnan(stitched_img))))
                 np.testing.assert_allclose(stitched_img, expected_stitched)
 
-    def test_user_facing_stitch_full_field_tiff(self):
+    def test_user_facing_stitch_full_field_tiff(self) -> None:
         """
         Test that stitch_full_field_tiff correctly disassembles and
         re-assembles the average image
@@ -372,7 +372,7 @@ class TestFullFieldUtils(unittest.TestCase):
                 self.assertEqual(stitched_img.dtype, np.uint16)
                 np.testing.assert_allclose(stitched_img, expected_stitched)
 
-    def test_get_origin(self):
+    def test_get_origin(self) -> None:
         """
         Test that _get_origin actually returns the physical space
         coordinates of the origin implied by a ScanImageMetadata object
@@ -397,7 +397,7 @@ class TestFullFieldUtils(unittest.TestCase):
         expected = [0.35, 0.4]
         np.testing.assert_allclose(expected, actual)
 
-    def test_validate_all_roi_same_size(self):
+    def test_validate_all_roi_same_size(self) -> None:
         """Test validate of roi of same size"""
         import tempfile
 
@@ -482,7 +482,7 @@ class TestFullFieldUtils(unittest.TestCase):
                 _validate_all_roi_same_size(metadata_obj)
             self.assertIn("different pixel resolutions", str(cm.exception))
 
-    def test_write_out_stitched_full_field_image_success(self):
+    def test_write_out_stitched_full_field_image_success(self) -> None:
         """Test write_out_stitched_full_field_image creates HDF5 file with
         expected datasets.
         """
@@ -544,8 +544,8 @@ class TestFullFieldUtils(unittest.TestCase):
 
     @patch("aind_pophys_converter.utils.full_field_utils.logging")
     def test_write_out_stitched_full_field_image_exception_handling(
-        self, mock_logging
-    ):
+        self, mock_logging: MagicMock
+    ) -> None:
         """Test write_out_stitched_full_field_image handles exceptions
         gracefully.
         """
@@ -582,7 +582,7 @@ class TestFullFieldUtils(unittest.TestCase):
             )
             self.assertIn("Test error", warning_call_args)
 
-    def test_get_full_field_path_missing_platform_key(self):
+    def test_get_full_field_path_missing_platform_key(self) -> None:
         """Test get_full_field_path returns None when platform_json_path
         is missing.
         """
@@ -594,7 +594,7 @@ class TestFullFieldUtils(unittest.TestCase):
         result = get_full_field_path(runner_args)
         self.assertIsNone(result)
 
-    def test_get_full_field_path_platform_key_none(self):
+    def test_get_full_field_path_platform_key_none(self) -> None:
         """Test get_full_field_path returns None when platform_json_path
         is None.
         """

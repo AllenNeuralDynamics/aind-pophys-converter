@@ -6,7 +6,7 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import h5py
 import numpy as np
@@ -22,7 +22,9 @@ from aind_pophys_converter.utils.metadata_utils import (
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
-def _make_settings(input_dir, output_dir, debug: bool = False):
+def _make_settings(
+    input_dir: Path, output_dir: Path, debug: bool = False
+) -> BergamoSettings:
     """Return a BergamoSettings with sensible defaults for testing."""
     return BergamoSettings(
         input_dir=input_dir,
@@ -46,7 +48,7 @@ def _make_metadata(
 class TestBergamoTiffStitcher(unittest.TestCase):
     """Test cases for BergamoTiffStitcher class."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test environment."""
         self.temp_dir = tempfile.TemporaryDirectory()
         self.input_dir = Path(self.temp_dir.name) / "input"
@@ -76,7 +78,7 @@ class TestBergamoTiffStitcher(unittest.TestCase):
         self.settings = _make_settings(self.input_dir, self.output_dir)
         self.metadata = _make_metadata()
 
-    def test_run_converter_empty_planes_raises(self):
+    def test_run_converter_empty_planes_raises(self) -> None:
         """run_converter fails fast when metadata has no planes."""
         from dataclasses import replace
 
@@ -88,12 +90,14 @@ class TestBergamoTiffStitcher(unittest.TestCase):
             stitcher.run_converter()
         self.assertIn("No imaging planes", str(cm.exception))
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         """Clean up after tests."""
         self.temp_dir.cleanup()
 
     @patch("aind_pophys_converter.bergamo_stitcher.ScanImageTiffReader")
-    def test_run_converter_creates_hdf5(self, mock_reader):
+    def test_run_converter_creates_hdf5(
+        self, mock_reader: MagicMock
+    ) -> None:
         """Test that run_converter creates an HDF5 file with the
         expected structure.
         """
@@ -120,7 +124,7 @@ class TestBergamoTiffStitcher(unittest.TestCase):
             self.assertIn("metadata", f)
             self.assertEqual(f["data"].shape[1:], (10, 10))
 
-    def test_from_args_creates_stitcher(self):
+    def test_from_args_creates_stitcher(self) -> None:
         """from_args builds a stitcher; metadata-dir defaults to parent."""
         # Stage a fixture layout under <tmp>/parent/{metadata files, pophys/}
         # so that from_args can locate the metadata.
@@ -138,7 +142,7 @@ class TestBergamoTiffStitcher(unittest.TestCase):
             self.assertEqual(stitcher.input_dir, pophys)
             self.assertEqual(stitcher.metadata.subject_id, "000000")
 
-    def test_from_args_with_metadata_dir(self):
+    def test_from_args_with_metadata_dir(self) -> None:
         """from_args honors an explicit --metadata-dir override."""
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -161,7 +165,7 @@ class TestBergamoTiffStitcher(unittest.TestCase):
             # rig — this test only confirms the wiring works)
             self.assertEqual(stitcher.metadata.instrument_id, "MESO.1")
 
-    def test_discover_tiff_epochs_groups_by_stem(self):
+    def test_discover_tiff_epochs_groups_by_stem(self) -> None:
         """Test that tiff files are grouped by stem and sorted numerically."""
         files = [
             "spont_00003.tif",
@@ -188,7 +192,7 @@ class TestBergamoTiffStitcher(unittest.TestCase):
             ["spont_00001.tif", "spont_00002.tif", "spont_00003.tif"],
         )
 
-    def test_discover_tiff_epochs_excludes_stack(self):
+    def test_discover_tiff_epochs_excludes_stack(self) -> None:
         """Test that files with the 'stack' stem are excluded."""
         (self.input_dir / "spont_00001.tif").touch()
         (self.input_dir / "stack_00001.tif").touch()
@@ -200,20 +204,20 @@ class TestBergamoTiffStitcher(unittest.TestCase):
         self.assertIn("spont", result)
         self.assertNotIn("stack", result)
 
-    def test_discover_tiff_epochs_no_tiffs_raises(self):
+    def test_discover_tiff_epochs_no_tiffs_raises(self) -> None:
         """Test that an empty directory raises ValueError."""
         stitcher = BergamoTiffStitcher(self.settings, metadata=self.metadata)
         with self.assertRaises(ValueError):
             stitcher._discover_tiff_epochs()
 
-    def test_discover_tiff_epochs_only_stack_raises(self):
+    def test_discover_tiff_epochs_only_stack_raises(self) -> None:
         """Test that only stack files (no eligible tiffs) raises ValueError."""
         (self.input_dir / "stack_00001.tif").touch()
         stitcher = BergamoTiffStitcher(self.settings, metadata=self.metadata)
         with self.assertRaises(ValueError):
             stitcher._discover_tiff_epochs()
 
-    def test_discover_tiff_epochs_debug_limits_to_one_file(self):
+    def test_discover_tiff_epochs_debug_limits_to_one_file(self) -> None:
         """Test that debug=True clips each epoch to its first tiff file."""
         for stem in ("spont", "spontpost"):
             for i in range(1, 4):

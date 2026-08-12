@@ -3,6 +3,7 @@
 import copy
 import pathlib
 import unittest
+from typing import Dict, List
 from unittest.mock import patch
 
 import numpy as np
@@ -16,12 +17,12 @@ from aind_pophys_converter.tiff_splitters import (
 class TestMalformedZStack(unittest.TestCase):
     """Test malformed zstack"""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """setup"""
         self.n_rois = 3
         self.baseline_zstack_metadata = self._make_baseline_zstack_metadata()
 
-    def _make_baseline_zstack_metadata(self):
+    def _make_baseline_zstack_metadata(self) -> List[dict]:
         """Baseline zstack metadata"""
         n_rois = 3
         main_roi_list = []
@@ -48,7 +49,7 @@ class TestMalformedZStack(unittest.TestCase):
             main_roi_metadata,
         ]
 
-    def _z_stack_many_discrete_plane_zero(self):
+    def _z_stack_many_discrete_plane_zero(self) -> Dict[str, List[dict]]:
         """Test discrete plane"""
         import tempfile
 
@@ -69,14 +70,14 @@ class TestMalformedZStack(unittest.TestCase):
             path_to_metadata[resolved] = metadata
         return path_to_metadata
 
-    def test_many_discrete_planes(self):
+    def test_many_discrete_planes(self) -> None:
         """
         Test that an error is raised if more than one ROI is marked
         with discretePlaneMode==0
         """
         z_stack_path_to_metadata = self._z_stack_many_discrete_plane_zero()
 
-        def mock_read_metadata(tiff_path):
+        def mock_read_metadata(tiff_path: pathlib.Path) -> List[dict]:
             """mock read metadataq"""
             str_path = str(tiff_path.resolve().absolute())
             return z_stack_path_to_metadata[str_path]
@@ -90,7 +91,7 @@ class TestMalformedZStack(unittest.TestCase):
                 ZStackSplitter(tiff_path_list=tiff_path_list)
             self.assertIn("More than one ROI has discrete", str(cm.exception))
 
-    def _z_stack_no_discrete_plane_zero(self):
+    def _z_stack_no_discrete_plane_zero(self) -> Dict[str, List[dict]]:
         """Tests no discrete plane"""
         import tempfile
 
@@ -108,14 +109,14 @@ class TestMalformedZStack(unittest.TestCase):
             path_to_metadata[resolved] = metadata
         return path_to_metadata
 
-    def test_no_discrete_planes(self):
+    def test_no_discrete_planes(self) -> None:
         """
         Test that an error is raised if no ROI is marked
         with discretePlaneMode==0
         """
         z_stack_path_to_metadata = self._z_stack_no_discrete_plane_zero()
 
-        def mock_read_metadata(tiff_path):
+        def mock_read_metadata(tiff_path: pathlib.Path) -> List[dict]:
             """mock read metadata"""
             str_path = str(tiff_path.resolve().absolute())
             return z_stack_path_to_metadata[str_path]
@@ -129,7 +130,7 @@ class TestMalformedZStack(unittest.TestCase):
                 ZStackSplitter(tiff_path_list=tiff_path_list)
             self.assertIn("Could not find discrete", str(cm.exception))
 
-    def _z_stack_z_array_odd_shape(self):
+    def _z_stack_z_array_odd_shape(self) -> Dict[str, List[dict]]:
         """Test odd shape"""
         import tempfile
 
@@ -150,14 +151,14 @@ class TestMalformedZStack(unittest.TestCase):
             path_to_metadata[resolved] = metadata
         return path_to_metadata
 
-    def test_z_odd_shape(self):
+    def test_z_odd_shape(self) -> None:
         """
         Test that an error is raised if the z_array in the metadata
         is not (N, 2)
         """
         z_stack_path_to_metadata = self._z_stack_z_array_odd_shape()
 
-        def mock_read_metadata(tiff_path):
+        def mock_read_metadata(tiff_path: pathlib.Path) -> List[dict]:
             """test mock read metadata"""
             str_path = str(tiff_path.resolve().absolute())
             return z_stack_path_to_metadata[str_path]
@@ -171,7 +172,7 @@ class TestMalformedZStack(unittest.TestCase):
                 ZStackSplitter(tiff_path_list=tiff_path_list)
             self.assertIn("has odd shape", str(cm.exception))
 
-    def _z_stack_roi_missing_tiff(self):
+    def _z_stack_roi_missing_tiff(self) -> Dict[str, List[dict]]:
         """Test missing zstack roi"""
         import tempfile
 
@@ -191,14 +192,14 @@ class TestMalformedZStack(unittest.TestCase):
             path_to_metadata[resolved] = metadata
         return path_to_metadata
 
-    def test_roi_missing_tiff(self):
+    def test_roi_missing_tiff(self) -> None:
         """
         Test that an error is raised if an ROI does not have
         a corresponding z-stack TIFF with discretePlaneMode==0
         """
         z_stack_path_to_metadata = self._z_stack_roi_missing_tiff()
 
-        def mock_read_metadata(tiff_path):
+        def mock_read_metadata(tiff_path: pathlib.Path) -> List[dict]:
             """mock read metadata"""
             str_path = str(tiff_path.resolve().absolute())
             return z_stack_path_to_metadata[str_path]
@@ -214,7 +215,7 @@ class TestMalformedZStack(unittest.TestCase):
                 "are represented in the local z-stack", str(cm.exception)
             )
 
-    def _z_stack_bad_channelSave(self):
+    def _z_stack_bad_channelSave(self) -> Dict[str, List[dict]]:
         """test bad channel save"""
         import tempfile
 
@@ -231,14 +232,14 @@ class TestMalformedZStack(unittest.TestCase):
             path_to_metadata[resolved] = metadata
         return path_to_metadata
 
-    def test_zstack_bad_channelSave(self):
+    def test_zstack_bad_channelSave(self) -> None:
         """
         Test that an error is raised if a zstack file
         does not have channelSave==[1, 2]
         """
         z_stack_path_to_metadata = self._z_stack_bad_channelSave()
 
-        def mock_read_metadata(tiff_path):
+        def mock_read_metadata(tiff_path: pathlib.Path) -> List[dict]:
             """mock read metadata"""
             str_path = str(tiff_path.resolve().absolute())
             return z_stack_path_to_metadata[str_path]

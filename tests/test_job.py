@@ -3,6 +3,7 @@
 import json
 import tempfile
 import unittest
+from typing import List
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -13,7 +14,7 @@ from PIL import Image
 class TestAddBorderAndLabel(unittest.TestCase):
     """Tests for add_border_and_label."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Import here to avoid top-level side effects."""
         from aind_pophys_converter.utils.image_utils import (
             add_border_and_label,
@@ -21,25 +22,25 @@ class TestAddBorderAndLabel(unittest.TestCase):
 
         self.fn = add_border_and_label
 
-    def test_output_is_image(self):
+    def test_output_is_image(self) -> None:
         """Returns a PIL Image."""
         img = Image.new("L", (100, 100))
         result = self.fn(img, "Test")
         self.assertIsInstance(result, Image.Image)
 
-    def test_output_wider_than_input(self):
+    def test_output_wider_than_input(self) -> None:
         """Border increases width."""
         img = Image.new("L", (100, 100))
         result = self.fn(img, "Test", border=5)
         self.assertGreater(result.width, 100)
 
-    def test_output_taller_than_input(self):
+    def test_output_taller_than_input(self) -> None:
         """Label area and border increase height."""
         img = Image.new("L", (100, 100))
         result = self.fn(img, "Test", border=5)
         self.assertGreater(result.height, 100)
 
-    def test_output_is_rgb(self):
+    def test_output_is_rgb(self) -> None:
         """Output is always RGB."""
         img = Image.new("L", (50, 50))
         result = self.fn(img, "Label")
@@ -49,7 +50,7 @@ class TestAddBorderAndLabel(unittest.TestCase):
 class TestIsChildSessionViaPlatformJson(unittest.TestCase):
     """Tests for is_child_session_via_platform_json."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Import and set up temp dir."""
         from aind_pophys_converter.utils.platform_utils import (
             is_child_session_via_platform_json,
@@ -59,28 +60,28 @@ class TestIsChildSessionViaPlatformJson(unittest.TestCase):
         self.tmpdir = tempfile.TemporaryDirectory()
         self.tmp_path = Path(self.tmpdir.name)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         """Clean up."""
         self.tmpdir.cleanup()
 
-    def _write_platform(self, data):
+    def _write_platform(self, data: dict) -> Path:
         """Write a platform.json file and return its path."""
         fp = self.tmp_path / "platform.json"
         with open(fp, "w") as f:
             json.dump(data, f)
         return fp
 
-    def test_returns_true_when_parent_session_present(self):
+    def test_returns_true_when_parent_session_present(self) -> None:
         """Returns True when parent_session key exists."""
         fp = self._write_platform({"parent_session": "some_session_id"})
         self.assertTrue(self.fn(fp))
 
-    def test_returns_false_when_parent_session_absent(self):
+    def test_returns_false_when_parent_session_absent(self) -> None:
         """Returns False when parent_session key is missing."""
         fp = self._write_platform({"imaging_plane_groups": []})
         self.assertFalse(self.fn(fp))
 
-    def test_returns_false_when_parent_session_is_null(self):
+    def test_returns_false_when_parent_session_is_null(self) -> None:
         """Returns False when parent_session is None."""
         fp = self._write_platform({"parent_session": None})
         self.assertFalse(self.fn(fp))
@@ -89,7 +90,7 @@ class TestIsChildSessionViaPlatformJson(unittest.TestCase):
 class TestCreateVasculature(unittest.TestCase):
     """Tests for create_vasculature."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up temp directories."""
         from aind_pophys_converter.qc import create_vasculature
 
@@ -100,17 +101,17 @@ class TestCreateVasculature(unittest.TestCase):
         self.pophys_dir.mkdir()
         self.output_dir.mkdir()
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         """Clean up."""
         self.tmpdir.cleanup()
 
-    def test_skips_when_no_vasculature_tif(self):
+    def test_skips_when_no_vasculature_tif(self) -> None:
         """Returns None and creates no output dir when no vasculature TIF."""
         result = self.fn(self.pophys_dir, self.output_dir)
         self.assertIsNone(result)
         self.assertFalse((self.output_dir / "vasculature").exists())
 
-    def test_creates_png_and_returns_metric(self):
+    def test_creates_png_and_returns_metric(self) -> None:
         """Creates vasculature.png and returns a QCMetric (no per-metric
         JSON — the metric is aggregated into quality_control.json)."""
         from aind_data_schema.core.quality_control import QCMetric
@@ -133,7 +134,7 @@ class TestCreateVasculature(unittest.TestCase):
 class TestPairDepthTifsWithAvgDepthPngs(unittest.TestCase):
     """Tests for pair_depth_tifs_with_avg_depth_pngs."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up temp directories and import."""
         from aind_pophys_converter.qc import (
             pair_depth_tifs_with_avg_depth_pngs,
@@ -148,11 +149,11 @@ class TestPairDepthTifsWithAvgDepthPngs(unittest.TestCase):
         for d in (self.pophys_dir, self.avg_dir, self.output_dir):
             d.mkdir()
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         """Clean up."""
         self.tmpdir.cleanup()
 
-    def _write_platform(self, planes):
+    def _write_platform(self, planes: List[dict]) -> Path:
         """Write a platform.json with imaging planes."""
         fp = self.tmp_path / "platform.json"
         with open(fp, "w") as f:
@@ -160,14 +161,14 @@ class TestPairDepthTifsWithAvgDepthPngs(unittest.TestCase):
             json.dump(data, f)
         return fp
 
-    def test_skips_when_no_imaging_planes(self):
+    def test_skips_when_no_imaging_planes(self) -> None:
         """Returns [] when platform.json has no imaging planes."""
         fp = self._write_platform([])
         result = self.fn(self.pophys_dir, self.avg_dir, fp, self.output_dir)
         self.assertEqual(result, [])
         self.assertEqual(list(self.output_dir.glob("*.json")), [])
 
-    def test_skips_when_no_child_tifs(self):
+    def test_skips_when_no_child_tifs(self) -> None:
         """Returns [] when avg_slice_dir has no TIF files."""
         planes = [
             {
@@ -181,7 +182,7 @@ class TestPairDepthTifsWithAvgDepthPngs(unittest.TestCase):
         self.assertEqual(result, [])
         self.assertEqual(list(self.output_dir.glob("*.json")), [])
 
-    def test_returns_metric_and_writes_png(self):
+    def test_returns_metric_and_writes_png(self) -> None:
         """Returns a QCMetric per matched plane and writes the merged PNG
         (no per-metric JSON — the metric goes into quality_control.json)."""
         from aind_data_schema.core.quality_control import QCMetric
@@ -222,7 +223,7 @@ class TestPairDepthTifsWithAvgDepthPngs(unittest.TestCase):
 class TestWriteAvgDepthSlices(unittest.TestCase):
     """Tests for write_avg_depth_slices."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up temp dir."""
         from aind_pophys_converter.qc import write_avg_depth_slices
 
@@ -230,11 +231,11 @@ class TestWriteAvgDepthSlices(unittest.TestCase):
         self.tmpdir = tempfile.TemporaryDirectory()
         self.output_dir = Path(self.tmpdir.name) / "output"
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         """Clean up."""
         self.tmpdir.cleanup()
 
-    def test_creates_tif_per_plane(self):
+    def test_creates_tif_per_plane(self) -> None:
         """Creates one TIF file per ROI/z entry in the manifest."""
         import tifffile
 
@@ -244,7 +245,9 @@ class TestWriteAvgDepthSlices(unittest.TestCase):
 
         fake_arr = np.zeros((64, 64), dtype=np.float32)
 
-        def fake_write(i_roi, z_value, output_path):
+        def fake_write(
+            i_roi: int, z_value: float, output_path: Path
+        ) -> None:
             """Stub that writes a blank TIFF."""
             tifffile.imwrite(output_path, fake_arr)
 
@@ -259,7 +262,7 @@ class TestWriteAvgDepthSlices(unittest.TestCase):
 class TestRawInputData(unittest.TestCase):
     """Tests for raw_input_data, the converter's input_data provenance."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Build a data root holding one asset with a pophys directory."""
         from aind_pophys_converter.job import raw_input_data
 
@@ -269,19 +272,19 @@ class TestRawInputData(unittest.TestCase):
         self.pophys_dir = self.input_dir / "asset" / "pophys"
         self.pophys_dir.mkdir(parents=True)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         """Clean up."""
         self.tmpdir.cleanup()
 
-    def test_returns_none_without_a_pophys_directory(self):
+    def test_returns_none_without_a_pophys_directory(self) -> None:
         """No pophys directory means no file-level provenance."""
         self.assertIsNone(self.fn(self.input_dir, None, "MESO.1"))
 
-    def test_returns_none_when_nothing_matches(self):
+    def test_returns_none_when_nothing_matches(self) -> None:
         """An empty pophys directory yields None, not an empty list."""
         self.assertIsNone(self.fn(self.input_dir, self.pophys_dir, "MESO.1"))
 
-    def test_mesoscope_paths_are_relative_to_the_data_root(self):
+    def test_mesoscope_paths_are_relative_to_the_data_root(self) -> None:
         """Mesoscope sources are recorded as data-root-relative paths."""
         (self.pophys_dir / "s_timeseries.tiff").touch()
         (self.pophys_dir / "s_platform.json").touch()
@@ -293,7 +296,7 @@ class TestRawInputData(unittest.TestCase):
         for entry in result:
             self.assertFalse(Path(entry).is_absolute())
 
-    def test_bergamo_route_records_the_epoch_tiffs(self):
+    def test_bergamo_route_records_the_epoch_tiffs(self) -> None:
         """The Bergamo route records the tiff files it stitches."""
         (self.pophys_dir / "epoch_00001.tif").touch()
         (self.pophys_dir / "s_timeseries.tiff").touch()

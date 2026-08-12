@@ -13,7 +13,7 @@ from aind_pophys_converter.tiff_splitters import (
 class TestMalformedTiff(unittest.TestCase):
     """Test malformed tiffs"""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """setup"""
         # Use a temp directory for each test
         import tempfile
@@ -21,11 +21,11 @@ class TestMalformedTiff(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.tmp_dir = pathlib.Path(self.temp_dir.name)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         """tear down"""
         self.temp_dir.cleanup()
 
-    def test_repeated_z_error(self):
+    def test_repeated_z_error(self) -> None:
         """
         Test that, if one ROI has the same z more than once,
         an error is raised upon metadata validation
@@ -54,7 +54,7 @@ class TestMalformedTiff(unittest.TestCase):
                 AvgImageTiffSplitter(tiff_path=tmp_path)
             self.assertIn("has duplicate zs", str(cm.exception))
 
-    def test_roi_order_error(self):
+    def test_roi_order_error(self) -> None:
         """
         Test that, if the zs in the SI.hstackManager.zsAllActuators field
         are not listed in ROI order, an error is raised
@@ -83,7 +83,7 @@ class TestMalformedTiff(unittest.TestCase):
                 AvgImageTiffSplitter(tiff_path=tmp_path)
             self.assertIn("not in correct order for ROIs", str(cm.exception))
 
-    def test_uneven_z_per_roi(self):
+    def test_uneven_z_per_roi(self) -> None:
         """
         Test that an error is raised if there are not the same number
         of zs per ROI
@@ -112,7 +112,7 @@ class TestMalformedTiff(unittest.TestCase):
                 AvgImageTiffSplitter(tiff_path=tmp_path)
             self.assertIn("equal number of zs per ROI", str(cm.exception))
 
-    def test_zs_not_list(self):
+    def test_zs_not_list(self) -> None:
         """
         Test that an error is raised if zsAllActuators is not a list
         """
@@ -140,7 +140,7 @@ class TestMalformedTiff(unittest.TestCase):
                 AvgImageTiffSplitter(tiff_path=tmp_path)
             self.assertIn("Unclear how to split", str(cm.exception))
 
-    def test_zs_no_placeholder(self):
+    def test_zs_no_placeholder(self) -> None:
         """
         Test that error is raised if the placeholder zeros are missing
         when SI.hChannels.channelSave == 1
@@ -169,7 +169,7 @@ class TestMalformedTiff(unittest.TestCase):
                 AvgImageTiffSplitter(tiff_path=tmp_path)
             self.assertIn("channelSave==1", str(cm.exception))
 
-    def test_illegal_channelSave(self):
+    def test_illegal_channelSave(self) -> None:
         """
         Test that error is raised if channelSave is of an unexpected type
         """
