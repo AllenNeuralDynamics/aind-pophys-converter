@@ -33,7 +33,7 @@ via `JobSettings`:
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `--input_dir` | path | yes | Directory containing `acquisition.json`, `data_description.json`, and a `pophys/` subdirectory |
+| `--input_dir` | path | yes | Directory containing the core acquisition file (v1 `session.json` or v2 `acquisition.json`), `data_description.json`, and a `pophys/` subdirectory |
 | `--output_dir` | path | yes | Directory where HDF5 files, QC metrics, and images are written |
 | `--temp_dir` | path | no | Scratch directory for intermediate files during mesoscope splitting |
 | `--debug` | bool | no (default `False`) | Clip data volume — 100 frames/plane for mesoscope, 1 file/epoch for Bergamo |
@@ -42,19 +42,20 @@ All parameters can also be set as environment variables (e.g. `INPUT_DIR=/data/.
 
 ## Processing paths
 
-The top-level `job.run()` reads `acquisition.json` and `data_description.json`
-from the input directory, then dispatches to one of two paths based on the
+The top-level `job.run()` reads the core acquisition file (v1 `session.json` or
+v2 `acquisition.json`) and `data_description.json` from the input directory,
+then dispatches to one of two paths based on the
 instrument type.
 
 ### Bergamo (single-plane)
 
-**Trigger:** `"Bergamo" in acquisition.instrument_id`
+**Trigger:** `"Bergamo" in metadata.instrument_id`
 
 The Bergamo microscope produces a directory of per-epoch TIFF files under
 `pophys/`. `BergamoTiffStitcher.run_converter()`:
 
-1. Derives the output filename from the acquisition metadata (`get_fov_id` on
-   the first imaging plane, e.g. `MO_0`).
+1. Derives the output filename from the first canonical FOV id
+   (`metadata.fov_ids[0]`, e.g. `MO_0`).
 2. Groups `*.tif` files in `pophys/` by epoch stem, sorted numerically,
    excluding z-stack calibration files.
 3. Reads each TIFF with `ScanImageTiffReader`, caching frames incrementally
@@ -72,8 +73,9 @@ Output: `<output_dir>/<fov_id>/<fov_id>.h5`
 The mesoscope produces multiplexed ScanImage TIFFs that interleave frames from
 multiple ROIs and depths. `TiffSplitterCLI.run_job()`:
 
-1. Reads `acquisition.json` to discover the set of imaging planes
-   (`ImagingConfig → PlanarImage → CoupledPlane`), sorted by `plane_index`.
+1. Reads the core acquisition file to discover the set of imaging planes — v2
+   `ImagingConfig → PlanarImage → CoupledPlane`, or v1
+   `data_streams → ophys_fovs` — ordered by plane index.
 2. For each plane, runs `AvgImageTiffSplitter` twice (depth and surface TIFFs)
    and `ZStackSplitter` (local z-stack, if `*local_z*.tiff` files are present)
    to write per-FOV depth, surface, and z-stack outputs.
@@ -81,14 +83,15 @@ multiple ROIs and depths. `TiffSplitterCLI.run_job()`:
    HDF5 per plane from the multiplexed `*timeseries.tiff`.
 4. After splitting, `job.py` runs the QC pipeline:
    - `create_vasculature` — converts the pre-existing `*_vasculature.tif` to
-     PNG and writes `vasculature_metric.json`. Always runs.
+     PNG and returns a `QCMetric`. Always runs.
    - `write_avg_depth_slices` + `pair_depth_tifs_with_avg_depth_pngs` — for
      child sessions only (gated by `is_child_session_via_platform_json`):
      writes per-z averaged-depth TIFs then pairs them with parent depth TIFs
-     read from `platform.json`, producing merged PNGs and `*_fov_metric.json`.
+     read from `platform.json`, producing merged PNGs and a list of metrics.
 
-Output: per-plane HDF5s and `*_fov_metric.json` / `vasculature_metric.json`
-files consumed by a downstream QC aggregator.
+   The collected metrics are written as one `quality_control.json`.
+
+Output: per-plane HDF5s, `processing.json` and `quality_control.json`.
 
 If pre-split directories are already present in the input, `run_job()` skips
 splitting and writes only stub `.txt` pointer files.
@@ -111,22 +114,22 @@ file/epoch for Bergamo).
 
 ### `bergamo_stitcher.py`
 
-`BergamoSettings` — Pydantic model holding `input_dir`, `output_dir`,
-`acquisition_fp`, and `debug`.
+`BergamoSettings` — Pydantic model holding `input_dir`, `output_dir` and
+`debug`.
 
 `BaseStitcher` — shared HDF5 write helpers (`write_images`, `write_final_output`).
 
 `BergamoTiffStitcher(BaseStitcher)` — concrete stitcher. Key methods:
 - `_discover_tiff_epochs()` — groups and sorts input TIFFs by epoch stem.
 - `write_bergamo()` — streams frames into HDF5 with epoch/trial metadata.
-- `run_converter()` — derives `unique_id` from acquisition, sets up the output
-  subdirectory, and orchestrates the full conversion.
+- `run_converter()` — takes `unique_id` from `metadata.fov_ids[0]`, sets up the
+  output subdirectory, and orchestrates the full conversion.
 - `from_args()` — constructs a stitcher from CLI arguments for standalone use.
 
 ### `mesoscope_splitter.py`
 
-`TiffSplitterCLI` — orchestrates the full mesoscope split. Reads `acquisition.json`
-via `load_acquisition`, iterates over imaging planes via `_get_imaging_planes()`,
+`TiffSplitterCLI` — orchestrates the full mesoscope split. Takes the loaded
+`ConverterMetadata`, iterates over its `fov_ids` via `_get_imaging_planes()`,
 and dispatches to `TimeSeriesSplitter`, `AvgImageTiffSplitter`, and
 `ZStackSplitter`. Also handles optional full-field surface image stitching via
 `full_field_utils` when a `*fullfield*.tiff` is present.
@@ -158,30 +161,35 @@ QC visual generation and metric serialization. Functions:
 - `write_avg_depth_slices` — saves averaged-depth slice images from an
   `AvgImageTiffSplitter` to the output directory.
 - `pair_depth_tifs_with_avg_depth_pngs` — matches each split depth TIFF to an
-  averaged-depth PNG; calls `write_fov_metric` for each matched pair.
+  averaged-depth PNG and returns one `QCMetric` per matched pair.
 - `create_vasculature` — converts the pre-existing `*_vasculature.tif` in
-  `pophys/` to PNG and calls `write_vasculature_metric`.
-- `write_fov_metric` / `write_vasculature_metric` — thin I/O wrappers: delegate
-  QC object construction to `metadata_utils`, then serialise to JSON.
+  `pophys/` to PNG and returns its `QCMetric`, or `None` when absent.
+- `pending_qc_status` / `build_fov_qc_metric` / `build_vasculature_qc_metric` —
+  build the individual `QCMetric` objects; they return metrics rather than
+  writing them.
+- `build_quality_control` / `write_quality_control_json` — collect the metrics
+  into one `QualityControl` document and serialise it.
 
-Individual `*_metric.json` files are consumed by a downstream aggregator; this
-module does not write a combined `QualityControl` document.
+The collector pattern is deliberate: metric-producing functions return metrics
+and the entrypoint writes a **single** `quality_control.json` for the whole run,
+rather than one file per metric.
 
 ### `utils/metadata_utils.py`
 
-Single point of contact for all `aind-data-schema` and
-`aind-data-schema-models` usage. Schema-version changes require edits only
-here. Public API:
+The converter's only point of contact with schema-version differences. The
+reads themselves live in the shared
+[`aind-pophys-metadata`](https://github.com/AllenNeuralDynamics/aind-pophys-metadata)
+package, so nothing else in this repo branches on v1 versus v2.
 
-| Function | Description |
+| Object | Description |
 |---|---|
-| `load_acquisition(path)` | Parse `acquisition.json` → `Acquisition` |
-| `load_data_description(path)` | Parse `data_description.json` → `DataDescription` |
-| `get_imaging_planes(acquisition)` | Extract all `CoupledPlane` / `Plane` objects from data streams, sorted by `plane_index` |
-| `get_fov_id(plane)` | Return `"{acronym}_{plane_index}"` (defaults index to 0 for single-plane instruments) |
-| `pending_qc_status()` | Build a `QCStatus(status=PENDING)` timestamped to Pacific time |
-| `build_fov_qc_metric(...)` | Construct a `QCMetric` for a parent–child FOV match |
-| `build_vasculature_qc_metric(...)` | Construct a `QCMetric` for the vasculature image |
+| `ConverterMetadata` | Frozen, schema-agnostic view holding only what the conversion uses: `instrument_id`, `fov_ids`, `dataset_name`, `subject_id` |
+| `load_converter_metadata(input_dir)` | Discovers the core file, dispatches v1/v2, and populates `ConverterMetadata` via the shared getters |
+| `build_converter_code(job_parameters, input_data=)` | Builds the v2 `Code` block; `stage_guard` assembles the surrounding `DataProcess` and `Processing` |
+
+`instrument_id` is the only required field — it drives Bergamo versus mesoscope
+routing. `dataset_name` and `subject_id` are logging labels, and `fov_ids` may
+be empty for malformed input, which consumers fail fast on.
 
 ### `utils/tiff_metadata.py`
 
@@ -202,21 +210,15 @@ Generic PIL/image helpers. Currently provides `add_border_and_label`, which
 annotates depth-slice PNG thumbnails with a coloured border and text label
 before they are embedded in QC outputs.
 
-### `utils/logging.py`
+### Logging
 
-Structured JSON logging for AIND pipelines.
-
-`setup_logging(log_stream, **fields)` — loads `logging.yml`, configures the
-root logger with `AindJsonFormatter` and `AindContextFilter`, and optionally
-attaches a CloudWatch handler via `watchtower` (graceful no-op if unavailable).
-
-`AindJsonFormatter` — emits each log record as a JSON object with fields
-`timestamp`, `level`, `message`, `acquisition_name`, `process_name`, and
-`event_type`.
-
-`AindContextFilter` — injects per-process context fields (e.g.
-`acquisition_name`) into every record so they appear in every log line without
-being passed at each call site.
+Structured JSON logging comes from the pinned `log-schema` dependency, not from
+this package. `job.py` and `bergamo_stitcher.py` call
+`log_schema.main.setup_logging(use_cloudwatch=True, model={...})` with
+`acquisition_name` and `process_name`, so every record carries that context
+without it being passed at each call site. The CloudWatch handler degrades to
+console with a warning when it cannot initialise, so a blocked network does not
+fail a run.
 
 ### `utils/platform_utils.py`
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aind-pophys-converter"
-description = "Generated from aind-library-template"
+description = "Converts raw population physiology imaging data to AIND standard formats: multi-plane mesoscope ScanImage TIFFs to split HDF5, and single-plane Bergamo per-epoch TIFFs to stitched HDF5."
 license = {text = "MIT"}
 requires-python = ">=3.10"
 authors = [

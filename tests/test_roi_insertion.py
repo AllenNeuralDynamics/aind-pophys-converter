@@ -64,7 +64,9 @@ def _create_avg_surface_tiff(
     avg_images = []
 
     n_pages_per_roi = 5
-    data = np.zeros((n_pages_per_roi * n_rois, nrows, ncols))
+    data = np.zeros(
+        (n_pages_per_roi * n_rois, nrows, ncols), dtype=np.uint16
+    )
 
     for i_roi in range(n_rois):
         this_data = rng.integers(

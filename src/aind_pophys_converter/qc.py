@@ -12,7 +12,7 @@ import json
 import logging
 import tempfile
 from pathlib import Path
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 import numpy as np
 import tifffile
@@ -28,6 +28,9 @@ from aind_pophys_metadata.paths import find_one
 from PIL import Image
 
 from aind_pophys_converter.utils.image_utils import add_border_and_label
+
+if TYPE_CHECKING:
+    from aind_pophys_converter.tiff_splitters import AvgImageTiffSplitter
 
 # Evaluator label recorded on every pending status this capsule emits.
 _EVALUATOR = "Automated"
@@ -196,7 +199,9 @@ def write_quality_control_json(
     return shared_qc.write_quality_control_json(quality_control, output_dir)
 
 
-def write_avg_depth_slices(splitter, output_dir: Path) -> None:
+def write_avg_depth_slices(
+    splitter: "AvgImageTiffSplitter", output_dir: Path
+) -> None:
     """Write per-ROI averaged-depth slices as float32 TIF files.
 
     Parameters

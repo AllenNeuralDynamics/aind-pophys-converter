@@ -1561,8 +1561,8 @@ def get_nearest_roi_center(
 
 
 def validate_roi_pairing(
-    depth_splitter,
-    surface_splitter,
+    depth_splitter: TiffSplitterBase,
+    surface_splitter: TiffSplitterBase,
     tolerance: float = 1.0,
 ) -> None:
     """Verify depth and surface splitters have the same ROI centers
@@ -1612,7 +1612,7 @@ def validate_roi_pairing(
 
 
 def build_roi_remap(
-    splitter,
+    splitter: Union[TiffSplitterBase, ZStackSplitter],
     valid_roi_centers: List[Tuple[float, float]],
     tolerance: float = 1.0,
     roi_indices: Optional[List[int]] = None,
