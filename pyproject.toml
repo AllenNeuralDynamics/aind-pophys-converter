@@ -19,7 +19,7 @@ dynamic = ["version"]
 dependencies = [
     'aind-data-schema==2.9.0',
     'aind-data-schema-models==6.2.0',
-    'aind-pophys-metadata @ git+https://github.com/AllenNeuralDynamics/aind-pophys-metadata.git@46a94a198acdad04048fba2945323ee572f845a1',
+    'aind-pophys-metadata @ git+https://github.com/AllenNeuralDynamics/aind-pophys-metadata.git@adac8ebee57f895bb2d30b69cde01dd41afbce10',
     'log-schema[cloudwatch] @ git+https://github.com/AllenNeuralDynamics/aind-log-utils.git@f09685e#subdirectory=python',
     'aind-ophys-utils==0.0.8',
     'h5py==3.16.0',
@@ -84,7 +84,7 @@ exclude_lines = [
     "^import .*",
     "pragma: no cover"
 ]
-fail_under = 85
+fail_under = 100
 
 [tool.isort]
 line_length = 79

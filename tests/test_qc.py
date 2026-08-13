@@ -164,9 +164,7 @@ class TestWriteQualityControlJson(unittest.TestCase):
         self.assertTrue(written.exists())
         self.assertEqual(written.name, "quality_control.json")
         # No per-metric JSON fragments
-        self.assertEqual(
-            list(self.output_dir.glob("*_metric.json")), []
-        )
+        self.assertEqual(list(self.output_dir.glob("*_metric.json")), [])
 
     def test_written_file_validates(self) -> None:
         """The written file validates as a QualityControl."""

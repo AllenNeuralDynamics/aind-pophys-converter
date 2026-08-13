@@ -3,8 +3,8 @@
 import json
 import tempfile
 import unittest
-from typing import List
 from pathlib import Path
+from typing import List
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -245,9 +245,7 @@ class TestWriteAvgDepthSlices(unittest.TestCase):
 
         fake_arr = np.zeros((64, 64), dtype=np.float32)
 
-        def fake_write(
-            i_roi: int, z_value: float, output_path: Path
-        ) -> None:
+        def fake_write(i_roi: int, z_value: float, output_path: Path) -> None:
             """Stub that writes a blank TIFF."""
             tifffile.imwrite(output_path, fake_arr)
 

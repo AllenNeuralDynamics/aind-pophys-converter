@@ -65,9 +65,7 @@ def _create_avg_surface_tiff(
     avg_images = []
 
     n_pages_per_roi = 5
-    data = np.zeros(
-        (n_pages_per_roi * n_rois, nrows, ncols), dtype=np.uint16
-    )
+    data = np.zeros((n_pages_per_roi * n_rois, nrows, ncols), dtype=np.uint16)
 
     for i_roi in range(n_rois):
         this_data = rng.integers(
@@ -268,6 +266,8 @@ class TestRoiInsertion(unittest.TestCase):
             )
         self.assertIsInstance(img, np.ndarray)
         self.assertEqual(img.dtype, np.uint16)
+        with self.assertRaises(RuntimeError):
+            mock_read_metadata(pathlib.Path("unexpected.tiff"))
 
 
 if __name__ == "__main__":

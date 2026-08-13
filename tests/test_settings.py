@@ -3,11 +3,10 @@
 import sys
 import unittest
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional
+from typing import List, Optional
 from unittest.mock import patch
 
-if TYPE_CHECKING:
-    from aind_pophys_converter.settings import JobSettings
+from aind_pophys_converter.settings import JobSettings
 
 
 class TestJobSettings(unittest.TestCase):
@@ -17,8 +16,6 @@ class TestJobSettings(unittest.TestCase):
         self, extra_argv: Optional[List[str]] = None
     ) -> "JobSettings":
         """Instantiate JobSettings with a controlled sys.argv."""
-        from aind_pophys_converter.settings import JobSettings
-
         argv = ["prog", "--input_dir", "/in", "--output_dir", "/out"]
         if extra_argv:
             argv.extend(extra_argv)

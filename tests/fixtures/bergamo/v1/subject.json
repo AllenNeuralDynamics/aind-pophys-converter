@@ -1,0 +1,45 @@
+{
+  "alleles": [],
+  "background_strain": null,
+  "breeding_info": {
+    "breeding_group": "TetO-GCaMP6s;Camk2a-tTA",
+    "maternal_genotype": "Camk2a-tTA/wt",
+    "maternal_id": "736690",
+    "paternal_genotype": "tetO-GCaMP6s/wt",
+    "paternal_id": "733588"
+  },
+  "date_of_birth": "2024-10-15",
+  "describedBy": "https://raw.githubusercontent.com/AllenNeuralDynamics/aind-data-schema/main/src/aind_data_schema/core/subject.py",
+  "genotype": "Camk2a-tTA/wt;tetO-GCaMP6s/wt",
+  "housing": {
+    "cage_id": "8283451",
+    "cohoused_subjects": [],
+    "home_cage_enrichment": [],
+    "light_cycle": null,
+    "room_id": "221"
+  },
+  "notes": null,
+  "restrictions": null,
+  "rrid": null,
+  "schema_version": "1.0.2",
+  "sex": "Female",
+  "source": {
+    "abbreviation": "AI",
+    "name": "Allen Institute",
+    "registry": {
+      "abbreviation": "ROR",
+      "name": "Research Organization Registry"
+    },
+    "registry_identifier": "03cpe7c52"
+  },
+  "species": {
+    "name": "Mus musculus",
+    "registry": {
+      "abbreviation": "NCBI",
+      "name": "National Center for Biotechnology Information"
+    },
+    "registry_identifier": "NCBI:txid10090"
+  },
+  "subject_id": "772414",
+  "wellness_reports": []
+}

@@ -97,9 +97,7 @@ class TestBergamoTiffStitcher(unittest.TestCase):
         self.temp_dir.cleanup()
 
     @patch("aind_pophys_converter.bergamo_stitcher.ScanImageTiffReader")
-    def test_run_converter_creates_hdf5(
-        self, mock_reader: MagicMock
-    ) -> None:
+    def test_run_converter_creates_hdf5(self, mock_reader: MagicMock) -> None:
         """Test that run_converter creates an HDF5 file with the
         expected structure.
         """
@@ -129,6 +127,18 @@ class TestBergamoTiffStitcher(unittest.TestCase):
             self.assertIn("metadata", f)
             self.assertEqual(f["data"].shape[1:], (10, 10))
 
+    def test_write_bergamo_no_frames_raises(self) -> None:
+        """write_bergamo fails fast when no frames were written."""
+        stitcher = BergamoTiffStitcher(self.settings, metadata=self.metadata)
+        with self.assertRaises(ValueError) as cm:
+            stitcher.write_bergamo(
+                epochs={},
+                unique_id="empty",
+                image_width=10,
+                image_height=10,
+            )
+        self.assertIn("No tiff files were processed", str(cm.exception))
+
     def test_from_args_creates_stitcher(self) -> None:
         """from_args builds a stitcher; metadata-dir defaults to parent."""
         # Stage a fixture layout under <tmp>/parent/{metadata files, pophys/}
@@ -137,8 +147,12 @@ class TestBergamoTiffStitcher(unittest.TestCase):
             tmp_path = Path(tmp)
             parent = tmp_path / "parent"
             parent.mkdir()
-            shutil.copy(FIXTURES / "v2" / "acquisition.json", parent)
-            shutil.copy(FIXTURES / "v2" / "data_description.json", parent)
+            shutil.copy(
+                FIXTURES / "synthetic" / "v2" / "acquisition.json", parent
+            )
+            shutil.copy(
+                FIXTURES / "synthetic" / "v2" / "data_description.json", parent
+            )
             pophys = parent / "pophys"
             pophys.mkdir()
             args = ["--input-dir", str(pophys)]
@@ -153,8 +167,13 @@ class TestBergamoTiffStitcher(unittest.TestCase):
             tmp_path = Path(tmp)
             meta_dir = tmp_path / "meta"
             meta_dir.mkdir()
-            shutil.copy(FIXTURES / "v1" / "session.json", meta_dir)
-            shutil.copy(FIXTURES / "v1" / "data_description.json", meta_dir)
+            shutil.copy(
+                FIXTURES / "synthetic" / "v1" / "session.json", meta_dir
+            )
+            shutil.copy(
+                FIXTURES / "synthetic" / "v1" / "data_description.json",
+                meta_dir,
+            )
             tiffs = tmp_path / "tiffs"
             tiffs.mkdir()
             args = [

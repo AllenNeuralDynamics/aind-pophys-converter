@@ -44,9 +44,7 @@ def mock_2x3_metadata_zsAllActuators() -> (
     return (metadata, copy.deepcopy(z_breakdown), copy.deepcopy(rois))
 
 
-def mock_2x3_metadata_zs() -> (
-    Tuple[List[dict], List[List[int]], List[dict]]
-):
+def mock_2x3_metadata_zs() -> Tuple[List[dict], List[List[int]], List[dict]]:
     """
     Return a list representing everything we need from
     the metadata for 2 ROIs each sampled at 3 depths

@@ -1,0 +1,280 @@
+{
+    "schema_version": 3,
+    "schema_type": "Mesoscope",
+    "rig_id": "MESO.2",
+    "session_id": 1786490263,
+    "subject_id": "849375",
+    "project_code": "U01BFCT",
+    "parent_session": "multiplane-ophys_849375_2026-06-17_15-28-08",
+    "stimulus_pkl": "1786490263.pkl",
+    "wfltk_version": "5.6.1.post2+g4f7551d.b148583",
+    "wfl_version": "4.0.9",
+    "foraging_id": "",
+    "sync_file": "1786490263_20260811T170332.h5",
+    "timeseries_tif": "1786490263_timeseries.tiff",
+    "timeseries_roi_file": "1786490263_timeseries.roi",
+    "depths_tif": "1786490263_averaged_depth.tiff",
+    "surface_tif": "1786490263_averaged_surface.tiff",
+    "surface_roi_file": "1786490263_surface.roi",
+    "eye_tracking_video": "1786490263_Eye_20260811T170333.mp4",
+    "behavior_video": "1786490263_Behavior_20260811T170333.mp4",
+    "face_tracking": "1786490263_Face_20260811T170333.mp4",
+    "eye_cam_json": "1786490263_Eye_20260811T170333.json",
+    "beh_cam_json": "1786490263_Behavior_20260811T170333.json",
+    "face_tracking_json": "1786490263_Face_20260811T170333.json",
+    "stimulus_name": "PASSIVE_1_gratings",
+    "beam_1_100_percent_power_mw": "479",
+    "beam_2_100_percent_power_mw": "399",
+    "registration": {
+        "reticle_image": {
+            "stage_x": -20683.0,
+            "stage_y": 10194.0,
+            "stage_z": 17980.0,
+            "pixel_size_um": 0.4962,
+            "acquired_at": "2026-08-11T16:26:36.878433",
+            "rotation": -1.0,
+            "stage_image_rotation": 49.0,
+            "x_offset": 0,
+            "y_offset": 0,
+            "filename": "1786490263_reticle.tif"
+        },
+        "surface_vasculature": {
+            "stage_x": -20683.0,
+            "stage_y": 10194.0,
+            "stage_z": 17980.0,
+            "pixel_size_um": 0.4962,
+            "acquired_at": "2026-08-11T18:08:08.384692",
+            "rotation": -1.0,
+            "stage_image_rotation": null,
+            "x_offset": 0,
+            "y_offset": 0,
+            "filename": "1786490263_vasculature.tif"
+        }
+    },
+    "imaging_plane_groups": [
+        {
+            "local_z_stack_tif": "1786490263_local_z_stack0.tiff",
+            "acquisition_framerate_Hz": 10.71,
+            "scanimage_power_percent": 40,
+            "scanimage_split_percent": 60,
+            "imaging_planes": [
+                {
+                    "targeted_x": -733.15,
+                    "targeted_y": -509.34,
+                    "targeted_depth": 142,
+                    "targeted_structure_id": "VISp",
+                    "scanimage_roi_index": 0,
+                    "scanimage_scanfield_z": -240,
+                    "fast_z_controller": "Z2",
+                    "channel": "Channel2",
+                    "registration": {
+                        "stage_x": 0.0,
+                        "stage_y": 0.0,
+                        "stage_z": 0.0,
+                        "pixel_size_um": 1.0,
+                        "acquired_at": "2026-08-11T18:06:44.204608",
+                        "rotation": -108.1414,
+                        "stage_image_rotation": null,
+                        "x_offset": 0,
+                        "y_offset": 0,
+                        "filename": "1786490263_timeseries.tiff"
+                    },
+                    "intended_depth": 140,
+                    "calculated_power_mw": 102.0
+                },
+                {
+                    "targeted_x": -733.15,
+                    "targeted_y": -509.3,
+                    "targeted_depth": 160,
+                    "targeted_structure_id": "VISp",
+                    "scanimage_roi_index": 0,
+                    "scanimage_scanfield_z": -212,
+                    "fast_z_controller": "Z1",
+                    "channel": "Channel1",
+                    "registration": {
+                        "stage_x": 0.0,
+                        "stage_y": 0.0,
+                        "stage_z": 0.0,
+                        "pixel_size_um": 1.0,
+                        "acquired_at": "2026-08-11T18:06:44.204608",
+                        "rotation": -108.1414,
+                        "stage_image_rotation": null,
+                        "x_offset": 0,
+                        "y_offset": 0,
+                        "filename": "1786490263_timeseries.tiff"
+                    },
+                    "intended_depth": 160,
+                    "calculated_power_mw": 83.0
+                }
+            ]
+        },
+        {
+            "local_z_stack_tif": "1786490263_local_z_stack1.tiff",
+            "acquisition_framerate_Hz": 10.71,
+            "scanimage_power_percent": 40,
+            "scanimage_split_percent": 55,
+            "imaging_planes": [
+                {
+                    "targeted_x": -733.15,
+                    "targeted_y": -509.34,
+                    "targeted_depth": 100,
+                    "targeted_structure_id": "VISp",
+                    "scanimage_roi_index": 0,
+                    "scanimage_scanfield_z": -282,
+                    "fast_z_controller": "Z2",
+                    "channel": "Channel2",
+                    "registration": {
+                        "stage_x": 0.0,
+                        "stage_y": 0.0,
+                        "stage_z": 0.0,
+                        "pixel_size_um": 1.0,
+                        "acquired_at": "2026-08-11T18:06:44.204608",
+                        "rotation": -108.1414,
+                        "stage_image_rotation": null,
+                        "x_offset": 0,
+                        "y_offset": 0,
+                        "filename": "1786490263_timeseries.tiff"
+                    },
+                    "intended_depth": 100,
+                    "calculated_power_mw": 91.5
+                },
+                {
+                    "targeted_x": -733.15,
+                    "targeted_y": -509.3,
+                    "targeted_depth": 166,
+                    "targeted_structure_id": "VISp",
+                    "scanimage_roi_index": 0,
+                    "scanimage_scanfield_z": -206,
+                    "fast_z_controller": "Z1",
+                    "channel": "Channel1",
+                    "registration": {
+                        "stage_x": 0.0,
+                        "stage_y": 0.0,
+                        "stage_z": 0.0,
+                        "pixel_size_um": 1.0,
+                        "acquired_at": "2026-08-11T18:06:44.204608",
+                        "rotation": -108.1414,
+                        "stage_image_rotation": null,
+                        "x_offset": 0,
+                        "y_offset": 0,
+                        "filename": "1786490263_timeseries.tiff"
+                    },
+                    "intended_depth": 190,
+                    "calculated_power_mw": 94.75
+                }
+            ]
+        },
+        {
+            "local_z_stack_tif": "1786490263_local_z_stack2.tiff",
+            "acquisition_framerate_Hz": 10.71,
+            "scanimage_power_percent": 40,
+            "scanimage_split_percent": 55,
+            "imaging_planes": [
+                {
+                    "targeted_x": -733.15,
+                    "targeted_y": -509.34,
+                    "targeted_depth": 64,
+                    "targeted_structure_id": "VISp",
+                    "scanimage_roi_index": 0,
+                    "scanimage_scanfield_z": -318,
+                    "fast_z_controller": "Z2",
+                    "channel": "Channel2",
+                    "registration": {
+                        "stage_x": 0.0,
+                        "stage_y": 0.0,
+                        "stage_z": 0.0,
+                        "pixel_size_um": 1.0,
+                        "acquired_at": "2026-08-11T18:06:44.204608",
+                        "rotation": -108.1414,
+                        "stage_image_rotation": null,
+                        "x_offset": 0,
+                        "y_offset": 0,
+                        "filename": "1786490263_timeseries.tiff"
+                    },
+                    "intended_depth": 60,
+                    "calculated_power_mw": 91.5
+                },
+                {
+                    "targeted_x": -733.15,
+                    "targeted_y": -509.3,
+                    "targeted_depth": 217,
+                    "targeted_structure_id": "VISp",
+                    "scanimage_roi_index": 0,
+                    "scanimage_scanfield_z": -155,
+                    "fast_z_controller": "Z1",
+                    "channel": "Channel1",
+                    "registration": {
+                        "stage_x": 0.0,
+                        "stage_y": 0.0,
+                        "stage_z": 0.0,
+                        "pixel_size_um": 1.0,
+                        "acquired_at": "2026-08-11T18:06:44.204608",
+                        "rotation": -108.1414,
+                        "stage_image_rotation": null,
+                        "x_offset": 0,
+                        "y_offset": 0,
+                        "filename": "1786490263_timeseries.tiff"
+                    },
+                    "intended_depth": 215,
+                    "calculated_power_mw": 94.75
+                }
+            ]
+        },
+        {
+            "local_z_stack_tif": "1786490263_local_z_stack3.tiff",
+            "acquisition_framerate_Hz": 10.71,
+            "scanimage_power_percent": 45,
+            "scanimage_split_percent": 40,
+            "imaging_planes": [
+                {
+                    "targeted_x": -733.15,
+                    "targeted_y": -509.34,
+                    "targeted_depth": 37,
+                    "targeted_structure_id": "VISp",
+                    "scanimage_roi_index": 0,
+                    "scanimage_scanfield_z": -345,
+                    "fast_z_controller": "Z2",
+                    "channel": "Channel2",
+                    "registration": {
+                        "stage_x": 0.0,
+                        "stage_y": 0.0,
+                        "stage_z": 0.0,
+                        "pixel_size_um": 1.0,
+                        "acquired_at": "2026-08-11T18:06:44.204608",
+                        "rotation": -108.1414,
+                        "stage_image_rotation": null,
+                        "x_offset": 0,
+                        "y_offset": 0,
+                        "filename": "1786490263_timeseries.tiff"
+                    },
+                    "intended_depth": 25,
+                    "calculated_power_mw": 67.25
+                },
+                {
+                    "targeted_x": -733.15,
+                    "targeted_y": -509.3,
+                    "targeted_depth": 258,
+                    "targeted_structure_id": "VISp",
+                    "scanimage_roi_index": 0,
+                    "scanimage_scanfield_z": -114,
+                    "fast_z_controller": "Z1",
+                    "channel": "Channel1",
+                    "registration": {
+                        "stage_x": 0.0,
+                        "stage_y": 0.0,
+                        "stage_z": 0.0,
+                        "pixel_size_um": 1.0,
+                        "acquired_at": "2026-08-11T18:06:44.204608",
+                        "rotation": -108.1414,
+                        "stage_image_rotation": null,
+                        "x_offset": 0,
+                        "y_offset": 0,
+                        "filename": "1786490263_timeseries.tiff"
+                    },
+                    "intended_depth": 260,
+                    "calculated_power_mw": 146.25
+                }
+            ]
+        }
+    ]
+}

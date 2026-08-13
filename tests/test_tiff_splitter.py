@@ -172,6 +172,7 @@ class TestTiffSplitter(unittest.TestCase):
             ((0, 2, 3, 5, 7, 4, 6, 5), 4, True),
             ((0, 2, 3, 5, 7, 4, 6, 5), 2, True),
             ((0, 4, 5, 2, 8, 7), 1, True),
+            (list(range(2)), 2, True),
             (list(range(8)), 2, False),
             (list(range(8)), 4, False),
             (list(range(6)), 3, False),
@@ -180,6 +181,7 @@ class TestTiffSplitter(unittest.TestCase):
             ((0, 2, 3, 5, 7, 4, 6, 5), 4, False),
             ((0, 2, 3, 5, 7, 4, 6, 5), 2, False),
             ((0, 4, 5, 2, 8, 7), 1, False),
+            (list(range(2)), 2, False),
         ]
         import tempfile
 
@@ -202,6 +204,10 @@ class TestTiffSplitter(unittest.TestCase):
                 avg_img_lookup = depth_tiff[2]
                 page_lookup = depth_tiff[3]
                 metadata = depth_tiff[4]
+                if n_rois == 1:
+                    metadata[1]["RoiGroups"]["imagingRoiGroup"]["rois"] = (
+                        metadata[1]["RoiGroups"]["imagingRoiGroup"]["rois"][0]
+                    )
                 n_z_per_roi = len(z_value_list) // n_rois
                 with patch(
                     "tifffile.read_scanimage_metadata",
@@ -250,6 +256,7 @@ class TestTiffSplitter(unittest.TestCase):
             ((0, 2, 3, 5, 7, 4, 6, 5), 4, True),
             ((0, 2, 3, 5, 7, 4, 6, 5), 2, True),
             ((0, 4, 5, 2, 8, 7), 1, True),
+            (list(range(2)), 2, True),
             (list(range(8)), 2, False),
             (list(range(8)), 4, False),
             (list(range(6)), 3, False),
@@ -258,6 +265,7 @@ class TestTiffSplitter(unittest.TestCase):
             ((0, 2, 3, 5, 7, 4, 6, 5), 4, False),
             ((0, 2, 3, 5, 7, 4, 6, 5), 2, False),
             ((0, 4, 5, 2, 8, 7), 1, False),
+            (list(range(2)), 2, False),
         ]
         import tempfile
 
@@ -277,6 +285,10 @@ class TestTiffSplitter(unittest.TestCase):
                 )
                 tiff_path = depth_tiff[0]
                 metadata = depth_tiff[4]
+                if n_rois == 1:
+                    metadata[1]["RoiGroups"]["imagingRoiGroup"]["rois"] = (
+                        metadata[1]["RoiGroups"]["imagingRoiGroup"]["rois"][0]
+                    )
                 n_z_per_roi = len(z_value_list) // n_rois
                 with patch(
                     "tifffile.read_scanimage_metadata",
@@ -305,16 +317,17 @@ class TestTiffSplitter(unittest.TestCase):
                     ]
                     if isinstance(roi_grp, dict):
                         self.assertEqual(i_roi, 0)
-                        roi_z_ints = splitter._int_from_z(
-                            z_value=roi_grp["zs"]
-                        )
+                        roi_z_ints = [
+                            splitter._int_from_z(z_value=zz)
+                            for zz in roi_grp["zs"]
+                        ]
                     else:
                         roi_z_ints = [
                             splitter._int_from_z(z_value=zz)
                             for zz in roi_grp[i_roi]["zs"]
                         ]
-                    if isinstance(roi_z_ints, int):
-                        self.assertEqual(pair[1], roi_z_ints)
+                    if len(roi_z_ints) == 1:
+                        self.assertEqual(pair[1], roi_z_ints[0])
                     else:
                         self.assertIn(pair[1], roi_z_ints)
                 if tiff_path.is_file():

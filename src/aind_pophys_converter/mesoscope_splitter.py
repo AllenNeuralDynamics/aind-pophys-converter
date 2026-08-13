@@ -453,9 +453,7 @@ class TiffSplitterCLI:
             # Build per-splitter roi_index remaps so each TIFF is addressed
             # by its own indexing (depth, surface, and zstack TIFFs can
             # index ROIs in a different order than the timeseries).
-            depth_remap = build_roi_remap(
-                depth_splitter, valid_roi_centers
-            )
+            depth_remap = build_roi_remap(depth_splitter, valid_roi_centers)
             surface_remap = build_roi_remap(
                 surface_splitter, valid_roi_centers
             )

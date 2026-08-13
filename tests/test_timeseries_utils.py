@@ -36,9 +36,7 @@ class TestTimeseriesUtils(unittest.TestCase):
             rng.randint(-200, 3000, (36, 12, 12)).astype(np.int16),
         ]
 
-    def make_timeseries_tiff(
-        self, tmpdir: pathlib.Path
-    ) -> pathlib.Path:
+    def make_timeseries_tiff(self, tmpdir: pathlib.Path) -> pathlib.Path:
         """Create a TIFF file from the timeseries fixtures."""
         tiff_path = tmpdir / "eg_timeseries.tiff"
         all_data = []
@@ -119,9 +117,7 @@ class TestTimeseriesUtils(unittest.TestCase):
                     tempfile.mkdtemp(prefix="gather_output")
                 )
                 rng = np.random.default_rng(581321)
-                data = rng.integers(
-                    -200, 3000, (29, 13, 13), dtype=np.int16
-                )
+                data = rng.integers(-200, 3000, (29, 13, 13), dtype=np.int16)
                 file_path_list = []
                 for fname, i0, i1 in zip(
                     ("cache0.h5", "cache1.h5", "cache2.h5"),
@@ -274,9 +270,7 @@ class TestTimeseriesUtils(unittest.TestCase):
         tiff_path = tmpdir / "debug_timeseries.tiff"
         tifffile.imwrite(
             tiff_path,
-            np.zeros(
-                (DEBUG_N_FRAMES + n_extra_pages, 12, 12), dtype=np.int16
-            ),
+            np.zeros((DEBUG_N_FRAMES + n_extra_pages, 12, 12), dtype=np.int16),
         )
         offset_to_path = {0: tmpdir / "final0.h5"}
 

@@ -127,9 +127,7 @@ def _epoch_stems_by_start_time(core: CoreMetadata) -> Tuple[str, ...]:
         TIFF stems in chronological order.
     """
     epochs = [e for e in core.get_epoch_records() if e["tiff_stem"]]
-    epochs.sort(
-        key=lambda e: (e["start_time"] is None, e["start_time"] or "")
-    )
+    epochs.sort(key=lambda e: (e["start_time"] is None, e["start_time"] or ""))
     return tuple(e["tiff_stem"] for e in epochs)
 
 

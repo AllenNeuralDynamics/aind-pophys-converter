@@ -20,8 +20,12 @@ from aind_pophys_converter.utils.metadata_utils import (
     build_converter_code,
     load_converter_metadata,
 )
+from aind_pophys_converter.utils.platform_utils import (
+    is_child_session_via_platform_json,
+)
 
 FIXTURES = Path(__file__).parent / "fixtures"
+SYNTHETIC_FIXTURES = FIXTURES / "synthetic"
 
 
 def _write_input(root: Path, core_name: str, core: dict) -> Path:
@@ -35,7 +39,7 @@ class TestLoadConverterMetadata(unittest.TestCase):
 
     def test_v1_fixture(self) -> None:
         """A v1 (session.json) input maps to expected ConverterMetadata."""
-        meta = load_converter_metadata(FIXTURES / "v1")
+        meta = load_converter_metadata(SYNTHETIC_FIXTURES / "v1")
         self.assertEqual(meta.instrument_id, "MESO.1")
         self.assertEqual(meta.subject_id, "000000")
         self.assertEqual(
@@ -47,7 +51,7 @@ class TestLoadConverterMetadata(unittest.TestCase):
 
     def test_v2_fixture(self) -> None:
         """A v2 (acquisition.json) input maps to expected metadata."""
-        meta = load_converter_metadata(FIXTURES / "v2")
+        meta = load_converter_metadata(SYNTHETIC_FIXTURES / "v2")
         self.assertEqual(meta.instrument_id, "MESO.1")
         self.assertEqual(meta.subject_id, "000000")
         self.assertEqual(meta.fov_ids, ("MOp_0", "VISp_1"))
@@ -77,19 +81,19 @@ class TestLoadConverterMetadata(unittest.TestCase):
 
     def test_epoch_stems_empty_without_epochs(self) -> None:
         """A v2 input with no stimulus epochs yields empty epoch_stems."""
-        meta = load_converter_metadata(FIXTURES / "v2")
+        meta = load_converter_metadata(SYNTHETIC_FIXTURES / "v2")
         self.assertEqual(meta.epoch_stems, ())
 
     def test_v1_and_v2_equivalent(self) -> None:
         """Semantically-equal v1/v2 fixtures map to equal metadata."""
         self.assertEqual(
-            load_converter_metadata(FIXTURES / "v1"),
-            load_converter_metadata(FIXTURES / "v2"),
+            load_converter_metadata(SYNTHETIC_FIXTURES / "v1"),
+            load_converter_metadata(SYNTHETIC_FIXTURES / "v2"),
         )
 
     def test_multiplane_bare_string_structures(self) -> None:
         """Real multi-plane v1 (bare-string structures, no dd)."""
-        meta = load_converter_metadata(FIXTURES / "multiplane_v1")
+        meta = load_converter_metadata(SYNTHETIC_FIXTURES / "multiplane_v1")
         self.assertEqual(meta.instrument_id, "MESO.2")
         self.assertIsNone(meta.dataset_name)
         self.assertEqual(len(meta.fov_ids), 8)
@@ -98,7 +102,7 @@ class TestLoadConverterMetadata(unittest.TestCase):
 
     def test_single_plane_fixture(self) -> None:
         """Minimal single-plane session.json (no schema_version, no dd)."""
-        meta = load_converter_metadata(FIXTURES / "singleplane_v1")
+        meta = load_converter_metadata(SYNTHETIC_FIXTURES / "singleplane_v1")
         self.assertIsNone(meta.dataset_name)
         self.assertEqual(meta.fov_ids, ("plane_0",))
 
@@ -159,6 +163,80 @@ class TestLoaderContracts(unittest.TestCase):
         """Neither core file present raises FileNotFoundError."""
         with self.assertRaises(FileNotFoundError):
             load_converter_metadata(self.root)
+
+
+class TestAssetFixtures(unittest.TestCase):
+    """Verify converter metadata against synthetic and production assets."""
+
+    def _load_v1_and_v2(
+        self, fixture_name: str
+    ) -> tuple[Path, ConverterMetadata]:
+        """Load both schema views and require equivalent converter metadata."""
+        root = FIXTURES / fixture_name
+        v1 = load_converter_metadata(root / "v1")
+        v2 = load_converter_metadata(root / "v2")
+        self.assertEqual(v1, v2)
+        self.assertTrue((root / "v2" / "acquisition.json").is_file())
+        self.assertTrue((root / "v2" / "data_description.json").is_file())
+        return root, v1
+
+    def _assert_meso_fixture(
+        self,
+        fixture_name: str,
+        dataset_name: str,
+        session_id: int,
+        parent_session: str,
+    ) -> None:
+        """Check core and platform metadata from a real Meso asset."""
+        root, metadata = self._load_v1_and_v2(fixture_name)
+        self.assertEqual(metadata.instrument_id, "MESO.2")
+        self.assertEqual(metadata.dataset_name, dataset_name)
+        self.assertEqual(len(metadata.fov_ids), 8)
+        self.assertEqual(metadata.fov_ids[0], "VISp_0")
+
+        platform_paths = tuple((root / "v1" / "pophys").glob("*platform.json"))
+        self.assertEqual(len(platform_paths), 1)
+        platform_path = platform_paths[0]
+        self.assertTrue(is_child_session_via_platform_json(platform_path))
+        platform = json.loads(platform_path.read_text())
+        self.assertEqual(platform["session_id"], session_id)
+        self.assertEqual(platform["parent_session"], parent_session)
+
+        self.assertTrue((root / "v1" / "session.json").is_file())
+        self.assertTrue((root / "v1" / "data_description.json").is_file())
+
+    def test_parent_meso_fixture_uses_real_metadata(self) -> None:
+        """Load parent Meso metadata from Code Ocean data."""
+        self._assert_meso_fixture(
+            "meso_parent",
+            "multiplane-ophys_849375_2026-06-17_15-28-08",
+            1781731432,
+            "multiplane-ophys_849375_2026-05-20_12-10-09",
+        )
+
+    def test_child_meso_fixture_uses_real_metadata(self) -> None:
+        """Load child Meso metadata from Code Ocean data."""
+        self._assert_meso_fixture(
+            "meso_child",
+            "multiplane-ophys_849375_2026-08-11_17-03-46",
+            1786490263,
+            "multiplane-ophys_849375_2026-06-17_15-28-08",
+        )
+
+    def test_bergamo_fixture_v1_and_v2(self) -> None:
+        """Both views preserve fields recovered from the DocDB record."""
+        _, metadata = self._load_v1_and_v2("bergamo")
+        self.assertEqual(metadata.instrument_id, "442_Bergamo_2p_photostim")
+        self.assertEqual(
+            metadata.dataset_name,
+            "single-plane-ophys_772414_2025-04-11_17-41-16",
+        )
+        self.assertEqual(metadata.subject_id, "772414")
+        self.assertEqual(metadata.fov_ids, ("plane_0",))
+        self.assertEqual(
+            metadata.epoch_stems,
+            ("spont", "neuron8_to_17_again_again", "spontpost"),
+        )
 
 
 class TestBuildConverterCode(unittest.TestCase):

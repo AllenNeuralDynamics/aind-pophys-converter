@@ -226,9 +226,7 @@ def _initialize_caches(
 def _log_progress(message: str, t0: float, page_ct: int) -> None:
     """Log progress with timing information."""
     duration = time.time() - t0
-    logger.info(
-        f"{message} {page_ct} TIFF pages in {duration:.2e} seconds"
-    )
+    logger.info(f"{message} {page_ct} TIFF pages in {duration:.2e} seconds")
 
 
 def _finalize_output_files(
@@ -376,9 +374,7 @@ def _split_timeseries_tiff(
     _log_progress("Iterated through all", t0, page_ct)
 
     # Write final output files
-    _finalize_output_files(
-        offset_to_tmp_files, offset_to_path, metadata, t0
-    )
+    _finalize_output_files(offset_to_tmp_files, offset_to_path, metadata, t0)
 
     duration = time.time() - t0
     logger.info(f"Split {tiff_path} in {duration:.2e} seconds")
@@ -1571,8 +1567,7 @@ def validate_roi_pairing(
         depth_splitter.roi_center(i) for i in range(depth_splitter.n_rois)
     ]
     surface_centers = [
-        surface_splitter.roi_center(i)
-        for i in range(surface_splitter.n_rois)
+        surface_splitter.roi_center(i) for i in range(surface_splitter.n_rois)
     ]
 
     if len(depth_centers) != len(surface_centers):

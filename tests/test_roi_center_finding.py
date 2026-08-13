@@ -134,9 +134,7 @@ class TestValidateRoiPairing(unittest.TestCase):
     def test_small_drift_within_tolerance(self) -> None:
         """Small positional drift within tolerance passes."""
         depth = MockSplitter({0: (-6.706, 4.707), 1: (-4.475, -5.792)})
-        surface = MockSplitter(
-            {0: (-4.599, -5.854), 1: (-6.835, 4.563)}
-        )
+        surface = MockSplitter({0: (-4.599, -5.854), 1: (-6.835, 4.563)})
         validate_roi_pairing(depth, surface, tolerance=1.0)
 
     def test_single_roi(self) -> None:
@@ -175,18 +173,14 @@ class TestBuildRoiRemap(unittest.TestCase):
         """Using explicit roi_indices works for splitters without n_rois."""
         valid_centers = [(1.0, 2.0), (5.0, 6.0)]
         splitter = MockSplitter({0: (5.0, 6.0), 1: (1.0, 2.0)})
-        remap = build_roi_remap(
-            splitter, valid_centers, roi_indices=[0, 1]
-        )
+        remap = build_roi_remap(splitter, valid_centers, roi_indices=[0, 1])
         self.assertEqual(remap, {0: 1, 1: 0})
 
     def test_non_contiguous_roi_indices(self) -> None:
         """Works with non-contiguous roi indices (e.g. zstack)."""
         valid_centers = [(1.0, 2.0), (5.0, 6.0)]
         splitter = MockSplitter({2: (5.0, 6.0), 5: (1.0, 2.0)})
-        remap = build_roi_remap(
-            splitter, valid_centers, roi_indices=[2, 5]
-        )
+        remap = build_roi_remap(splitter, valid_centers, roi_indices=[2, 5])
         self.assertEqual(remap, {0: 5, 1: 2})
 
     def test_empty_valid_centers(self) -> None:
