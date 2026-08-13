@@ -192,8 +192,8 @@ class TiffSplitterCLI:
         Returns
         -------
         tuple of str
-            ``self.metadata.fov_ids``, ordered by plane index (i.e. TIFF
-            scan order). Enumerate to recover each plane's index.
+            ``self.metadata.fov_ids``, ordered by the metadata's declared
+            plane index. Enumerate to recover each plane's index.
 
         Raises
         ------
@@ -209,6 +209,49 @@ class TiffSplitterCLI:
                 "defines imaging FOVs/planes."
             )
         return self.metadata.fov_ids
+
+    def _roi_z_per_plane(
+        self, timeseries_splitter: "TimeSeriesSplitter"
+    ) -> List[Tuple[int, float]]:
+        """Return the ``(roi_index, z_value)`` locating each imaging plane.
+
+        Paired by position: ``fov_ids`` are sorted by the metadata's declared
+        plane index, the TIFF manifest is ROI-major (each ROI's zs in
+        actuator order). Assumes the two numberings agree. There is no key to
+        join on -- metadata records depth in micrometres, the TIFF raw
+        actuator coordinates.
+
+        Parameters
+        ----------
+        timeseries_splitter : TimeSeriesSplitter
+            Splitter for the timeseries TIFF, the canonical ROI/z manifest.
+
+        Returns
+        -------
+        list of (int, float)
+            One pair per plane, indexable by plane index. ``z_value`` is the
+            float actuator coordinate, not the manifest's int form.
+
+        Raises
+        ------
+        ValueError
+            If the manifest and the metadata disagree on plane count. Pairing
+            by position would then select the wrong plane for every FOV and
+            write correct-looking filenames over wrong data, so fail loudly.
+        """
+        fov_ids = self._get_imaging_planes()
+        manifest = timeseries_splitter.roi_z_int_manifest
+        if len(manifest) != len(fov_ids):
+            raise ValueError(
+                f"Plane count mismatch: metadata in {self.input_dir} "
+                f"declares {len(fov_ids)} plane(s) {list(fov_ids)}, but "
+                f"{timeseries_splitter.input_path} contains "
+                f"{len(manifest)}. Cannot pair planes to TIFF pages."
+            )
+        return [
+            (roi_index, timeseries_splitter._z_from_int(z_int))
+            for roi_index, z_int in manifest
+        ]
 
     def _process_single_fov(
         self,
@@ -248,7 +291,7 @@ class TiffSplitterCLI:
             id(zstack_splitter): zstack_remap,
         }
 
-        for splitter, z_value_inner, output_name, metadata_tag in zip(
+        for splitter, output_z, output_name, metadata_tag in zip(
             (depth_splitter, surface_splitter, zstack_splitter),
             (scanfield_z, None, scanfield_z),
             (
@@ -274,7 +317,7 @@ class TiffSplitterCLI:
 
             splitter.write_output_file(
                 i_roi=splitter_roi_index,
-                z_value=z_value_inner,
+                z_value=output_z,
                 output_path=output_path,
             )
 
@@ -284,7 +327,7 @@ class TiffSplitterCLI:
                 output_path,
                 splitter,
                 splitter_roi_index,
-                z_value_inner,
+                output_z,
             )
 
             elapsed_time = time.time() - t0
@@ -319,18 +362,10 @@ class TiffSplitterCLI:
     ) -> Dict[Tuple[int, float], Path]:
         """Process timeseries data and return output path lookup."""
         output_path_lookup = {}
+        roi_z_per_plane = self._roi_z_per_plane(timeseries_splitter)
 
         for plane_index, fov_id in enumerate(self._get_imaging_planes()):
-            # Assumes plane_index order in the v2 acquisition schema matches
-            # the sequential scan order encoded in the TIFF's zsAllActuators.
-            # In v1, session.json carried scanfield_z explicitly (the raw
-            # ScanImage actuator coordinate) providing a direct lookup. In v2,
-            # depth is stored in physical micrometers and cannot be matched to
-            # the TIFF z-values, so we rely on ordering being preserved by the
-            # metadata auto-upgrader.
-            roi_z = timeseries_splitter.roi_z_int_manifest[plane_index]
-            roi_index, z_int = roi_z
-            z_value = timeseries_splitter._z_from_int(z_int)
+            roi_index, z_value = roi_z_per_plane[plane_index]
             fname = f"{fov_id}.h5"
             output_path = self.output_dir / fov_id / fname
             output_path_lookup[(roi_index, z_value)] = output_path
@@ -432,13 +467,9 @@ class TiffSplitterCLI:
 
             # Process experiment metadata for each imaging plane
             experiment_metadata = []
+            roi_z_per_plane = self._roi_z_per_plane(timeseries_splitter)
             for plane_index, fov_id in enumerate(self._get_imaging_planes()):
-                # See ordering assumption comment in _process_timeseries_data.
-                roi_z = timeseries_splitter.roi_z_int_manifest[
-                    plane_index
-                ]
-                roi_index, z_int = roi_z
-                z_value = timeseries_splitter._z_from_int(z_int)
+                roi_index, z_value = roi_z_per_plane[plane_index]
                 this_exp_metadata = self._process_single_fov(
                     fov_id,
                     roi_index,

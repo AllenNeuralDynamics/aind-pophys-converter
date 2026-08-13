@@ -16,6 +16,7 @@ import tempfile
 import unittest
 from itertools import product
 from pathlib import Path
+from unittest.mock import MagicMock
 
 from aind_pophys_converter.mesoscope_splitter import (
     TiffSplitterCLI,
@@ -65,6 +66,47 @@ class TestMesoscopeSplitter(unittest.TestCase):
         cli = object.__new__(TiffSplitterCLI)
         cli.metadata = _make_metadata()
         self.assertEqual(cli._get_imaging_planes(), cli.metadata.fov_ids)
+
+    @staticmethod
+    def _splitter_with_manifest(manifest: list) -> MagicMock:
+        """Build a splitter stub exposing a manifest and its z lookup."""
+        splitter = MagicMock()
+        splitter.roi_z_int_manifest = manifest
+        splitter.input_path = Path("timeseries.tiff")
+        splitter._z_from_int.side_effect = lambda ii: float(ii) * -100.0
+        return splitter
+
+    def test_roi_z_per_plane_pairs_by_position(self) -> None:
+        """Each plane index maps to the manifest entry at that position."""
+        from dataclasses import replace
+
+        cli = object.__new__(TiffSplitterCLI)
+        cli.metadata = replace(
+            _make_metadata(), fov_ids=("VISp_0", "MOp_1", "MOp_2")
+        )
+        cli.input_dir = Path("input")
+        splitter = self._splitter_with_manifest([(0, 1), (0, 2), (1, 3)])
+
+        self.assertEqual(
+            cli._roi_z_per_plane(splitter),
+            [(0, -100.0), (0, -200.0), (1, -300.0)],
+        )
+
+    def test_roi_z_per_plane_count_mismatch_raises(self) -> None:
+        """A manifest longer than the plane list is not paired silently."""
+        from dataclasses import replace
+
+        cli = object.__new__(TiffSplitterCLI)
+        cli.metadata = replace(_make_metadata(), fov_ids=("VISp_0", "MOp_1"))
+        cli.input_dir = Path("input")
+        splitter = self._splitter_with_manifest([(0, 1), (0, 2), (1, 3)])
+
+        with self.assertRaises(ValueError) as cm:
+            cli._roi_z_per_plane(splitter)
+        message = str(cm.exception)
+        self.assertIn("Plane count mismatch", message)
+        self.assertIn("declares 2 plane(s)", message)
+        self.assertIn("contains 3", message)
 
     def test_find_split_directories_with_matching_dirs(self) -> None:
         """Test find_split_directories finds V* directories with numbers."""
