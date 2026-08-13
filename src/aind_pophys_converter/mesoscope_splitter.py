@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 from typing import Dict, List, Tuple, Union
 
-from aind_pophys_metadata.paths import find_one
+from aind_pophys_metadata import find_one
 
 from aind_pophys_converter.settings import JobSettings
 from aind_pophys_converter.tiff_splitters import (

@@ -15,6 +15,7 @@ from pathlib import Path
 
 from aind_pophys_converter.utils.metadata_utils import (
     LIBRARY_NAME,
+    REPOSITORY_URL,
     ConverterMetadata,
     build_converter_code,
     load_converter_metadata,
@@ -86,23 +87,26 @@ class TestLoaderContracts(unittest.TestCase):
         """Remove scratch directory."""
         self.tmp.cleanup()
 
-    def test_missing_rig_id_raises(self) -> None:
-        """A v1 input missing rig_id raises KeyError naming the field."""
+    def test_missing_instrument_id_raises_for_a_v1_input(self) -> None:
+        """A v1 input naming no instrument raises, naming the field."""
         _write_input(
             self.root,
             "session.json",
             {"data_streams": [{"ophys_fovs": [{"index": 0}]}]},
         )
-        with self.assertRaises(KeyError) as cm:
+        with self.assertRaises(ValueError) as cm:
             load_converter_metadata(self.root)
+        # v1 spells the instrument id "rig_id".
         self.assertIn("rig_id", str(cm.exception))
+        self.assertIn("session.json", str(cm.exception))
 
-    def test_missing_instrument_id_raises(self) -> None:
-        """A v2 input missing instrument_id raises KeyError."""
+    def test_missing_instrument_id_raises_for_a_v2_input(self) -> None:
+        """A v2 input naming no instrument raises, naming the field."""
         _write_input(self.root, "acquisition.json", {"data_streams": []})
-        with self.assertRaises(KeyError) as cm:
+        with self.assertRaises(ValueError) as cm:
             load_converter_metadata(self.root)
         self.assertIn("instrument_id", str(cm.exception))
+        self.assertIn("acquisition.json", str(cm.exception))
 
     def test_subject_id_optional(self) -> None:
         """subject_id is optional -> None when the core file omits it."""
@@ -144,10 +148,7 @@ class TestBuildConverterCode(unittest.TestCase):
     def test_url_is_the_repository_landing_page(self) -> None:
         """code.url is the repo root, with no /tree/<ref>/code suffix."""
         code = build_converter_code(self._params())
-        self.assertEqual(
-            code.url,
-            f"https://github.com/AllenNeuralDynamics/{LIBRARY_NAME}",
-        )
+        self.assertEqual(code.url, REPOSITORY_URL)
         self.assertNotIn("/tree/", code.url)
 
     def test_version_comes_from_the_installed_distribution(self) -> None:
@@ -173,14 +174,6 @@ class TestBuildConverterCode(unittest.TestCase):
             [asset.name for asset in code.input_data],
             ["asset/pophys/x_timeseries.tiff"],
         )
-
-    def test_ephemeral_input_path_is_rejected(self) -> None:
-        """A Nextflow work path in input_data fails loudly."""
-        with self.assertRaises(ValueError):
-            build_converter_code(
-                self._params(),
-                input_data=["/tmp/nxf.abc/capsule/data/x.tiff"],
-            )
 
 
 class TestConverterMetadataEquality(unittest.TestCase):

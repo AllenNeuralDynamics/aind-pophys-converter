@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from aind_data_schema_models.process_names import ProcessName
-from aind_pophys_metadata.paths import find_one, relative_to_root
+from aind_pophys_metadata import find_one, relative_to_root
 from aind_pophys_metadata.processing import collect_upstream_process_names
 from aind_pophys_metadata.runner import stage_guard
 from log_schema.main import setup_logging
@@ -67,8 +67,7 @@ def raw_input_data(
 
     Paths are returned relative to the mounted data root, so they name the
     file inside its data asset rather than inside the task container: an
-    absolute container path is meaningless once the task is gone, and the
-    shared ``build_code`` rejects an ephemeral Nextflow work path outright.
+    absolute container path is meaningless once the task is gone.
 
     Never raises. Discovery here is provenance only; the conversion itself
     re-resolves the files it needs and fails loudly there, inside the stage

@@ -23,8 +23,8 @@ from aind_data_schema.core.quality_control import (
     Stage,
     Status,
 )
+from aind_pophys_metadata import find_one
 from aind_pophys_metadata import quality_control as shared_qc
-from aind_pophys_metadata.paths import find_one
 from PIL import Image
 
 from aind_pophys_converter.utils.image_utils import add_border_and_label

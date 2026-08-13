@@ -13,7 +13,7 @@ from typing import List, Tuple
 
 import h5py as h5
 import numpy as np
-from aind_pophys_metadata.paths import find_one
+from aind_pophys_metadata import find_one
 from log_schema.main import setup_logging
 from pydantic import BaseModel, Field
 from ScanImageTiffReader import ScanImageTiffReader

@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 from aind_data_schema.components.identifiers import Code
-from aind_pophys_metadata import fields, io
+from aind_pophys_metadata import CoreMetadata
 from aind_pophys_metadata import processing as shared_processing
 
 # ---------------------------------------------------------------------------
@@ -45,10 +45,10 @@ class ConverterMetadata:
         Canonical FOV id per imaging plane, ordered by plane index (e.g.
         ``("plane_0",)`` single-plane, or ``("MOp_0", "VISp_1")``
         multi-plane). Produced by the shared naming rule
-        (``aind_pophys_metadata.fields.get_fov_ids``) so the ids are
-        identical across capsules. Paired with the TIFF's scan-order planes
-        by position (``fov_ids[i]`` is the i-th scanned plane). Empty only for
-        malformed input with no planes (consumers fail-fast on that).
+        (``aind_pophys_metadata.CoreMetadata.get_fov_ids``) so the
+        ids are identical across capsules. Paired with the TIFF's scan-order
+        planes by position (``fov_ids[i]`` is the i-th scanned plane). Empty
+        only for malformed input with no planes (consumers fail-fast on that).
     dataset_name : str or None
         Dataset name from ``data_description.json``; used as the logging
         label. ``None`` when no data_description.
@@ -89,25 +89,17 @@ def load_converter_metadata(input_dir: Path) -> ConverterMetadata:
     Raises
     ------
     FileNotFoundError
-        If neither ``acquisition.json`` nor ``session.json`` is found.
+        If no core metadata file is found.
     ValueError
-        If both core files are present (ambiguous input).
-    KeyError
-        If the required ``instrument_id`` (v1 ``rig_id``) is missing.
+        If both v1 and v2 core files are present (ambiguous input), or if the
+        required ``instrument_id`` is missing.
     """
-    common = io.load_common(input_dir)
+    core = CoreMetadata.load(input_dir)
     return ConverterMetadata(
-        instrument_id=fields.get_instrument_id(
-            common.version,
-            common.core_raw,
-            required=True,
-            file_path=common.core_path,
-        ),
-        fov_ids=fields.get_fov_ids(common.version, common.core_raw),
-        dataset_name=fields.get_dataset_name(
-            common.data_description_raw or {}
-        ),
-        subject_id=fields.get_subject_id(common.core_raw),
+        instrument_id=core.get_instrument_id(required=True),
+        fov_ids=core.get_fov_ids(),
+        dataset_name=core.get_dataset_name(),
+        subject_id=core.get_subject_id(),
     )
 
 
@@ -115,9 +107,13 @@ def load_converter_metadata(input_dir: Path) -> ConverterMetadata:
 # Code block
 # ---------------------------------------------------------------------------
 
-#: Distribution name. The shared builder derives both ``code.url`` and
-#: ``code.version`` from it; this repo is its own backing library.
+#: Distribution name. The shared builder derives ``code.version`` from it;
+#: this repo is its own backing library.
 LIBRARY_NAME = "aind-pophys-converter"
+
+#: ``code.url``. Only this repo knows where its own code lives, so the url is
+#: passed to the shared builder rather than derived from ``LIBRARY_NAME``.
+REPOSITORY_URL = "https://github.com/AllenNeuralDynamics/aind-pophys-converter"
 
 _CODE_NAME = "AIND Pophys Converter"
 
@@ -154,16 +150,11 @@ def build_converter_code(
     -------
     Code
         The populated code block.
-
-    Raises
-    ------
-    ValueError
-        If ``job_parameters`` or ``input_data`` carry an ephemeral Nextflow
-        task scratch path.
     """
     return shared_processing.build_code(
         name=_CODE_NAME,
         library_name=LIBRARY_NAME,
+        url=REPOSITORY_URL,
         parameters=job_parameters,
         input_data=input_data,
     )
