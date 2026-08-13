@@ -52,6 +52,34 @@ class TestLoadConverterMetadata(unittest.TestCase):
         self.assertEqual(meta.subject_id, "000000")
         self.assertEqual(meta.fov_ids, ("MOp_0", "VISp_1"))
 
+    def test_epoch_stems_ordered_by_start_time(self) -> None:
+        """epoch_stems follows acquisition start time, not document order."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _write_input(
+                Path(tmp),
+                "acquisition.json",
+                {
+                    "instrument_id": "Bergamo",
+                    "stimulus_epochs": [
+                        {
+                            "stimulus_start_time": "2025-05-17T11:00:00-07:00",
+                            "output_parameters": {"tiff_stem": "spont"},
+                        },
+                        {
+                            "stimulus_start_time": "2025-05-17T10:00:00-07:00",
+                            "output_parameters": {"tiff_stem": "spontpost"},
+                        },
+                    ],
+                },
+            )
+            meta = load_converter_metadata(root)
+        self.assertEqual(meta.epoch_stems, ("spontpost", "spont"))
+
+    def test_epoch_stems_empty_without_epochs(self) -> None:
+        """A v2 input with no stimulus epochs yields empty epoch_stems."""
+        meta = load_converter_metadata(FIXTURES / "v2")
+        self.assertEqual(meta.epoch_stems, ())
+
     def test_v1_and_v2_equivalent(self) -> None:
         """Semantically-equal v1/v2 fixtures map to equal metadata."""
         self.assertEqual(

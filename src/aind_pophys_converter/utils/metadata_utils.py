@@ -54,12 +54,18 @@ class ConverterMetadata:
         label. ``None`` when no data_description.
     subject_id : str or None
         Subject identifier; used only as the logging-label fallback.
+    epoch_stems : tuple of str
+        TIFF stems of the stimulus epochs, ordered by acquisition start
+        time. The Bergamo stitcher concatenates epochs in this order so the
+        HDF5 stack is chronological; empty when the input declares no
+        stimulus epochs.
     """
 
     instrument_id: str
     fov_ids: Tuple[str, ...]
     dataset_name: Optional[str] = None
     subject_id: Optional[str] = None
+    epoch_stems: Tuple[str, ...] = ()
 
 
 # ---------------------------------------------------------------------------
@@ -100,7 +106,31 @@ def load_converter_metadata(input_dir: Path) -> ConverterMetadata:
         fov_ids=core.get_fov_ids(),
         dataset_name=core.get_dataset_name(),
         subject_id=core.get_subject_id(),
+        epoch_stems=_epoch_stems_by_start_time(core),
     )
+
+
+def _epoch_stems_by_start_time(core: CoreMetadata) -> Tuple[str, ...]:
+    """Return stimulus-epoch TIFF stems ordered by acquisition start time.
+
+    Epochs without a resolved TIFF stem are dropped; epochs without a start
+    time sort last (their order among themselves is left as recorded).
+
+    Parameters
+    ----------
+    core : CoreMetadata
+        Loaded input metadata.
+
+    Returns
+    -------
+    tuple of str
+        TIFF stems in chronological order.
+    """
+    epochs = [e for e in core.get_epoch_records() if e["tiff_stem"]]
+    epochs.sort(
+        key=lambda e: (e["start_time"] is None, e["start_time"] or "")
+    )
+    return tuple(e["tiff_stem"] for e in epochs)
 
 
 # ---------------------------------------------------------------------------

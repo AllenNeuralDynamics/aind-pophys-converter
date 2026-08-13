@@ -139,50 +139,58 @@ class BergamoTiffStitcher(BaseStitcher):
         super().__init__(bergamo_settings, metadata=metadata)
 
     def _discover_tiff_epochs(self) -> dict:
-        """Discover tiff epochs by grouping *.tif files in input_dir by stem.
+        """Resolve stimulus epochs to their tiff files, in acquisition order.
 
-        Groups files by their filename stem (everything before the trailing
-        ``_NNNNN`` numeric suffix). Files whose stem is ``stack`` are
-        excluded as z-stack calibration scans. Within each group files
-        are sorted by their numeric suffix.
+        Iterates the stimulus epochs recorded in the acquisition metadata,
+        ordered by start time (``metadata.epoch_stems``), and resolves each
+        to the ``*.tif`` files on disk whose filename stem (everything before
+        the trailing ``_NNNNN`` numeric suffix) matches, sorted by numeric
+        suffix. Files on disk whose stem no epoch names -- including the
+        ``stack`` z-stack calibration scans -- are ignored.
 
         Returns
         -------
         dict
-            ``{stem: {"tiff_files": [sorted absolute path strings]}}``
+            ``{stem: {"tiff_files": [sorted absolute path strings]}}``,
+            insertion-ordered by acquisition start time.
 
         Raises
         ------
         ValueError
-            If no eligible tiff files are found in input_dir.
+            If the acquisition metadata records no stimulus epochs, or if an
+            epoch's tiff files are missing from input_dir.
         """
+        if not self.metadata.epoch_stems:
+            raise ValueError(
+                "No stimulus epochs found in the acquisition metadata for "
+                f"{self.input_dir}; cannot stitch Bergamo epochs."
+            )
+
         _suffix = re.compile(r"^(.+)_(\d+)$")
         groups: dict = defaultdict(list)
 
         for tif in self.input_dir.glob("*.tif"):
             m = _suffix.match(tif.stem)
             stem = m.group(1) if m else tif.stem
-            if stem == "stack":
-                continue
             groups[stem].append(tif)
-
-        if not groups:
-            raise ValueError(
-                f"No tiff files found in {self.input_dir} "
-                "(excluding 'stack')"
-            )
 
         def _sort_key(p: Path) -> int:
             """Extract numeric suffix for sorting."""
             m = _suffix.match(p.stem)
             return int(m.group(2)) if m else 0
 
-        epochs = {
-            stem: {
-                "tiff_files": [str(p) for p in sorted(files, key=_sort_key)]
+        epochs = {}
+        for stem in self.metadata.epoch_stems:
+            if stem not in groups:
+                raise ValueError(
+                    f"Stimulus epoch '{stem}' from the acquisition metadata "
+                    f"has no tiff files in {self.input_dir}."
+                )
+            epochs[stem] = {
+                "tiff_files": [
+                    str(p) for p in sorted(groups[stem], key=_sort_key)
+                ]
             }
-            for stem, files in sorted(groups.items())
-        }
         if self.debug:
             logging.info(
                 "Debug mode: limiting to 1 file per epoch "

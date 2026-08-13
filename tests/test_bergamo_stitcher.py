@@ -35,6 +35,7 @@ def _make_settings(
 
 def _make_metadata(
     instrument_id: str = "Bergamo",
+    epoch_stems: tuple = (),
 ) -> ConverterMetadata:
     """Build a ConverterMetadata stub for stitcher tests (single plane)."""
     return ConverterMetadata(
@@ -42,6 +43,7 @@ def _make_metadata(
         fov_ids=("plane_0",),
         dataset_name="bergamo-test",
         subject_id="000000",
+        epoch_stems=epoch_stems,
     )
 
 
@@ -112,7 +114,10 @@ class TestBergamoTiffStitcher(unittest.TestCase):
         for fname in self.tiff_files:
             (self.input_dir / fname).touch()
 
-        stitcher = BergamoTiffStitcher(self.settings, metadata=self.metadata)
+        stitcher = BergamoTiffStitcher(
+            self.settings,
+            metadata=_make_metadata(epoch_stems=("test_tiff",)),
+        )
         output_path = stitcher.run_converter()
 
         self.assertTrue(os.path.exists(output_path[0]))
@@ -176,7 +181,10 @@ class TestBergamoTiffStitcher(unittest.TestCase):
         for fname in files:
             (self.input_dir / fname).touch()
 
-        stitcher = BergamoTiffStitcher(self.settings, metadata=self.metadata)
+        stitcher = BergamoTiffStitcher(
+            self.settings,
+            metadata=_make_metadata(epoch_stems=("spont", "spontpost")),
+        )
         result = stitcher._discover_tiff_epochs()
 
         self.assertIn("spont", result)
@@ -192,28 +200,92 @@ class TestBergamoTiffStitcher(unittest.TestCase):
             ["spont_00001.tif", "spont_00002.tif", "spont_00003.tif"],
         )
 
+    def test_discover_tiff_epochs_orders_by_metadata_start_time(self) -> None:
+        """Epochs concatenate in metadata (start-time) order, not alphabet.
+
+        ``spontpost`` is acquired before ``spont`` (metadata order), but
+        sorts after it alphabetically. The returned dict must follow the
+        metadata order; a filename sort would reverse the two.
+        """
+        for stem in ("spont", "spontpost"):
+            (self.input_dir / f"{stem}_00001.tif").touch()
+
+        stitcher = BergamoTiffStitcher(
+            self.settings,
+            metadata=_make_metadata(epoch_stems=("spontpost", "spont")),
+        )
+        result = stitcher._discover_tiff_epochs()
+
+        self.assertEqual(list(result.keys()), ["spontpost", "spont"])
+
+    def test_discover_tiff_epochs_ignores_stems_absent_from_metadata(
+        self,
+    ) -> None:
+        """Disk stems no epoch names are ignored, not stitched."""
+        for stem in ("spont", "extra"):
+            (self.input_dir / f"{stem}_00001.tif").touch()
+
+        stitcher = BergamoTiffStitcher(
+            self.settings,
+            metadata=_make_metadata(epoch_stems=("spont",)),
+        )
+        result = stitcher._discover_tiff_epochs()
+
+        self.assertEqual(list(result.keys()), ["spont"])
+
+    def test_discover_tiff_epochs_no_epoch_stems_raises(self) -> None:
+        """No stimulus epochs in the metadata fails fast."""
+        for stem in ("spont", "spontpost"):
+            (self.input_dir / f"{stem}_00001.tif").touch()
+
+        stitcher = BergamoTiffStitcher(self.settings, metadata=self.metadata)
+        with self.assertRaises(ValueError) as cm:
+            stitcher._discover_tiff_epochs()
+        self.assertIn("No stimulus epochs", str(cm.exception))
+
+    def test_discover_tiff_epochs_missing_epoch_files_raises(self) -> None:
+        """An epoch whose tiff files are absent on disk fails fast."""
+        (self.input_dir / "spont_00001.tif").touch()
+
+        stitcher = BergamoTiffStitcher(
+            self.settings,
+            metadata=_make_metadata(epoch_stems=("spont", "spontpost")),
+        )
+        with self.assertRaises(ValueError) as cm:
+            stitcher._discover_tiff_epochs()
+        self.assertIn("spontpost", str(cm.exception))
+
     def test_discover_tiff_epochs_excludes_stack(self) -> None:
-        """Test that files with the 'stack' stem are excluded."""
+        """Files no epoch names ('stack') are excluded from the result."""
         (self.input_dir / "spont_00001.tif").touch()
         (self.input_dir / "stack_00001.tif").touch()
         (self.input_dir / "stack_00002.tif").touch()
 
-        stitcher = BergamoTiffStitcher(self.settings, metadata=self.metadata)
+        stitcher = BergamoTiffStitcher(
+            self.settings,
+            metadata=_make_metadata(epoch_stems=("spont",)),
+        )
         result = stitcher._discover_tiff_epochs()
 
         self.assertIn("spont", result)
         self.assertNotIn("stack", result)
 
     def test_discover_tiff_epochs_no_tiffs_raises(self) -> None:
-        """Test that an empty directory raises ValueError."""
-        stitcher = BergamoTiffStitcher(self.settings, metadata=self.metadata)
+        """An epoch with an empty input directory raises ValueError."""
+        stitcher = BergamoTiffStitcher(
+            self.settings,
+            metadata=_make_metadata(epoch_stems=("spont",)),
+        )
         with self.assertRaises(ValueError):
             stitcher._discover_tiff_epochs()
 
     def test_discover_tiff_epochs_only_stack_raises(self) -> None:
-        """Test that only stack files (no eligible tiffs) raises ValueError."""
+        """An epoch present only as 'stack' files raises ValueError."""
         (self.input_dir / "stack_00001.tif").touch()
-        stitcher = BergamoTiffStitcher(self.settings, metadata=self.metadata)
+        stitcher = BergamoTiffStitcher(
+            self.settings,
+            metadata=_make_metadata(epoch_stems=("spont",)),
+        )
         with self.assertRaises(ValueError):
             stitcher._discover_tiff_epochs()
 
@@ -226,7 +298,10 @@ class TestBergamoTiffStitcher(unittest.TestCase):
         debug_settings = _make_settings(
             self.input_dir, self.output_dir, debug=True
         )
-        stitcher = BergamoTiffStitcher(debug_settings, metadata=self.metadata)
+        stitcher = BergamoTiffStitcher(
+            debug_settings,
+            metadata=_make_metadata(epoch_stems=("spont", "spontpost")),
+        )
         result = stitcher._discover_tiff_epochs()
 
         self.assertEqual(len(result["spont"]["tiff_files"]), 1)
