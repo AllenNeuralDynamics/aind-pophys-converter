@@ -491,13 +491,7 @@ class TiffSplitterCLI:
                 timeseries_splitter, experiment_metadata
             )
 
-            # dump_every controls the per-plane frame buffer size before
-            # flushing to temp HDF5 files. Historically read from v1
-            # session.json via session_data.get("dump_every", 1000);
-            # some multiplane-ophys data assets may have carried custom
-            # values there. The default of 1000 has negligible runtime
-            # impact (bottleneck is TIFF read, not buffer flush) so we
-            # hardcode it and rely on write_output_files()'s default.
+            # dump_every (buffer-flush cadence to temp files) uses default 1000
             timeseries_splitter.write_output_files(
                 output_path_map=output_path_lookup,
                 tmp_dir=self.temp_dir,
