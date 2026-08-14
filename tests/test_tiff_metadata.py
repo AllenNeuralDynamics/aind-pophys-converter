@@ -8,7 +8,7 @@ import pathlib
 import unittest
 from unittest.mock import Mock, patch
 
-from aind_pophys_converter.mesoscope_splitter import mkstemp_clean
+from aind_pophys_converter.tiff_splitters import mkstemp_clean
 from aind_pophys_converter.utils.tiff_metadata import ScanImageMetadata
 
 

@@ -12,7 +12,7 @@ import h5py
 import numpy as np
 import tifffile
 
-from aind_pophys_converter.mesoscope_splitter import (
+from aind_pophys_converter.tiff_splitters import (
     _dump_timeseries_caches,
     _gather_timeseries_caches,
     _split_timeseries_tiff,
