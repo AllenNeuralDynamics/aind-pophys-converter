@@ -18,12 +18,20 @@ from aind_pophys_converter.mesoscope_splitter import (
     TiffSplitterCLI,
     find_split_directories,
 )
-from aind_pophys_converter.qc import finalize_quality_control
+from aind_pophys_converter.qc import (
+    finalize_quality_control,
+    pair_depth_tifs_with_avg_depth_pngs,
+    write_avg_depth_slices,
+)
 from aind_pophys_converter.settings import JobSettings, build_log_fields
+from aind_pophys_converter.tiff_splitters import AvgImageTiffSplitter
 from aind_pophys_converter.utils.metadata_utils import (
     DATA_PROCESS_NAME,
     build_converter_code,
     load_converter_metadata,
+)
+from aind_pophys_converter.utils.platform_utils import (
+    is_child_session_via_platform_json,
 )
 
 # instrument_id routing signals: Bergamo matched as a substring, mesoscope
@@ -146,6 +154,9 @@ def run() -> None:
         elif metadata.instrument_id.startswith(_MESOSCOPE_INSTRUMENT_PREFIX):
             # recursive=False: rglob does not follow symlinks in Python
             # <=3.12 and pophys/ is a symlink in dev.
+            platform_fp = find_one(
+                pophys_dir, "*platform.json", recursive=False
+            )
             job_settings.input_dir = pophys_dir
             split_directories = find_split_directories(pophys_dir)
             if len(split_directories) == 0:
@@ -157,7 +168,40 @@ def run() -> None:
                     new_directory.mkdir(parents=True, exist_ok=True)
                     with open(new_directory / f"{split_dir}.txt", "w") as f:
                         f.write(f"{split_dir}.h5")
-            finalize_quality_control([], pophys_dir, output_dir)
+            qc_metrics = []
+            avg_depth_path = find_one(
+                pophys_dir,
+                "*_averaged_depth.tiff",
+                recursive=False,
+                required=False,
+            )
+            if avg_depth_path is not None:
+                logging.info(
+                    f"Processing averaged depth TIFF:"
+                    f" {avg_depth_path} -> {output_dir}"
+                )
+                if is_child_session_via_platform_json(platform_fp):
+                    splitter = AvgImageTiffSplitter(avg_depth_path)
+                    # Averaged-depth slices are scratch: they are matched to
+                    # parent snapshots and consumed. Write them to temp_dir
+                    # (the scratch mount) when available so they never land in
+                    # the published results, falling back to output_dir only
+                    # when no scratch dir was provided.
+                    avg_slice_dir = (
+                        Path(job_settings.temp_dir) / "averaged_depths"
+                        if job_settings.temp_dir
+                        else output_dir
+                    )
+                    write_avg_depth_slices(splitter, avg_slice_dir)
+                    qc_metrics.extend(
+                        pair_depth_tifs_with_avg_depth_pngs(
+                            pophys_dir,
+                            avg_slice_dir,
+                            platform_fp,
+                            Path("/results/matched_tiff_vals"),
+                        )
+                    )
+            finalize_quality_control(qc_metrics, pophys_dir, output_dir)
 
 
 def _mounted_input_assets(input_dir: Path) -> Optional[list]:

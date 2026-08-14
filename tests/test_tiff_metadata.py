@@ -6,13 +6,16 @@ of reading and processing TIFF metadata,"""
 import copy
 import pathlib
 import unittest
+from typing import List, Tuple
 from unittest.mock import Mock, patch
 
 from aind_pophys_converter.tiff_splitters import mkstemp_clean
 from aind_pophys_converter.utils.tiff_metadata import ScanImageMetadata
 
 
-def mock_2x3_metadata_zsAllActuators():
+def mock_2x3_metadata_zsAllActuators() -> (
+    Tuple[List[dict], List[List[int]], List[dict]]
+):
     """
     Return a list representing everything we need from
     the metadata for 2 ROIs each sampled at 3 depths
@@ -41,7 +44,7 @@ def mock_2x3_metadata_zsAllActuators():
     return (metadata, copy.deepcopy(z_breakdown), copy.deepcopy(rois))
 
 
-def mock_2x3_metadata_zs():
+def mock_2x3_metadata_zs() -> Tuple[List[dict], List[List[int]], List[dict]]:
     """
     Return a list representing everything we need from
     the metadata for 2 ROIs each sampled at 3 depths
@@ -64,7 +67,7 @@ def mock_2x3_metadata_zs():
     return (metadata, copy.deepcopy(z_breakdown), copy.deepcopy(rois))
 
 
-def mock_2x3_metadata_nozs():
+def mock_2x3_metadata_nozs() -> List[dict]:
     """
     Return a list representing everything we need from
     the metadata for 2 ROIs each sampled at 3 depths
@@ -87,7 +90,9 @@ def mock_2x3_metadata_nozs():
     return metadata
 
 
-def mock_3x1_metadata_zsAllActuators():
+def mock_3x1_metadata_zsAllActuators() -> (
+    Tuple[List[dict], List[List[int]], List[dict]]
+):
     """
     Return a list representing everything we need from
     the metadata for 3 ROIs each sampled at 1 depth
@@ -110,7 +115,9 @@ def mock_3x1_metadata_zsAllActuators():
     return (metadata, copy.deepcopy(z_breakdown), copy.deepcopy(rois))
 
 
-def mock_1x3_metadata_zsAllActuators():
+def mock_1x3_metadata_zsAllActuators() -> (
+    Tuple[List[dict], List[List[int]], List[dict]]
+):
     """
     Return a list representing everything we need from
     the metadata for 1 ROI each sampled at 3 depths
@@ -142,7 +149,7 @@ def mock_1x3_metadata_zsAllActuators():
 class TestTiffMetadata(unittest.TestCase):
     """Test cases for the ScanImageMetadata class."""
 
-    def test_no_file_error(self):
+    def test_no_file_error(self) -> None:
         """
         Test that, ScanImageMetadata raises an error if you
         give it a path that doesn't point to a file
@@ -152,7 +159,7 @@ class TestTiffMetadata(unittest.TestCase):
             ScanImageMetadata(tiff_path=dummy_path)
         self.assertIn("is not a file", str(cm.exception))
 
-    def test_all_zs(self):
+    def test_all_zs(self) -> None:
         """
         Test that ScanImageMetadata.all_zs() returns the expected result
         """
@@ -176,7 +183,7 @@ class TestTiffMetadata(unittest.TestCase):
                     metadata = ScanImageMetadata(tiff_path=tmp_path)
                     self.assertEqual(expected, metadata.all_zs())
 
-    def test_raw_metadata(self):
+    def test_raw_metadata(self) -> None:
         """
         Test that ScanImageMetadata.raw_metadata returns the expected result
         """
@@ -200,7 +207,7 @@ class TestTiffMetadata(unittest.TestCase):
                     metadata = ScanImageMetadata(tiff_path=tmp_path)
                     self.assertEqual(expected, metadata.raw_metadata)
 
-    def test_all_zs_error(self):
+    def test_all_zs_error(self) -> None:
         """
         Test that expected exception is thrown when metadata lacks both
         SI.hStackManager.zs and SI.hStackManager.zsAllActuators
@@ -217,7 +224,7 @@ class TestTiffMetadata(unittest.TestCase):
             metadata.all_zs()
         self.assertIn("Cannot load all_zs", str(cm.exception))
 
-    def test_zs_for_roi(self):
+    def test_zs_for_roi(self) -> None:
         """
         Test behavior of ScanImageMetadata.zs_for_roi
         """
@@ -248,7 +255,7 @@ class TestTiffMetadata(unittest.TestCase):
                     metadata.zs_for_roi(metadata.n_rois)
                 self.assertIn("You asked for ROI", str(cm.exception))
 
-    def test_defined_rois(self):
+    def test_defined_rois(self) -> None:
         """
         Test that ScanImageMetadata.defined_rois returns the expected results
         """
@@ -272,7 +279,7 @@ class TestTiffMetadata(unittest.TestCase):
                     metadata = ScanImageMetadata(tiff_path=tmp_path)
                     self.assertEqual(metadata.defined_rois, expected_rois)
 
-    def test_numVolumes_errors(self):
+    def test_numVolumes_errors(self) -> None:
         """
         Test that errors are raised when
         SI.hStackManager.actualNumVolumes is not an int
@@ -300,7 +307,7 @@ class TestTiffMetadata(unittest.TestCase):
                         _ = obj.numVolumes
                     self.assertIn("expected int", str(cm.exception))
 
-    def test_numSlices_errors(self):
+    def test_numSlices_errors(self) -> None:
         """
         Test that errors are raised when
         SI.hStackManager.actualNumSlices is not an int
@@ -328,7 +335,7 @@ class TestTiffMetadata(unittest.TestCase):
                         _ = obj.numSlices
                     self.assertIn("expected int", str(cm.exception))
 
-    def test_roi_size(self):
+    def test_roi_size(self) -> None:
         """
         Test that ScanImageMetadata.roi_size returns expected values
         """
@@ -359,7 +366,7 @@ class TestTiffMetadata(unittest.TestCase):
             tiff_metadata.roi_size(3)
         self.assertIn("there are only 3", str(cm.exception))
 
-    def test_roi_size_errors(self):
+    def test_roi_size_errors(self) -> None:
         """
         Test that ScanImageMetadata.roi_size returns errors when scanfields
         have inconsistent sizes
@@ -406,7 +413,7 @@ class TestTiffMetadata(unittest.TestCase):
                 tiff_metadata.roi_size(1)
             self.assertIn("either a list or a dict", str(cm.exception))
 
-    def test_roi_resolution(self):
+    def test_roi_resolution(self) -> None:
         """
         Test that ScanImageMetadata.roi_resolution returns expected values
         """
@@ -437,7 +444,7 @@ class TestTiffMetadata(unittest.TestCase):
             tiff_metadata.roi_size(3)
         self.assertIn("there are only 3", str(cm.exception))
 
-    def test_roi_resolution_errors(self):
+    def test_roi_resolution_errors(self) -> None:
         """
         Test that ScanImageMetadata.roi_size returns errors when scanfields
         have inconsistent sizes
@@ -484,7 +491,7 @@ class TestTiffMetadata(unittest.TestCase):
                 tiff_metadata.roi_resolution(1)
             self.assertIn("either a list or a dict", str(cm.exception))
 
-    def test_defined_rois_error_handling(self):
+    def test_defined_rois_error_handling(self) -> None:
         """Test defined_rois property handles invalid data types."""
         tmp_path = pathlib.Path(mkstemp_clean(suffix=".tif"))
 
@@ -505,7 +512,7 @@ class TestTiffMetadata(unittest.TestCase):
             self.assertIn("unable to parse", str(cm.exception))
             self.assertIn("of type <class 'str'>", str(cm.exception))
 
-    def test_numVolumes_error_handling(self):
+    def test_numVolumes_error_handling(self) -> None:
         """Test numVolumes property handles invalid data types."""
         tmp_path = pathlib.Path(mkstemp_clean(suffix=".tif"))
 
@@ -524,7 +531,7 @@ class TestTiffMetadata(unittest.TestCase):
             )
             self.assertIn("expected int", str(cm.exception))
 
-    def test_numSlices_error_handling(self):
+    def test_numSlices_error_handling(self) -> None:
         """Test numSlices property handles invalid data types."""
         tmp_path = pathlib.Path(mkstemp_clean(suffix=".tif"))
 

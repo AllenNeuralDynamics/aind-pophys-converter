@@ -1,6 +1,7 @@
 """Utility functions for creating full field TIFFs and ROI metadata"""
 
 import pathlib
+from typing import List, Tuple
 
 import numpy as np
 import tifffile
@@ -15,7 +16,7 @@ def _create_full_field_tiff(
     output_dir: pathlib.Path,
     nrows: int = 23,
     ncols: int = 37,
-):
+) -> Tuple[pathlib.Path, np.ndarray, List[dict]]:
     """
     Create a random full field tiff according to specified
     metadata fields
@@ -78,7 +79,7 @@ def _create_roi_metadata(
     sizey: float = 3.2,
     origin_x: float = 0.0,
     origin_y: float = 0.0,
-):
+) -> dict:
     """
     Create the dict of ROI metadata for a simulated ScanImage TIFF
 
