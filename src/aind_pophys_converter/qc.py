@@ -296,12 +296,14 @@ def pair_depth_tifs_with_avg_depth_pngs(
             )
         )
         if len(parent_tifs) == 0:
-            logging.warning(
-                f"No parent TIF found for "
+            raise ValueError(
+                f"No parent depth TIF in {pophys_dir} for child plane "
                 f"intended_depth={intended_depth}, "
-                f"targeted_structure_id={targeted_structure_id}; skipping."
+                f"targeted_structure_id={targeted_structure_id}. Every child "
+                "imaging plane must pair with a parent snapshot; a missing "
+                "one means this session does not re-image the parent's "
+                "planes at the same intended depths."
             )
-            continue
         if len(parent_tifs) > 1:
             logging.warning(
                 f"Multiple parent TIFs found for "

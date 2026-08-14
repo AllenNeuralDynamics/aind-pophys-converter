@@ -25,7 +25,7 @@ are converter-input snapshots, not a complete copy of the upgrader output.
 |---|---|---|
 | `bergamo` | `85e168ee-b960-4721-8c1d-7845b0a6dc19` | `single-plane-ophys_772414_2025-04-11_17-41-16` |
 | `meso_parent` | `af4527a8-0a52-4d15-bfa7-9f4334da4e49` | `multiplane-ophys_849375_2026-06-17_15-28-08` |
-| `meso_child` | `2472b93e-57c3-4e24-9dc2-7e3dd0457517` | `multiplane-ophys_849375_2026-08-11_17-03-46` |
+| `meso_child` | `ff2fa171-9905-40d8-b058-cbf177e8cbb0` | `multiplane-ophys_849375_2026-06-20_13-13-04` |
 
 The Bergamo v1 metadata was recovered from DocDB record
 `e8e0098a-b1cb-400b-8835-a04d9e5d9802`. Its raw TIFFs remain in the project-level

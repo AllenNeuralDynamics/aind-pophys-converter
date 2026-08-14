@@ -183,8 +183,44 @@ class TestQualityControlCoverage(unittest.TestCase):
             json.dumps({"imaging_plane_groups": [{"imaging_planes": planes}]})
         )
 
-    def test_pairing_skips_missing_and_warns_on_duplicates(self) -> None:
-        """Skip missing parents and use the first duplicate parent."""
+    def test_pairing_warns_on_duplicate_parents(self) -> None:
+        """Use the first parent when several match, and warn."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            pophys = root / "pophys"
+            avg = root / "avg"
+            output = root / "output"
+            for directory in (pophys, avg, output):
+                directory.mkdir()
+            platform = root / "platform.json"
+            self._write_platform(
+                platform,
+                [
+                    {
+                        "intended_depth": 200,
+                        "targeted_structure_id": "MOp",
+                        "scanimage_scanfield_z": -20.0,
+                    },
+                ],
+            )
+            tifffile.imwrite(avg / "10.0.tif", np.zeros((4, 4)))
+            for name in (
+                "first_200_MOp_depth.tif",
+                "second_200_MOp_depth.tif",
+            ):
+                tifffile.imwrite(pophys / name, np.ones((4, 4)))
+            with self.assertLogs(level="WARNING") as logged:
+                result = qc.pair_depth_tifs_with_avg_depth_pngs(
+                    pophys, avg, platform, output
+                )
+            self.assertEqual(len(result), 1)
+            self.assertTrue(list(output.glob("*.png")))
+            self.assertTrue(
+                any("Multiple parent" in m for m in logged.output)
+            )
+
+    def test_pairing_raises_on_missing_parent(self) -> None:
+        """A child plane with no parent snapshot fails loudly."""
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             pophys = root / "pophys"
@@ -201,25 +237,14 @@ class TestQualityControlCoverage(unittest.TestCase):
                         "targeted_structure_id": "VISp",
                         "scanimage_scanfield_z": -10.0,
                     },
-                    {
-                        "intended_depth": 200,
-                        "targeted_structure_id": "MOp",
-                        "scanimage_scanfield_z": -20.0,
-                    },
                 ],
             )
             tifffile.imwrite(avg / "10.0.tif", np.zeros((4, 4)))
-            tifffile.imwrite(pophys / "200_MOp_depth.tif", np.ones((4, 4)))
-            for name in (
-                "first_200_MOp_depth.tif",
-                "second_200_MOp_depth.tif",
-            ):
-                tifffile.imwrite(pophys / name, np.ones((4, 4)))
-            result = qc.pair_depth_tifs_with_avg_depth_pngs(
-                pophys, avg, platform, output
-            )
-            self.assertEqual(len(result), 1)
-            self.assertTrue(list(output.glob("*.png")))
+            with self.assertRaises(ValueError) as cm:
+                qc.pair_depth_tifs_with_avg_depth_pngs(
+                    pophys, avg, platform, output
+                )
+            self.assertIn("No parent depth TIF", str(cm.exception))
 
     def test_pairing_handles_constant_images_and_unlink_failure(self) -> None:
         """Use zero normalization and keep a child file when unlink fails."""

@@ -218,8 +218,8 @@ class TestAssetFixtures(unittest.TestCase):
         """Load child Meso metadata from Code Ocean data."""
         self._assert_meso_fixture(
             "meso_child",
-            "multiplane-ophys_849375_2026-08-11_17-03-46",
-            1786490263,
+            "multiplane-ophys_849375_2026-06-20_13-13-04",
+            1781984614,
             "multiplane-ophys_849375_2026-06-17_15-28-08",
         )
 

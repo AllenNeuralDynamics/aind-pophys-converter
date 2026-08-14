@@ -183,11 +183,21 @@ def run() -> None:
                 )
                 if is_child_session_via_platform_json(platform_fp):
                     splitter = AvgImageTiffSplitter(avg_depth_path)
-                    write_avg_depth_slices(splitter, output_dir)
+                    # Averaged-depth slices are scratch: they are matched to
+                    # parent snapshots and consumed. Write them to temp_dir
+                    # (the scratch mount) when available so they never land in
+                    # the published results, falling back to output_dir only
+                    # when no scratch dir was provided.
+                    avg_slice_dir = (
+                        Path(job_settings.temp_dir) / "averaged_depths"
+                        if job_settings.temp_dir
+                        else output_dir
+                    )
+                    write_avg_depth_slices(splitter, avg_slice_dir)
                     qc_metrics.extend(
                         pair_depth_tifs_with_avg_depth_pngs(
                             pophys_dir,
-                            output_dir,
+                            avg_slice_dir,
                             platform_fp,
                             Path("/results/matched_tiff_vals"),
                         )
