@@ -17,11 +17,10 @@ import h5py as h5
 import numpy as np
 import tifffile
 from aind_ophys_utils.array_utils import normalize_array
-from pydantic import BaseModel, Field
-
 from aind_pophys_converter.utils.full_field_utils import (
     write_out_stitched_full_field_image,
 )
+from aind_pophys_converter.settings import JobSettings
 from aind_pophys_converter.utils.tiff_metadata import ScanImageMetadata
 
 # Number of frames per plane written when debug=True
@@ -1675,19 +1674,6 @@ def build_roi_remap(
         remap[valid_idx] = best_roi
         used_rois.add(best_roi)
     return remap
-
-
-class JobSettings(BaseModel):
-    """Job settings values."""
-
-    input_dir: Union[Path, str] = Field(
-        description="directory where tiff files are found"
-    )
-    temp_dir: Optional[Path]
-    output_dir: Union[Path, str] = Field(description="where to save fovs")
-    debug: Optional[bool] = Field(
-        default=False, description="clip movie - run in debug"
-    )
 
 
 class TiffSplitterCLI:
