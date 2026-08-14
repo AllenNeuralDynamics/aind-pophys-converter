@@ -1,26 +1,32 @@
 """Mesoscope TIFF splitting CLI and orchestration."""
 
 import argparse
-import json
 import logging
 import re
 import sys
 import time
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Union
 
-from aind_pophys_converter.utils.full_field_utils import (
-    write_out_stitched_full_field_image,
-)
+from aind_pophys_metadata import find_one
+
 from aind_pophys_converter.settings import JobSettings
 from aind_pophys_converter.tiff_splitters import (
     AvgImageTiffSplitter,
+    TiffSplitterBase,
     TimeSeriesSplitter,
     ZStackSplitter,
     build_roi_remap,
     get_nearest_roi_center,
     get_valid_roi_centers,
     validate_roi_pairing,
+)
+from aind_pophys_converter.utils.full_field_utils import (
+    write_out_stitched_full_field_image,
+)
+from aind_pophys_converter.utils.metadata_utils import (
+    ConverterMetadata,
+    load_converter_metadata,
 )
 from aind_pophys_converter.utils.tiff_metadata import ScanImageMetadata
 
@@ -54,45 +60,61 @@ class TiffSplitterCLI:
     """A command line interface for splitting TIFF files"""
 
     @staticmethod
-    def str2bool(v):
+    def str2bool(v: str) -> bool:
         """Convert a string to a boolean value."""
         if v.lower() in ("yes", "true", "t", "y", "1"):
             return True
         else:
             return False
 
-    def __init__(self, job_settings: JobSettings):
-        """Initialize the TiffSplitterCLI with job settings."""
+    def __init__(
+        self,
+        job_settings: JobSettings,
+        metadata: ConverterMetadata,
+    ) -> None:
+        """Initialize the TiffSplitterCLI with job settings and metadata.
+
+        Parameters
+        ----------
+        job_settings : JobSettings
+            CLI-driven settings (input/output/temp dirs, debug flag).
+        metadata : ConverterMetadata
+            Schema-agnostic metadata loaded by ``load_converter_metadata``.
+        """
         self.input_dir = job_settings.input_dir
         if isinstance(self.input_dir, str):
             self.input_dir = Path(self.input_dir)
         self.output_dir = job_settings.output_dir
         if isinstance(self.output_dir, str):
             self.output_dir = Path(self.output_dir)
-        session_json = next(self.input_dir.parent.glob("*session.json"), None)
-        if not session_json:
-            raise ValueError("No session.json file found")
-        with open(session_json, "r") as f:
-            self.session_data = json.load(f)
-        self.timeseries_tif = next(
-            self.input_dir.glob("*timeseries.tiff"), None
+        self.metadata = metadata
+        # recursive=False throughout: the splitter's inputs sit directly in
+        # input_dir, and rglob does not follow the symlink it can be.
+        self.timeseries_tif = find_one(
+            self.input_dir, "*timeseries.tiff", recursive=False
         )
-        if not self.timeseries_tif:
-            raise ValueError("No timeseries.tiff file found")
-        self.depths_tif = next(
-            self.input_dir.glob("*averaged_depth.tiff"), None
+        self.depths_tif = find_one(
+            self.input_dir, "*averaged_depth.tiff", recursive=False
         )
-        if not self.depths_tif:
-            raise ValueError("No averaged_depth.tiff file found")
-        self.surface_tif = next(
-            self.input_dir.glob("*averaged_surface.tiff"), None
+        self.surface_tif = find_one(
+            self.input_dir, "*averaged_surface.tiff", recursive=False
         )
-        if not self.surface_tif:
-            raise ValueError("No averaged_surface.tiff file found")
         self.temp_dir = job_settings.temp_dir
+        if self.temp_dir is not None:
+            # Ensure temp directory exists before mkdtemp is called downstream
+            Path(self.temp_dir).mkdir(parents=True, exist_ok=True)
         self.debug = job_settings.debug
 
-    def _initialize_splitters(self) -> Tuple:
+    def _initialize_splitters(
+        self,
+    ) -> Tuple[
+        "TimeSeriesSplitter",
+        "AvgImageTiffSplitter",
+        "AvgImageTiffSplitter",
+        "ZStackSplitter",
+        List[Path],
+        List[Path],
+    ]:
         """Initialize all the splitters needed for processing."""
         files_to_record = []
 
@@ -127,23 +149,31 @@ class TiffSplitterCLI:
 
     def _check_deprecated_files(self) -> None:
         """Check for deprecated file types and warn accordingly."""
-        if next(self.input_dir.glob("*cortical_z_stack*.tiff"), None):
+        if find_one(
+            self.input_dir,
+            "*cortical_z_stack*.tiff",
+            recursive=False,
+            required=False,
+        ):
             msg = "'column_z_stack_tif' detected in 'plane_groups'; "
             msg += "the TIFF splitting code no longer handles that file."
             logging.warning(msg)
 
-    def _create_experiment_metadata(self, fov: dict) -> (dict, str):
-        """Create experiment metadata structure for a given FOV."""
-        if isinstance(fov["targeted_structure"], dict):
-            targeted_structure = fov["targeted_structure"]["acronym"]
-        elif isinstance(fov["targeted_structure"], str):
-            targeted_structure = fov["targeted_structure"]
-        else:
-            raise ValueError(
-                "expected fov['targeted_structure'] to be "
-                "a dict or a str"
-            )
-        fov_id = targeted_structure + "_" + str(fov["index"])
+    def _create_experiment_metadata(self, fov_id: str) -> dict:
+        """Create the experiment metadata structure for one imaging plane.
+
+        Parameters
+        ----------
+        fov_id : str
+            Canonical FOV id for the plane (from
+            ``self.metadata.fov_ids``).
+
+        Returns
+        -------
+        dict
+            Experiment metadata keyed by ``"fov"`` plus empty per-file-type
+            sub-dicts to be populated by the splitters.
+        """
         this_exp_metadata = {"fov": fov_id}
 
         for file_key in (
@@ -152,53 +182,116 @@ class TiffSplitterCLI:
             "surface_2p",
             "local_z_stack",
         ):
-            this_metadata = {}
-            for data_key in (
-                "fov_coordinate_ml",
-                "fov_coordinate_ap",
-                "fov_reference",
-                "fov_scale_factor",
-            ):
-                this_metadata[data_key] = fov[data_key]
-            this_exp_metadata[file_key] = this_metadata
+            this_exp_metadata[file_key] = {}
 
-        return this_exp_metadata, fov_id
+        return this_exp_metadata
+
+    def _get_imaging_planes(self) -> Tuple[str, ...]:
+        """Return the FOV ids for this acquisition (one per plane).
+
+        Returns
+        -------
+        tuple of str
+            ``self.metadata.fov_ids``, ordered by the metadata's declared
+            plane index. Enumerate to recover each plane's index.
+
+        Raises
+        ------
+        ValueError
+            If no imaging planes were parsed from the input metadata.
+            Splitting with zero planes would silently produce no output,
+            so fail loudly instead (fail-fast).
+        """
+        if not self.metadata.fov_ids:
+            raise ValueError(
+                f"No imaging planes found in {self.input_dir}; cannot "
+                "split TIFFs. Check that the acquisition/session metadata "
+                "defines imaging FOVs/planes."
+            )
+        return self.metadata.fov_ids
+
+    def _roi_z_per_plane(
+        self, timeseries_splitter: "TimeSeriesSplitter"
+    ) -> List[Tuple[int, float]]:
+        """Return the ``(roi_index, z_value)`` locating each imaging plane.
+
+        Paired by position: ``fov_ids`` are sorted by the metadata's declared
+        plane index, the TIFF manifest is ROI-major (each ROI's zs in
+        actuator order). Assumes the two numberings agree. There is no key to
+        join on -- metadata records depth in micrometres, the TIFF raw
+        actuator coordinates.
+
+        Parameters
+        ----------
+        timeseries_splitter : TimeSeriesSplitter
+            Splitter for the timeseries TIFF, the canonical ROI/z manifest.
+
+        Returns
+        -------
+        list of (int, float)
+            One pair per plane, indexable by plane index. ``z_value`` is the
+            float actuator coordinate, not the manifest's int form.
+
+        Raises
+        ------
+        ValueError
+            If the manifest and the metadata disagree on plane count. Pairing
+            by position would then select the wrong plane for every FOV and
+            write correct-looking filenames over wrong data, so fail loudly.
+        """
+        fov_ids = self._get_imaging_planes()
+        manifest = timeseries_splitter.roi_z_int_manifest
+        if len(manifest) != len(fov_ids):
+            raise ValueError(
+                f"Plane count mismatch: metadata in {self.input_dir} "
+                f"declares {len(fov_ids)} plane(s) {list(fov_ids)}, but "
+                f"{timeseries_splitter.input_path} contains "
+                f"{len(manifest)}. Cannot pair planes to TIFF pages."
+            )
+        return [
+            (roi_index, timeseries_splitter._z_from_int(z_int))
+            for roi_index, z_int in manifest
+        ]
 
     def _process_single_fov(
         self,
-        fov: dict,
-        timeseries_splitter,
-        depth_splitter,
-        surface_splitter,
-        zstack_splitter,
-        valid_roi_centers: List,
-        depth_remap: dict,
-        surface_remap: dict,
-        zstack_remap: dict,
+        fov_id: str,
+        roi_index: int,
+        z_value: float,
+        timeseries_splitter: "TimeSeriesSplitter",
+        depth_splitter: "AvgImageTiffSplitter",
+        surface_splitter: "AvgImageTiffSplitter",
+        zstack_splitter: "ZStackSplitter",
+        valid_roi_centers: List[Tuple[float, float]],
+        depth_remap: Dict[int, int],
+        surface_remap: Dict[int, int],
+        zstack_remap: Dict[int, int],
         t0: float,
     ) -> dict:
-        """Process a single FOV and return its metadata."""
-        this_exp_metadata, fov_id = self._create_experiment_metadata(fov)
-        roi_index = fov["scanimage_roi_index"]
-        scanfield_z = fov["scanfield_z"]
+        """Process a single imaging plane and return its metadata.
 
-        # Determine which valid center this FOV corresponds to
-        # using the timeseries splitter (the anchor from which
-        # valid_roi_centers was derived)
+        Uses the timeseries splitter as the canonical source of ROI
+        indexing; per-splitter remap dicts translate from the
+        timeseries-anchored valid-center index to each splitter's own
+        roi_index so depth/surface/zstack TIFFs that index ROIs in a
+        different order are still addressed correctly.
+        """
+        this_exp_metadata = self._create_experiment_metadata(fov_id)
+        scanfield_z = z_value
+
         ts_center = timeseries_splitter.roi_center(i_roi=roi_index)
         baseline_center = get_nearest_roi_center(
             this_roi_center=ts_center,
             valid_roi_centers=valid_roi_centers,
         )
 
-        # Map from valid center index to correct roi_index per splitter
         splitter_roi_remaps = {
             id(depth_splitter): depth_remap,
             id(surface_splitter): surface_remap,
             id(zstack_splitter): zstack_remap,
         }
 
-        for splitter, z_value, output_name, metadata_tag in zip(
+        for splitter, output_z, output_name, metadata_tag in zip(
             (depth_splitter, surface_splitter, zstack_splitter),
             (scanfield_z, None, scanfield_z),
             (
@@ -224,7 +317,7 @@ class TiffSplitterCLI:
 
             splitter.write_output_file(
                 i_roi=splitter_roi_index,
-                z_value=z_value,
+                z_value=output_z,
                 output_path=output_path,
             )
 
@@ -234,7 +327,7 @@ class TiffSplitterCLI:
                 output_path,
                 splitter,
                 splitter_roi_index,
-                z_value,
+                output_z,
             )
 
             elapsed_time = time.time() - t0
@@ -250,7 +343,7 @@ class TiffSplitterCLI:
         metadata: dict,
         metadata_tag: str,
         output_path: Path,
-        splitter,
+        splitter: Union[TiffSplitterBase, ZStackSplitter],
         roi_index: int,
         z_value: float,
     ) -> None:
@@ -263,38 +356,42 @@ class TiffSplitterCLI:
         metadata[metadata_tag]["width"] = frame_shape[1]
 
     def _process_timeseries_data(
-        self, timeseries_splitter, experiment_metadata: List[dict]
-    ) -> Dict:
+        self,
+        timeseries_splitter: "TimeSeriesSplitter",
+        experiment_metadata: List[dict],
+    ) -> Dict[Tuple[int, float], Path]:
         """Process timeseries data and return output path lookup."""
         output_path_lookup = {}
+        roi_z_per_plane = self._roi_z_per_plane(timeseries_splitter)
 
-        for data_stream in self.session_data["data_streams"]:
-            if data_stream.get("ophys_fovs"):
-                for fov in data_stream["ophys_fovs"]:
-                    _, fov_id = self._create_experiment_metadata(fov)
-                    scanfield_z = fov["scanfield_z"]
-                    roi_index = fov["scanimage_roi_index"]
-                    fname = f"{fov_id}.h5"
-                    output_path = self.output_dir / fov_id / fname
-                    output_path_lookup[(roi_index, scanfield_z)] = output_path
+        for plane_index, fov_id in enumerate(self._get_imaging_planes()):
+            roi_index, z_value = roi_z_per_plane[plane_index]
+            fname = f"{fov_id}.h5"
+            output_path = self.output_dir / fov_id / fname
+            output_path_lookup[(roi_index, z_value)] = output_path
 
-                    frame_shape = timeseries_splitter.frame_shape(
-                        i_roi=roi_index, z_value=scanfield_z
-                    )
+            frame_shape = timeseries_splitter.frame_shape(
+                i_roi=roi_index, z_value=z_value
+            )
 
-                    str_path = str(output_path.resolve().absolute())
+            str_path = str(output_path.resolve().absolute())
 
-                    for metadata in experiment_metadata:
-                        if metadata["fov"] == fov_id:
-                            metadata["timeseries"]["height"] = frame_shape[0]
-                            metadata["timeseries"]["width"] = frame_shape[1]
-                            metadata["timeseries"]["filename"] = str_path
+            for metadata in experiment_metadata:
+                if metadata["fov"] == fov_id:
+                    metadata["timeseries"]["height"] = frame_shape[0]
+                    metadata["timeseries"]["width"] = frame_shape[1]
+                    metadata["timeseries"]["filename"] = str_path
 
         return output_path_lookup
 
     def _process_full_field_image(self) -> None:
         """Process full field image if it exists."""
-        full_field_path = next(self.input_dir.glob("*fullfield*.tiff"), None)
+        full_field_path = find_one(
+            self.input_dir,
+            "*fullfield*.tiff",
+            recursive=False,
+            required=False,
+        )
 
         if full_field_path is not None:
             avg_path = self.surface_tif
@@ -327,104 +424,117 @@ class TiffSplitterCLI:
             file_metadata.append(this_metadata)
         return file_metadata
 
-    def run_job(self):
+    def run_job(self) -> None:
         """Run the job to split TIFF files."""
         t0 = time.time()
         output = {"column_stacks": []}
+        try:
+            # Initialize splitters and get file paths
+            (
+                timeseries_splitter,
+                depth_splitter,
+                surface_splitter,
+                zstack_splitter,
+                zstack_path_list,
+                files_to_record,
+            ) = self._initialize_splitters()
 
-        # Initialize splitters and get file paths
-        (
-            timeseries_splitter,
-            depth_splitter,
-            surface_splitter,
-            zstack_splitter,
-            zstack_path_list,
-            files_to_record,
-        ) = self._initialize_splitters()
+            # Check for deprecated file types
+            self._check_deprecated_files()
 
-        # Check for deprecated file types
-        self._check_deprecated_files()
+            # Get valid ROI centers from the timeseries (canonical anchor)
+            valid_roi_centers = get_valid_roi_centers(
+                timeseries_splitter=timeseries_splitter
+            )
 
-        # Get valid ROI centers for validation
-        valid_roi_centers = get_valid_roi_centers(
-            timeseries_splitter=timeseries_splitter
-        )
+            # Validate depth and surface have the same FOVs (1:1 centers)
+            validate_roi_pairing(depth_splitter, surface_splitter)
 
-        # Validate depth and surface have the same FOVs
-        validate_roi_pairing(depth_splitter, surface_splitter)
+            # Build per-splitter roi_index remaps so each TIFF is addressed
+            # by its own indexing (depth, surface, and zstack TIFFs can
+            # index ROIs in a different order than the timeseries).
+            depth_remap = build_roi_remap(depth_splitter, valid_roi_centers)
+            surface_remap = build_roi_remap(
+                surface_splitter, valid_roi_centers
+            )
+            zstack_remap = build_roi_remap(
+                zstack_splitter,
+                valid_roi_centers,
+                roi_indices=list(zstack_splitter._roi_to_path.keys()),
+            )
 
-        # Build roi index remaps for splitters whose roi ordering
-        # may differ from the timeseries-derived valid centers
-        depth_remap = build_roi_remap(depth_splitter, valid_roi_centers)
-        surface_remap = build_roi_remap(surface_splitter, valid_roi_centers)
-        zstack_remap = build_roi_remap(
-            zstack_splitter,
-            valid_roi_centers,
-            roi_indices=list(zstack_splitter._roi_to_path.keys()),
-        )
+            # Process experiment metadata for each imaging plane
+            experiment_metadata = []
+            roi_z_per_plane = self._roi_z_per_plane(timeseries_splitter)
+            for plane_index, fov_id in enumerate(self._get_imaging_planes()):
+                roi_index, z_value = roi_z_per_plane[plane_index]
+                this_exp_metadata = self._process_single_fov(
+                    fov_id,
+                    roi_index,
+                    z_value,
+                    timeseries_splitter,
+                    depth_splitter,
+                    surface_splitter,
+                    zstack_splitter,
+                    valid_roi_centers,
+                    depth_remap,
+                    surface_remap,
+                    zstack_remap,
+                    t0,
+                )
+                experiment_metadata.append(this_exp_metadata)
 
-        # Process experiment metadata for each FOV
-        experiment_metadata = []
-        for data_stream in self.session_data["data_streams"]:
-            if data_stream.get("ophys_fovs"):
-                for fov in data_stream["ophys_fovs"]:
-                    this_exp_metadata = self._process_single_fov(
-                        fov,
-                        timeseries_splitter,
-                        depth_splitter,
-                        surface_splitter,
-                        zstack_splitter,
-                        valid_roi_centers,
-                        depth_remap,
-                        surface_remap,
-                        zstack_remap,
-                        t0,
-                    )
-                    experiment_metadata.append(this_exp_metadata)
+            # Process timeseries data separately for efficiency
+            output_path_lookup = self._process_timeseries_data(
+                timeseries_splitter, experiment_metadata
+            )
 
-        # Process timeseries data separately for efficiency
-        output_path_lookup = self._process_timeseries_data(
-            timeseries_splitter, experiment_metadata
-        )
+            # dump_every (buffer-flush cadence to temp files) uses default 1000
+            timeseries_splitter.write_output_files(
+                output_path_map=output_path_lookup,
+                tmp_dir=self.temp_dir,
+                debug=self.debug,
+            )
 
-        timeseries_splitter.write_output_files(
-            output_path_map=output_path_lookup,
-            tmp_dir=self.temp_dir,
-            dump_every=self.session_data.get("dump_every", 1000),
-            logger=logging,
-            debug=self.debug,
-        )
+            # Set up output structure
+            output["experiment_output"] = experiment_metadata
 
-        # Set up output structure
-        output["experiment_output"] = experiment_metadata
+            ready_to_archive = {
+                str(self.surface_tif),
+                str(self.depths_tif),
+                str(self.timeseries_tif),
+            }
+            ready_to_archive.update(
+                str(zstack_path.resolve().absolute())
+                for zstack_path in zstack_path_list
+            )
+            output["ready_to_archive"] = list(ready_to_archive)
 
-        ready_to_archive = {
-            str(self.surface_tif),
-            str(self.depths_tif),
-            str(self.timeseries_tif),
-        }
-        ready_to_archive.update(
-            str(zstack_path.resolve().absolute())
-            for zstack_path in zstack_path_list
-        )
-        output["ready_to_archive"] = list(ready_to_archive)
+            # Process full field image if available
+            self._process_full_field_image()
 
-        # Process full field image if available
-        self._process_full_field_image()
+            # Create file metadata
+            output["file_metadata"] = self._create_file_metadata(
+                files_to_record
+            )
 
-        # Create file metadata
-        output["file_metadata"] = self._create_file_metadata(files_to_record)
-
-        duration = time.time() - t0
-        logging.info(f"that took {duration:.2e} seconds")
+            duration = time.time() - t0
+            logging.info(
+                f"Mesoscope TIFF splitting complete in {duration:.2e} seconds"
+            )
+        except Exception:
+            logging.exception(
+                "Unhandled exception in mesoscope TIFF splitting"
+            )
+            raise
 
 
-def from_args(args: list):
+def from_args(args: List[str]) -> JobSettings:
     """
     Adds ability to construct settings from a list of arguments.
     Parameters
     ----------
-    args : list
+    args : List[str]
     A list of command line arguments to parse.
     """
 
@@ -434,11 +544,9 @@ def from_args(args: list):
         "--input-dir",
         required=True,
         type=str,
-        help=(
-            """
+        help=("""
             data-directory for job settings
-            """
-        ),
+            """),
     )
     parser.add_argument(
         "-t",
@@ -446,11 +554,9 @@ def from_args(args: list):
         required=False,
         default=None,
         type=str,
-        help=(
-            """
+        help=("""
             temp-directory for job settings
-            """
-        ),
+            """),
     )
     parser.add_argument(
         "-o",
@@ -458,11 +564,9 @@ def from_args(args: list):
         required=False,
         default=None,
         type=str,
-        help=(
-            """
+        help=("""
             output-directory for job settings
-            """
-        ),
+            """),
     )
     parser.add_argument(
         "-d",
@@ -485,13 +589,17 @@ def from_args(args: list):
 
 if __name__ == "__main__":
     sys_args = sys.argv[1:]
-    runner = from_args(sys_args)
-    split_directories = find_split_directories(Path(runner.input_dir))
+    job_settings = from_args(sys_args)
+    input_dir_path = Path(job_settings.input_dir)
+    split_directories = find_split_directories(input_dir_path)
     if len(split_directories) == 0:
-        runner = TiffSplitterCLI(runner)
+        # Metadata lives one level up from the pophys/ tiff directory
+        # when invoked standalone (matches the capsule layout).
+        metadata = load_converter_metadata(input_dir_path.parent)
+        runner = TiffSplitterCLI(job_settings, metadata=metadata)
         runner.run_job()
     else:
-        output_dir = Path(runner.output_dir)
+        output_dir = Path(job_settings.output_dir)
         for split_dir in split_directories:
             new_directory = output_dir / split_dir
             new_directory.mkdir(parents=True, exist_ok=True)

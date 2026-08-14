@@ -1,0 +1,764 @@
+{
+   "object_type": "Acquisition",
+   "describedBy": "https://raw.githubusercontent.com/AllenNeuralDynamics/aind-data-schema/main/src/aind_data_schema/core/acquisition.py",
+   "schema_version": "2.5.3",
+   "protocol_id": null,
+   "subject_id": "772414",
+   "specimen_id": null,
+   "acquisition_start_time": "2025-04-11T17:41:16.971000-07:00",
+   "acquisition_start_tz": -7,
+   "acquisition_end_time": "2025-04-11T18:42:03.293412-07:00",
+   "experimenters": [
+      "Marton Rozsa"
+   ],
+   "ethics_review_id": [
+      "2109"
+   ],
+   "instrument_id": "442_Bergamo_2p_photostim",
+   "acquisition_type": "BCI",
+   "notes": "photostiming a neuron when the CN is bursting - new code, fooling around",
+   "coordinate_system": null,
+   "global_coordinate_system": null,
+   "calibrations": [],
+   "maintenance": [],
+   "data_streams": [
+      {
+         "object_type": "Data stream",
+         "stream_start_time": "2025-04-11T17:41:16.971000-07:00",
+         "stream_end_time": "2025-04-11T17:42:30.895163-07:00",
+         "modalities": [
+            {
+               "name": "Planar optical physiology",
+               "abbreviation": "pophys"
+            }
+         ],
+         "code": null,
+         "notes": "tiff_stem:stack",
+         "active_devices": [
+            "PXI",
+            "442_Bergamo_2p_photostim",
+            "Green PMT",
+            "Red PMT"
+         ],
+         "configurations": [
+            {
+               "object_type": "Detector config",
+               "device_name": "Green PMT",
+               "exposure_time": -1.0,
+               "exposure_time_unit": "millisecond",
+               "trigger_type": "Internal",
+               "compression": null,
+               "crop_offset_x": null,
+               "crop_offset_y": null,
+               "crop_width": null,
+               "crop_height": null,
+               "crop_unit": "pixel"
+            },
+            {
+               "object_type": "Detector config",
+               "device_name": "Red PMT",
+               "exposure_time": -1.0,
+               "exposure_time_unit": "millisecond",
+               "trigger_type": "Internal",
+               "compression": null,
+               "crop_offset_x": null,
+               "crop_offset_y": null,
+               "crop_width": null,
+               "crop_height": null,
+               "crop_unit": "pixel"
+            },
+            {
+               "object_type": "Imaging config",
+               "device_name": "442_Bergamo_2p_photostim",
+               "channels": [
+                  {
+                     "object_type": "Channel",
+                     "channel_name": "Ch1",
+                     "intended_measurement": null,
+                     "detector": {
+                        "object_type": "Detector config",
+                        "device_name": "Green PMT",
+                        "exposure_time": -1.0,
+                        "exposure_time_unit": "millisecond",
+                        "trigger_type": "Internal",
+                        "compression": null,
+                        "crop_offset_x": null,
+                        "crop_offset_y": null,
+                        "crop_width": null,
+                        "crop_height": null,
+                        "crop_unit": "pixel"
+                     },
+                     "additional_device_names": null,
+                     "light_sources": [
+                        {
+                           "object_type": "Laser config",
+                           "device_name": "Chameleon Laser",
+                           "wavelength": 920,
+                           "wavelength_unit": "nanometer",
+                           "power": 10.0,
+                           "power_unit": "percent",
+                           "power_measured_at": null
+                        }
+                     ],
+                     "variable_power": false,
+                     "excitation_filters": null,
+                     "emission_filters": null,
+                     "emission_wavelength": null,
+                     "emission_wavelength_unit": null
+                  },
+                  {
+                     "object_type": "Channel",
+                     "channel_name": "Ch2",
+                     "intended_measurement": null,
+                     "detector": {
+                        "object_type": "Detector config",
+                        "device_name": "Red PMT",
+                        "exposure_time": -1.0,
+                        "exposure_time_unit": "millisecond",
+                        "trigger_type": "Internal",
+                        "compression": null,
+                        "crop_offset_x": null,
+                        "crop_offset_y": null,
+                        "crop_width": null,
+                        "crop_height": null,
+                        "crop_unit": "pixel"
+                     },
+                     "additional_device_names": null,
+                     "light_sources": [
+                        {
+                           "object_type": "Laser config",
+                           "device_name": "Chameleon Laser",
+                           "wavelength": 920,
+                           "wavelength_unit": "nanometer",
+                           "power": 10.0,
+                           "power_unit": "percent",
+                           "power_measured_at": null
+                        }
+                     ],
+                     "variable_power": false,
+                     "excitation_filters": null,
+                     "emission_filters": null,
+                     "emission_wavelength": null,
+                     "emission_wavelength_unit": null
+                  }
+               ],
+               "coordinate_system": null,
+               "local_coordinate_system": null,
+               "images": [
+                  {
+                     "object_type": "Planar image stack",
+                     "channel_name": "Ch1",
+                     "dimensions_unit": "pixel",
+                     "image_to_acquisition_transform": [
+                        {
+                           "object_type": "Translation",
+                           "translation": [
+                              0.0,
+                              0.0,
+                              0.0
+                           ],
+                           "reference_coordinate_system": "global"
+                        }
+                     ],
+                     "dimensions": null,
+                     "planes": [
+                        {
+                           "object_type": "Plane",
+                           "depth": 90.0,
+                           "depth_unit": "micrometer",
+                           "power": 10.0,
+                           "power_unit": "percent",
+                           "targeted_structure": {
+                              "atlas": "CCFv3",
+                              "name": "Somatomotor areas",
+                              "acronym": "MO",
+                              "id": "500"
+                           }
+                        }
+                     ],
+                     "power_function": "Constant",
+                     "depth_start": 90.0,
+                     "depth_end": 130.0,
+                     "depth_step": 2.0,
+                     "depth_unit": "micrometer"
+                  },
+                  {
+                     "object_type": "Planar image stack",
+                     "channel_name": "Ch2",
+                     "dimensions_unit": "pixel",
+                     "image_to_acquisition_transform": [
+                        {
+                           "object_type": "Translation",
+                           "translation": [
+                              0.0,
+                              0.0,
+                              0.0
+                           ],
+                           "reference_coordinate_system": "global"
+                        }
+                     ],
+                     "dimensions": null,
+                     "planes": [
+                        {
+                           "object_type": "Plane",
+                           "depth": 90.0,
+                           "depth_unit": "micrometer",
+                           "power": 10.0,
+                           "power_unit": "percent",
+                           "targeted_structure": {
+                              "atlas": "CCFv3",
+                              "name": "Somatomotor areas",
+                              "acronym": "MO",
+                              "id": "500"
+                           }
+                        }
+                     ],
+                     "power_function": "Constant",
+                     "depth_start": 90.0,
+                     "depth_end": 130.0,
+                     "depth_step": 2.0,
+                     "depth_unit": "micrometer"
+                  }
+               ],
+               "sampling_strategy": null
+            }
+         ],
+         "connections": []
+      },
+      {
+         "object_type": "Data stream",
+         "stream_start_time": "2025-04-11T17:49:59.719999-07:00",
+         "stream_end_time": "2025-04-11T18:00:18.835554-07:00",
+         "modalities": [
+            {
+               "name": "Planar optical physiology",
+               "abbreviation": "pophys"
+            }
+         ],
+         "code": null,
+         "notes": "tiff_stem:spont",
+         "active_devices": [
+            "PXI",
+            "442_Bergamo_2p_photostim",
+            "Green PMT"
+         ],
+         "configurations": [
+            {
+               "object_type": "Detector config",
+               "device_name": "Green PMT",
+               "exposure_time": -1.0,
+               "exposure_time_unit": "millisecond",
+               "trigger_type": "Internal",
+               "compression": null,
+               "crop_offset_x": null,
+               "crop_offset_y": null,
+               "crop_width": null,
+               "crop_height": null,
+               "crop_unit": "pixel"
+            },
+            {
+               "object_type": "Imaging config",
+               "device_name": "442_Bergamo_2p_photostim",
+               "channels": [
+                  {
+                     "object_type": "Channel",
+                     "channel_name": "Ophys Channel",
+                     "intended_measurement": null,
+                     "detector": {
+                        "object_type": "Detector config",
+                        "device_name": "Green PMT",
+                        "exposure_time": -1.0,
+                        "exposure_time_unit": "millisecond",
+                        "trigger_type": "Internal",
+                        "compression": null,
+                        "crop_offset_x": null,
+                        "crop_offset_y": null,
+                        "crop_width": null,
+                        "crop_height": null,
+                        "crop_unit": "pixel"
+                     },
+                     "additional_device_names": null,
+                     "light_sources": [
+                        {
+                           "object_type": "Laser config",
+                           "device_name": "Chameleon Laser",
+                           "wavelength": 920,
+                           "wavelength_unit": "nanometer",
+                           "power": 12.0,
+                           "power_unit": "percent",
+                           "power_measured_at": null
+                        }
+                     ],
+                     "variable_power": false,
+                     "excitation_filters": null,
+                     "emission_filters": null,
+                     "emission_wavelength": null,
+                     "emission_wavelength_unit": null
+                  }
+               ],
+               "coordinate_system": null,
+               "local_coordinate_system": null,
+               "images": [
+                  {
+                     "object_type": "Planar image",
+                     "channel_name": "Ophys Channel",
+                     "dimensions_unit": "pixel",
+                     "image_to_acquisition_transform": [],
+                     "dimensions": null,
+                     "planes": [
+                        {
+                           "object_type": "Plane",
+                           "depth": 110.0,
+                           "depth_unit": "micrometer",
+                           "power": 0.0,
+                           "power_unit": "percent",
+                           "targeted_structure": {
+                              "atlas": "CCFv3",
+                              "name": "Somatomotor areas",
+                              "acronym": "MO",
+                              "id": "500"
+                           }
+                        }
+                     ]
+                  }
+               ],
+               "sampling_strategy": {
+                  "object_type": "Sampling strategy",
+                  "frame_rate": 28.2994,
+                  "frame_rate_unit": "hertz"
+               }
+            }
+         ],
+         "connections": []
+      },
+      {
+         "object_type": "Data stream",
+         "stream_start_time": "2025-04-11T18:37:07.105999-07:00",
+         "stream_end_time": "2025-04-11T18:42:03.293412-07:00",
+         "modalities": [
+            {
+               "name": "Planar optical physiology",
+               "abbreviation": "pophys"
+            }
+         ],
+         "code": null,
+         "notes": "tiff_stem:spontpost",
+         "active_devices": [
+            "PXI",
+            "442_Bergamo_2p_photostim",
+            "Green PMT"
+         ],
+         "configurations": [
+            {
+               "object_type": "Detector config",
+               "device_name": "Green PMT",
+               "exposure_time": -1.0,
+               "exposure_time_unit": "millisecond",
+               "trigger_type": "Internal",
+               "compression": null,
+               "crop_offset_x": null,
+               "crop_offset_y": null,
+               "crop_width": null,
+               "crop_height": null,
+               "crop_unit": "pixel"
+            },
+            {
+               "object_type": "Imaging config",
+               "device_name": "442_Bergamo_2p_photostim",
+               "channels": [
+                  {
+                     "object_type": "Channel",
+                     "channel_name": "Ophys Channel",
+                     "intended_measurement": null,
+                     "detector": {
+                        "object_type": "Detector config",
+                        "device_name": "Green PMT",
+                        "exposure_time": -1.0,
+                        "exposure_time_unit": "millisecond",
+                        "trigger_type": "Internal",
+                        "compression": null,
+                        "crop_offset_x": null,
+                        "crop_offset_y": null,
+                        "crop_width": null,
+                        "crop_height": null,
+                        "crop_unit": "pixel"
+                     },
+                     "additional_device_names": null,
+                     "light_sources": [
+                        {
+                           "object_type": "Laser config",
+                           "device_name": "Chameleon Laser",
+                           "wavelength": 920,
+                           "wavelength_unit": "nanometer",
+                           "power": 12.0,
+                           "power_unit": "percent",
+                           "power_measured_at": null
+                        }
+                     ],
+                     "variable_power": false,
+                     "excitation_filters": null,
+                     "emission_filters": null,
+                     "emission_wavelength": null,
+                     "emission_wavelength_unit": null
+                  }
+               ],
+               "coordinate_system": null,
+               "local_coordinate_system": null,
+               "images": [
+                  {
+                     "object_type": "Planar image",
+                     "channel_name": "Ophys Channel",
+                     "dimensions_unit": "pixel",
+                     "image_to_acquisition_transform": [],
+                     "dimensions": null,
+                     "planes": [
+                        {
+                           "object_type": "Plane",
+                           "depth": 110.0,
+                           "depth_unit": "micrometer",
+                           "power": 0.0,
+                           "power_unit": "percent",
+                           "targeted_structure": {
+                              "atlas": "CCFv3",
+                              "name": "Somatomotor areas",
+                              "acronym": "MO",
+                              "id": "500"
+                           }
+                        }
+                     ]
+                  }
+               ],
+               "sampling_strategy": {
+                  "object_type": "Sampling strategy",
+                  "frame_rate": 28.2994,
+                  "frame_rate_unit": "hertz"
+               }
+            }
+         ],
+         "connections": []
+      },
+      {
+         "object_type": "Data stream",
+         "stream_start_time": "2025-04-11T18:17:12.762999-07:00",
+         "stream_end_time": "2025-04-11T18:35:34.284264-07:00",
+         "modalities": [
+            {
+               "name": "Planar optical physiology",
+               "abbreviation": "pophys"
+            },
+            {
+               "name": "Behavior",
+               "abbreviation": "behavior"
+            },
+            {
+               "name": "Behavior videos",
+               "abbreviation": "behavior-videos"
+            }
+         ],
+         "code": null,
+         "notes": "tiff_stem:neuron8_to_17_again_again",
+         "active_devices": [
+            "PXI",
+            "442_Bergamo_2p_photostim",
+            "Bottom Face Camera",
+            "Green PMT",
+            "Side Face Camera"
+         ],
+         "configurations": [
+            {
+               "object_type": "Detector config",
+               "device_name": "Green PMT",
+               "exposure_time": -1.0,
+               "exposure_time_unit": "millisecond",
+               "trigger_type": "Internal",
+               "compression": null,
+               "crop_offset_x": null,
+               "crop_offset_y": null,
+               "crop_width": null,
+               "crop_height": null,
+               "crop_unit": "pixel"
+            },
+            {
+               "object_type": "Imaging config",
+               "device_name": "442_Bergamo_2p_photostim",
+               "channels": [
+                  {
+                     "object_type": "Channel",
+                     "channel_name": "Ophys Channel",
+                     "intended_measurement": null,
+                     "detector": {
+                        "object_type": "Detector config",
+                        "device_name": "Green PMT",
+                        "exposure_time": -1.0,
+                        "exposure_time_unit": "millisecond",
+                        "trigger_type": "Internal",
+                        "compression": null,
+                        "crop_offset_x": null,
+                        "crop_offset_y": null,
+                        "crop_width": null,
+                        "crop_height": null,
+                        "crop_unit": "pixel"
+                     },
+                     "additional_device_names": null,
+                     "light_sources": [
+                        {
+                           "object_type": "Laser config",
+                           "device_name": "Chameleon Laser",
+                           "wavelength": 920,
+                           "wavelength_unit": "nanometer",
+                           "power": 12.0,
+                           "power_unit": "percent",
+                           "power_measured_at": null
+                        }
+                     ],
+                     "variable_power": false,
+                     "excitation_filters": null,
+                     "emission_filters": null,
+                     "emission_wavelength": null,
+                     "emission_wavelength_unit": null
+                  }
+               ],
+               "coordinate_system": null,
+               "local_coordinate_system": null,
+               "images": [
+                  {
+                     "object_type": "Planar image",
+                     "channel_name": "Ophys Channel",
+                     "dimensions_unit": "pixel",
+                     "image_to_acquisition_transform": [],
+                     "dimensions": null,
+                     "planes": [
+                        {
+                           "object_type": "Plane",
+                           "depth": 110.0,
+                           "depth_unit": "micrometer",
+                           "power": 0.0,
+                           "power_unit": "percent",
+                           "targeted_structure": {
+                              "atlas": "CCFv3",
+                              "name": "Somatomotor areas",
+                              "acronym": "MO",
+                              "id": "500"
+                           }
+                        }
+                     ]
+                  }
+               ],
+               "sampling_strategy": {
+                  "object_type": "Sampling strategy",
+                  "frame_rate": 28.2994,
+                  "frame_rate_unit": "hertz"
+               }
+            }
+         ],
+         "connections": []
+      }
+   ],
+   "stimulus_epochs": [
+      {
+         "object_type": "Stimulus epoch",
+         "stimulus_start_time": "2025-04-11T17:49:59.719999-07:00",
+         "stimulus_end_time": "2025-04-11T18:00:18.835554-07:00",
+         "stimulus_name": "spontaneous activity",
+         "code": null,
+         "stimulus_modalities": [
+            "No stimulus"
+         ],
+         "performance_metrics": null,
+         "notes": "absence of any kind of stimulus",
+         "active_devices": [],
+         "configurations": [],
+         "training_protocol_name": null,
+         "curriculum_status": null
+      },
+      {
+         "object_type": "Stimulus epoch",
+         "stimulus_start_time": "2025-04-11T18:37:07.105999-07:00",
+         "stimulus_end_time": "2025-04-11T18:42:03.293412-07:00",
+         "stimulus_name": "spontaneous activity",
+         "code": null,
+         "stimulus_modalities": [
+            "No stimulus"
+         ],
+         "performance_metrics": null,
+         "notes": "absence of any kind of stimulus",
+         "active_devices": [],
+         "configurations": [],
+         "training_protocol_name": null,
+         "curriculum_status": null
+      },
+      {
+         "object_type": "Stimulus epoch",
+         "stimulus_start_time": "2025-04-11T18:17:12.762999-07:00",
+         "stimulus_end_time": "2025-04-11T18:35:34.284264-07:00",
+         "stimulus_name": "single neuron BCI conditioning",
+         "code": {
+            "object_type": "Code",
+            "url": "https://github.com/rozmar/BCI-motor-control/blob/main/BCI-pybpod-protocols/bci_basic.py",
+            "name": "pybpod_basic.py",
+            "version": "2d77d15",
+            "commit_hash": null,
+            "container": null,
+            "run_script": null,
+            "language": null,
+            "language_version": null,
+            "input_data": null,
+            "parameters": {},
+            "core_dependency": {
+               "object_type": "Software",
+               "name": "pyBpod",
+               "version": "1.8.2"
+            }
+         },
+         "stimulus_modalities": [
+            "Auditory"
+         ],
+         "performance_metrics": {
+            "object_type": "Performance metrics",
+            "output_parameters": {
+               "average_hit_rate": 0.9272727272727272,
+               "hit_rate_trials_0_10": 0.9,
+               "hit_rate_trials_20_40": 1,
+               "tiff_files": [
+                  "neuron8_to_17_again_again_00001.tif",
+                  "neuron8_to_17_again_again_00002.tif",
+                  "neuron8_to_17_again_again_00003.tif",
+                  "neuron8_to_17_again_again_00004.tif",
+                  "neuron8_to_17_again_again_00005.tif",
+                  "neuron8_to_17_again_again_00006.tif",
+                  "neuron8_to_17_again_again_00007.tif",
+                  "neuron8_to_17_again_again_00008.tif",
+                  "neuron8_to_17_again_again_00009.tif",
+                  "neuron8_to_17_again_again_00010.tif",
+                  "neuron8_to_17_again_again_00011.tif",
+                  "neuron8_to_17_again_again_00012.tif",
+                  "neuron8_to_17_again_again_00013.tif",
+                  "neuron8_to_17_again_again_00014.tif",
+                  "neuron8_to_17_again_again_00015.tif",
+                  "neuron8_to_17_again_again_00016.tif",
+                  "neuron8_to_17_again_again_00017.tif",
+                  "neuron8_to_17_again_again_00018.tif",
+                  "neuron8_to_17_again_again_00019.tif",
+                  "neuron8_to_17_again_again_00020.tif",
+                  "neuron8_to_17_again_again_00021.tif",
+                  "neuron8_to_17_again_again_00022.tif",
+                  "neuron8_to_17_again_again_00023.tif",
+                  "neuron8_to_17_again_again_00024.tif",
+                  "neuron8_to_17_again_again_00025.tif",
+                  "neuron8_to_17_again_again_00026.tif",
+                  "neuron8_to_17_again_again_00027.tif",
+                  "neuron8_to_17_again_again_00028.tif",
+                  "neuron8_to_17_again_again_00029.tif",
+                  "neuron8_to_17_again_again_00030.tif",
+                  "neuron8_to_17_again_again_00031.tif",
+                  "neuron8_to_17_again_again_00032.tif",
+                  "neuron8_to_17_again_again_00033.tif",
+                  "neuron8_to_17_again_again_00034.tif",
+                  "neuron8_to_17_again_again_00035.tif",
+                  "neuron8_to_17_again_again_00036.tif",
+                  "neuron8_to_17_again_again_00037.tif",
+                  "neuron8_to_17_again_again_00038.tif",
+                  "neuron8_to_17_again_again_00039.tif",
+                  "neuron8_to_17_again_again_00040.tif",
+                  "neuron8_to_17_again_again_00041.tif",
+                  "neuron8_to_17_again_again_00042.tif",
+                  "neuron8_to_17_again_again_00043.tif",
+                  "neuron8_to_17_again_again_00044.tif",
+                  "neuron8_to_17_again_again_00045.tif",
+                  "neuron8_to_17_again_again_00046.tif",
+                  "neuron8_to_17_again_again_00047.tif",
+                  "neuron8_to_17_again_again_00048.tif",
+                  "neuron8_to_17_again_again_00049.tif",
+                  "neuron8_to_17_again_again_00050.tif",
+                  "neuron8_to_17_again_again_00051.tif",
+                  "neuron8_to_17_again_again_00052.tif",
+                  "neuron8_to_17_again_again_00053.tif",
+                  "neuron8_to_17_again_again_00054.tif",
+                  "neuron8_to_17_again_again_00055.tif",
+                  "neuron8_to_17_again_again_00056.tif",
+                  "neuron8_to_17_again_again_00057.tif",
+                  "neuron8_to_17_again_again_00058.tif",
+                  "neuron8_to_17_again_again_00059.tif",
+                  "neuron8_to_17_again_again_00060.tif",
+                  "neuron8_to_17_again_again_00061.tif",
+                  "neuron8_to_17_again_again_00062.tif",
+                  "neuron8_to_17_again_again_00063.tif",
+                  "neuron8_to_17_again_again_00064.tif",
+                  "neuron8_to_17_again_again_00065.tif",
+                  "neuron8_to_17_again_again_00066.tif",
+                  "neuron8_to_17_again_again_00067.tif",
+                  "neuron8_to_17_again_again_00068.tif",
+                  "neuron8_to_17_again_again_00069.tif",
+                  "neuron8_to_17_again_again_00070.tif",
+                  "neuron8_to_17_again_again_00071.tif",
+                  "neuron8_to_17_again_again_00072.tif",
+                  "neuron8_to_17_again_again_00073.tif",
+                  "neuron8_to_17_again_again_00074.tif",
+                  "neuron8_to_17_again_again_00075.tif",
+                  "neuron8_to_17_again_again_00076.tif",
+                  "neuron8_to_17_again_again_00077.tif",
+                  "neuron8_to_17_again_again_00078.tif",
+                  "neuron8_to_17_again_again_00079.tif",
+                  "neuron8_to_17_again_again_00080.tif",
+                  "neuron8_to_17_again_again_00081.tif",
+                  "neuron8_to_17_again_again_00082.tif",
+                  "neuron8_to_17_again_again_00083.tif",
+                  "neuron8_to_17_again_again_00084.tif",
+                  "neuron8_to_17_again_again_00085.tif",
+                  "neuron8_to_17_again_again_00086.tif",
+                  "neuron8_to_17_again_again_00087.tif",
+                  "neuron8_to_17_again_again_00088.tif",
+                  "neuron8_to_17_again_again_00089.tif",
+                  "neuron8_to_17_again_again_00090.tif",
+                  "neuron8_to_17_again_again_00091.tif",
+                  "neuron8_to_17_again_again_00092.tif",
+                  "neuron8_to_17_again_again_00093.tif",
+                  "neuron8_to_17_again_again_00094.tif",
+                  "neuron8_to_17_again_again_00095.tif",
+                  "neuron8_to_17_again_again_00096.tif",
+                  "neuron8_to_17_again_again_00097.tif",
+                  "neuron8_to_17_again_again_00098.tif",
+                  "neuron8_to_17_again_again_00099.tif",
+                  "neuron8_to_17_again_again_00100.tif",
+                  "neuron8_to_17_again_again_00101.tif",
+                  "neuron8_to_17_again_again_00102.tif",
+                  "neuron8_to_17_again_again_00103.tif",
+                  "neuron8_to_17_again_again_00104.tif",
+                  "neuron8_to_17_again_again_00105.tif",
+                  "neuron8_to_17_again_again_00106.tif",
+                  "neuron8_to_17_again_again_00107.tif",
+                  "neuron8_to_17_again_again_00108.tif",
+                  "neuron8_to_17_again_again_00109.tif",
+                  "neuron8_to_17_again_again_00110.tif"
+               ],
+               "tiff_stem": "neuron8_to_17_again_again",
+               "total_hits": 102
+            },
+            "reward_consumed_during_epoch": null,
+            "reward_consumed_unit": "microliter",
+            "trials_total": 110,
+            "trials_finished": null,
+            "trials_rewarded": null
+         },
+         "notes": null,
+         "active_devices": [
+            "speaker",
+            "lickport"
+         ],
+         "configurations": [],
+         "training_protocol_name": null,
+         "curriculum_status": null
+      }
+   ],
+   "manipulations": [],
+   "subject_details": {
+      "object_type": "Acquisition subject details",
+      "animal_weight_prior": null,
+      "animal_weight_post": null,
+      "weight_unit": "gram",
+      "anaesthesia": null,
+      "mouse_platform_name": "Standard Mouse Tube",
+      "reward_consumed_total": null,
+      "reward_consumed_unit": "milliliter"
+   }
+}

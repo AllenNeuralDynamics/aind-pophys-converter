@@ -76,7 +76,7 @@ def build_log_fields(acquisition_name: str) -> Dict[str, str]:
 
 
 class JobSettings(BaseSettings, cli_parse_args=True):
-    """Settings shared by the converter job and splitter CLI.
+    """Settings for a pophys converter job.
 
     Parameters
     ----------
@@ -87,7 +87,7 @@ class JobSettings(BaseSettings, cli_parse_args=True):
     temp_dir : Optional[Path]
         Temporary directory for intermediate files.
     debug : bool
-        Clip movie processing when true.
+        Clip movie to DEBUG_N_FRAMES per plane when True.
     """
 
     input_dir: Union[Path, str] = Field(
@@ -102,5 +102,5 @@ class JobSettings(BaseSettings, cli_parse_args=True):
     )
     debug: bool = Field(
         default=False,
-        description="clip movie processing when true",
+        description="clip movie to DEBUG_N_FRAMES per plane when True",
     )
