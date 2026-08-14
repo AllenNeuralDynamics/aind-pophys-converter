@@ -4,8 +4,8 @@ This module owns the full QC path: constructing individual ``QCMetric``
 objects, the QC visual generation (depth pairing, vasculature PNG) which
 returns the metrics it produces, and assembling + writing a single v2
 ``QualityControl`` object. ``job.run`` accumulates the returned metrics and
-calls ``build_quality_control`` + ``write_quality_control_json`` to emit one
-``quality_control.json`` — never per-metric fragments.
+calls ``finalize_quality_control`` to emit one ``quality_control.json`` —
+never per-metric fragments.
 """
 
 import json
@@ -412,3 +412,33 @@ def create_vasculature(
         im.save(vasculature_output_fp)
     logging.info(f"Saved vasculature image -> {vasculature_output_fp}")
     return build_vasculature_qc_metric(vasculature_output_fp)
+
+
+def finalize_quality_control(
+    qc_metrics: List[QCMetric],
+    pophys_dir: Path,
+    output_dir: Path,
+) -> None:
+    """Add the vasculature metric and emit a single quality_control.json.
+
+    Appends the window-clarity metric (if a vasculature TIFF exists) to the
+    FOV metrics collected upstream, then writes one ``QualityControl``
+    object. Writes nothing when no metrics were produced.
+
+    Parameters
+    ----------
+    qc_metrics : list of QCMetric
+        Metrics collected so far (e.g. from FOV depth pairing). Mutated
+        in place to append the vasculature metric.
+    pophys_dir : Path
+        Directory searched for the vasculature TIFF.
+    output_dir : Path
+        Destination directory for ``quality_control.json``.
+    """
+    vasculature_metric = create_vasculature(pophys_dir, output_dir)
+    if vasculature_metric is not None:
+        qc_metrics.append(vasculature_metric)
+    if qc_metrics:
+        write_quality_control_json(
+            build_quality_control(qc_metrics), output_dir
+        )

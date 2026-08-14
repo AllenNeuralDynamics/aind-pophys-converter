@@ -19,11 +19,9 @@ from aind_pophys_converter.mesoscope_splitter import (
     find_split_directories,
 )
 from aind_pophys_converter.qc import (
-    build_quality_control,
-    create_vasculature,
+    finalize_quality_control,
     pair_depth_tifs_with_avg_depth_pngs,
     write_avg_depth_slices,
-    write_quality_control_json,
 )
 from aind_pophys_converter.settings import JobSettings
 from aind_pophys_converter.tiff_splitters import AvgImageTiffSplitter
@@ -194,37 +192,7 @@ def run() -> None:
                             Path("/results/matched_tiff_vals"),
                         )
                     )
-            _finalize_quality_control(qc_metrics, pophys_dir, output_dir)
-
-
-def _finalize_quality_control(
-    qc_metrics: list,
-    pophys_dir: Path,
-    output_dir: Path,
-) -> None:
-    """Add the vasculature metric and emit a single quality_control.json.
-
-    Appends the window-clarity metric (if a vasculature TIFF exists) to the
-    FOV metrics collected upstream, then writes one ``QualityControl``
-    object. Writes nothing when no metrics were produced.
-
-    Parameters
-    ----------
-    qc_metrics : list of QCMetric
-        Metrics collected so far (e.g. from FOV depth pairing). Mutated
-        in place to append the vasculature metric.
-    pophys_dir : Path
-        Directory searched for the vasculature TIFF.
-    output_dir : Path
-        Destination directory for ``quality_control.json``.
-    """
-    vasculature_metric = create_vasculature(pophys_dir, output_dir)
-    if vasculature_metric is not None:
-        qc_metrics.append(vasculature_metric)
-    if qc_metrics:
-        write_quality_control_json(
-            build_quality_control(qc_metrics), output_dir
-        )
+            finalize_quality_control(qc_metrics, pophys_dir, output_dir)
 
 
 def _mounted_input_assets(input_dir: Path) -> Optional[list]:

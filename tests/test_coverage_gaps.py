@@ -555,7 +555,7 @@ class TestJobCoverage(unittest.TestCase):
                     "pair_depth_tifs_with_avg_depth_pngs",
                     return_value=metrics,
                 ) as pair,
-                patch.object(job, "_finalize_quality_control") as finalize,
+                patch.object(job, "finalize_quality_control") as finalize,
             ):
                 job.run()
             runner.run_job.assert_called_once_with()
@@ -594,7 +594,7 @@ class TestJobCoverage(unittest.TestCase):
                 patch.object(
                     job, "find_split_directories", return_value=["V1"]
                 ),
-                patch.object(job, "_finalize_quality_control"),
+                patch.object(job, "finalize_quality_control"),
             ):
                 job.run()
             marker = settings.output_dir / "V1" / "V1.txt"
@@ -624,7 +624,7 @@ class TestJobCoverage(unittest.TestCase):
                 ),
                 patch.object(job, "BergamoTiffStitcher") as bergamo,
                 patch.object(job, "TiffSplitterCLI") as meso,
-                patch.object(job, "_finalize_quality_control") as finalize,
+                patch.object(job, "finalize_quality_control") as finalize,
             ):
                 job.run()
             bergamo.assert_not_called()
@@ -636,13 +636,13 @@ class TestJobCoverage(unittest.TestCase):
         existing = [Mock()]
         vasculature = Mock()
         with (
-            patch.object(job, "create_vasculature", return_value=vasculature),
+            patch.object(qc, "create_vasculature", return_value=vasculature),
             patch.object(
-                job, "build_quality_control", return_value=Mock()
+                qc, "build_quality_control", return_value=Mock()
             ) as build,
-            patch.object(job, "write_quality_control_json") as write,
+            patch.object(qc, "write_quality_control_json") as write,
         ):
-            job._finalize_quality_control(
+            qc.finalize_quality_control(
                 existing, Path("pophys"), Path("out")
             )
         self.assertEqual(existing[-1], vasculature)
