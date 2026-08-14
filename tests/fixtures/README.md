@@ -24,7 +24,7 @@ are converter-input snapshots, not a complete copy of the upgrader output.
 | fixture | Code Ocean asset | source prefix |
 |---|---|---|
 | `bergamo` | `85e168ee-b960-4721-8c1d-7845b0a6dc19` | `single-plane-ophys_772414_2025-04-11_17-41-16` |
-| `meso_parent` | `af4527a8-0a52-4d15-bfa7-9f4334da4e49` | `multiplane-ophys_849375_2026-06-17_15-28-08` |
+| `meso_parent` | `d66e2577-dc2e-4045-9e1b-d5facde320ab` | `multiplane-ophys_849375_2026-05-20_12-10-09` |
 | `meso_child` | `ff2fa171-9905-40d8-b058-cbf177e8cbb0` | `multiplane-ophys_849375_2026-06-20_13-13-04` |
 
 The Bergamo v1 metadata was recovered from DocDB record
@@ -32,9 +32,15 @@ The Bergamo v1 metadata was recovered from DocDB record
 `scratch/` directory, not this repository. The Meso TIFF samples are likewise
 kept in the project's `scratch/real_asset_tifs/` directory.
 
+`meso_parent` is a true **root** session: its platform.json has no
+`parent_session`, so it exercises the non-child converter branch (depth pairing
+skipped). `meso_child` is a child whose `parent_session` points at a third
+session (`...2026-06-17...`), so it exercises the child depth-pairing branch.
+
 `tests/test_metadata_utils.py` loads both schema versions for each production
 asset and verifies that they produce equal `ConverterMetadata`. It also checks
-the Meso platform/session relationship and the Bergamo epoch stems. Full
+the Meso platform/session relationship (root vs child) and the Bergamo epoch
+stems. Full
 upgrader output is not snapshotted because the generated Bergamo instrument
 metadata contains duplicate component names whose numeric suffixes are not
 stable between runs.

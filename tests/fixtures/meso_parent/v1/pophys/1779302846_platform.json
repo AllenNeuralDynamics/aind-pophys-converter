@@ -1,70 +1,70 @@
 {
     "schema_version": 3,
     "schema_type": "Mesoscope",
-    "rig_id": "MESO.2",
-    "session_id": 1781731432,
+    "rig_id": "MESO.1",
+    "session_id": 1779302846,
     "subject_id": "849375",
     "project_code": "LearningmFISHTask1A",
-    "parent_session": "multiplane-ophys_849375_2026-05-20_12-10-09",
-    "stimulus_pkl": "1781731432.pkl",
+    "parent_session": null,
+    "stimulus_pkl": "1779302846.pkl",
     "wfltk_version": "5.6.1.post2+g4f7551d.b148583",
     "wfl_version": "4.0.9",
     "foraging_id": "",
-    "sync_file": "1781731432_20260617T152755.h5",
-    "timeseries_tif": "1781731432_timeseries.tiff",
-    "timeseries_roi_file": "1781731432_timeseries.roi",
-    "depths_tif": "1781731432_averaged_depth.tiff",
-    "surface_tif": "1781731432_averaged_surface.tiff",
-    "surface_roi_file": "1781731432_surface.roi",
-    "eye_tracking_video": "1781731432_Eye_20260617T152756.mp4",
-    "behavior_video": "1781731432_Behavior_20260617T152755.mp4",
-    "face_tracking": "1781731432_Face_20260617T152756.mp4",
-    "eye_cam_json": "1781731432_Eye_20260617T152756.json",
-    "beh_cam_json": "1781731432_Behavior_20260617T152755.json",
-    "face_tracking_json": "1781731432_Face_20260617T152756.json",
-    "stimulus_name": "TRAINING_2_gratings_flashed",
-    "beam_1_100_percent_power_mw": "249",
-    "beam_2_100_percent_power_mw": "402",
+    "sync_file": "1779302846_20260520T120947.h5",
+    "timeseries_tif": "1779302846_timeseries.tiff",
+    "timeseries_roi_file": "1779302846_timeseries.roi",
+    "depths_tif": "1779302846_averaged_depth.tiff",
+    "surface_tif": "1779302846_averaged_surface.tiff",
+    "surface_roi_file": "1779302846_surface.roi",
+    "eye_tracking_video": "1779302846_Eye_20260520T120947.mp4",
+    "behavior_video": "1779302846_Behavior_20260520T120947.mp4",
+    "face_tracking": "1779302846_Face_20260520T120948.mp4",
+    "eye_cam_json": "1779302846_Eye_20260520T120947.json",
+    "beh_cam_json": "1779302846_Behavior_20260520T120947.json",
+    "face_tracking_json": "1779302846_Face_20260520T120948.json",
+    "stimulus_name": "TRAINING_0_gratings_autorewards_15min",
+    "beam_1_100_percent_power_mw": "373",
+    "beam_2_100_percent_power_mw": "232",
     "registration": {
         "reticle_image": {
-            "stage_x": -20679.0,
-            "stage_y": 10328.0,
-            "stage_z": 17784.0,
+            "stage_x": -596.0,
+            "stage_y": 340.0,
+            "stage_z": 27755.0,
             "pixel_size_um": 0.4962,
-            "acquired_at": "2026-06-17T14:25:50.609616",
-            "rotation": -1.045,
-            "stage_image_rotation": 49.42,
+            "acquired_at": "2026-05-20T11:49:24.274978",
+            "rotation": 26.0,
+            "stage_image_rotation": 30.0,
             "x_offset": 0,
             "y_offset": 0,
-            "filename": "1781731432_reticle.tif"
+            "filename": "1779302846_reticle.tif"
         },
         "surface_vasculature": {
-            "stage_x": -20679.0,
-            "stage_y": 10328.0,
-            "stage_z": 17784.0,
+            "stage_x": -596.0,
+            "stage_y": 340.0,
+            "stage_z": 27755.0,
             "pixel_size_um": 0.4962,
-            "acquired_at": "2026-06-17T16:45:42.598454",
-            "rotation": -1.045,
+            "acquired_at": "2026-05-20T12:41:29.884952",
+            "rotation": 26.0,
             "stage_image_rotation": null,
             "x_offset": 0,
             "y_offset": 0,
-            "filename": "1781731432_vasculature.tif"
+            "filename": "1779302846_vasculature.tif"
         }
     },
     "imaging_plane_groups": [
         {
-            "local_z_stack_tif": "1781731432_local_z_stack0.tiff",
-            "acquisition_framerate_Hz": 10.71,
-            "scanimage_power_percent": 55,
-            "scanimage_split_percent": 45,
+            "local_z_stack_tif": "1779302846_local_z_stack0.tiff",
+            "acquisition_framerate_Hz": 9.48,
+            "scanimage_power_percent": 65,
+            "scanimage_split_percent": 65,
             "imaging_planes": [
                 {
-                    "targeted_x": -760.18,
-                    "targeted_y": -584.34,
+                    "targeted_x": -574.72,
+                    "targeted_y": -876.44,
                     "targeted_depth": 160,
                     "targeted_structure_id": "VISp",
                     "scanimage_roi_index": 0,
-                    "scanimage_scanfield_z": -184,
+                    "scanimage_scanfield_z": 81,
                     "fast_z_controller": "Z2",
                     "channel": "Channel2",
                     "registration": {
@@ -72,23 +72,23 @@
                         "stage_y": 0.0,
                         "stage_z": 0.0,
                         "pixel_size_um": 1.0,
-                        "acquired_at": "2026-06-17T16:44:25.989360",
+                        "acquired_at": "2026-05-20T12:40:26.231024",
                         "rotation": -108.1414,
                         "stage_image_rotation": null,
                         "x_offset": 0,
                         "y_offset": 0,
-                        "filename": "1781731432_timeseries.tiff"
+                        "filename": "1779302846_timeseries.tiff"
                     },
                     "intended_depth": 160,
-                    "calculated_power_mw": 96.88
+                    "calculated_power_mw": 90.62
                 },
                 {
-                    "targeted_x": -760.18,
-                    "targeted_y": -584.3,
-                    "targeted_depth": 170,
+                    "targeted_x": -574.72,
+                    "targeted_y": -876.4,
+                    "targeted_depth": 200,
                     "targeted_structure_id": "VISp",
                     "scanimage_roi_index": 0,
-                    "scanimage_scanfield_z": -159,
+                    "scanimage_scanfield_z": 111,
                     "fast_z_controller": "Z1",
                     "channel": "Channel1",
                     "registration": {
@@ -96,31 +96,31 @@
                         "stage_y": 0.0,
                         "stage_z": 0.0,
                         "pixel_size_um": 1.0,
-                        "acquired_at": "2026-06-17T16:44:25.989360",
+                        "acquired_at": "2026-05-20T12:40:26.231024",
                         "rotation": -108.1414,
                         "stage_image_rotation": null,
                         "x_offset": 0,
                         "y_offset": 0,
-                        "filename": "1781731432_timeseries.tiff"
+                        "filename": "1779302846_timeseries.tiff"
                     },
                     "intended_depth": 200,
-                    "calculated_power_mw": 85.06
+                    "calculated_power_mw": 92.94
                 }
             ]
         },
         {
-            "local_z_stack_tif": "1781731432_local_z_stack1.tiff",
-            "acquisition_framerate_Hz": 10.71,
-            "scanimage_power_percent": 60,
-            "scanimage_split_percent": 35,
+            "local_z_stack_tif": "1779302846_local_z_stack1.tiff",
+            "acquisition_framerate_Hz": 9.48,
+            "scanimage_power_percent": 65,
+            "scanimage_split_percent": 55,
             "imaging_planes": [
                 {
-                    "targeted_x": -760.18,
-                    "targeted_y": -584.34,
+                    "targeted_x": -574.72,
+                    "targeted_y": -876.44,
                     "targeted_depth": 120,
                     "targeted_structure_id": "VISp",
                     "scanimage_roi_index": 0,
-                    "scanimage_scanfield_z": -224,
+                    "scanimage_scanfield_z": 41,
                     "fast_z_controller": "Z2",
                     "channel": "Channel2",
                     "registration": {
@@ -128,23 +128,23 @@
                         "stage_y": 0.0,
                         "stage_z": 0.0,
                         "pixel_size_um": 1.0,
-                        "acquired_at": "2026-06-17T16:44:25.989360",
+                        "acquired_at": "2026-05-20T12:40:26.231024",
                         "rotation": -108.1414,
                         "stage_image_rotation": null,
                         "x_offset": 0,
                         "y_offset": 0,
-                        "filename": "1781731432_timeseries.tiff"
+                        "filename": "1779302846_timeseries.tiff"
                     },
                     "intended_depth": 120,
-                    "calculated_power_mw": 77.0
+                    "calculated_power_mw": 70.5
                 },
                 {
-                    "targeted_x": -760.18,
-                    "targeted_y": -584.3,
-                    "targeted_depth": 202,
+                    "targeted_x": -574.72,
+                    "targeted_y": -876.4,
+                    "targeted_depth": 240,
                     "targeted_structure_id": "VISp",
                     "scanimage_roi_index": 0,
-                    "scanimage_scanfield_z": -127,
+                    "scanimage_scanfield_z": 151,
                     "fast_z_controller": "Z1",
                     "channel": "Channel1",
                     "registration": {
@@ -152,31 +152,31 @@
                         "stage_y": 0.0,
                         "stage_z": 0.0,
                         "pixel_size_um": 1.0,
-                        "acquired_at": "2026-06-17T16:44:25.989360",
+                        "acquired_at": "2026-05-20T12:40:26.231024",
                         "rotation": -108.1414,
                         "stage_image_rotation": null,
                         "x_offset": 0,
                         "y_offset": 0,
-                        "filename": "1781731432_timeseries.tiff"
+                        "filename": "1779302846_timeseries.tiff"
                     },
                     "intended_depth": 240,
-                    "calculated_power_mw": 109.75
+                    "calculated_power_mw": 123.88
                 }
             ]
         },
         {
-            "local_z_stack_tif": "1781731432_local_z_stack2.tiff",
-            "acquisition_framerate_Hz": 10.71,
+            "local_z_stack_tif": "1779302846_local_z_stack2.tiff",
+            "acquisition_framerate_Hz": 9.48,
             "scanimage_power_percent": 65,
-            "scanimage_split_percent": 25,
+            "scanimage_split_percent": 50,
             "imaging_planes": [
                 {
-                    "targeted_x": -760.18,
-                    "targeted_y": -584.34,
+                    "targeted_x": -574.72,
+                    "targeted_y": -876.44,
                     "targeted_depth": 80,
                     "targeted_structure_id": "VISp",
                     "scanimage_roi_index": 0,
-                    "scanimage_scanfield_z": -264,
+                    "scanimage_scanfield_z": 1,
                     "fast_z_controller": "Z2",
                     "channel": "Channel2",
                     "registration": {
@@ -184,23 +184,23 @@
                         "stage_y": 0.0,
                         "stage_z": 0.0,
                         "pixel_size_um": 1.0,
-                        "acquired_at": "2026-06-17T16:44:25.989360",
+                        "acquired_at": "2026-05-20T12:40:26.231024",
                         "rotation": -108.1414,
                         "stage_image_rotation": null,
                         "x_offset": 0,
                         "y_offset": 0,
-                        "filename": "1781731432_timeseries.tiff"
+                        "filename": "1779302846_timeseries.tiff"
                     },
                     "intended_depth": 80,
-                    "calculated_power_mw": 54.75
+                    "calculated_power_mw": 60.25
                 },
                 {
-                    "targeted_x": -760.18,
-                    "targeted_y": -584.3,
-                    "targeted_depth": 231,
+                    "targeted_x": -574.72,
+                    "targeted_y": -876.4,
+                    "targeted_depth": 280,
                     "targeted_structure_id": "VISp",
                     "scanimage_roi_index": 0,
-                    "scanimage_scanfield_z": -98,
+                    "scanimage_scanfield_z": 191,
                     "fast_z_controller": "Z1",
                     "channel": "Channel1",
                     "registration": {
@@ -208,31 +208,31 @@
                         "stage_y": 0.0,
                         "stage_z": 0.0,
                         "pixel_size_um": 1.0,
-                        "acquired_at": "2026-06-17T16:44:25.989360",
+                        "acquired_at": "2026-05-20T12:40:26.231024",
                         "rotation": -108.1414,
                         "stage_image_rotation": null,
                         "x_offset": 0,
                         "y_offset": 0,
-                        "filename": "1781731432_timeseries.tiff"
+                        "filename": "1779302846_timeseries.tiff"
                     },
                     "intended_depth": 280,
-                    "calculated_power_mw": 135.44
+                    "calculated_power_mw": 139.75
                 }
             ]
         },
         {
-            "local_z_stack_tif": "1781731432_local_z_stack3.tiff",
-            "acquisition_framerate_Hz": 10.71,
+            "local_z_stack_tif": "1779302846_local_z_stack3.tiff",
+            "acquisition_framerate_Hz": 9.48,
             "scanimage_power_percent": 65,
-            "scanimage_split_percent": 25,
+            "scanimage_split_percent": 45,
             "imaging_planes": [
                 {
-                    "targeted_x": -760.18,
-                    "targeted_y": -584.34,
-                    "targeted_depth": 41,
+                    "targeted_x": -574.72,
+                    "targeted_y": -876.44,
+                    "targeted_depth": 40,
                     "targeted_structure_id": "VISp",
                     "scanimage_roi_index": 0,
-                    "scanimage_scanfield_z": -303,
+                    "scanimage_scanfield_z": -39,
                     "fast_z_controller": "Z2",
                     "channel": "Channel2",
                     "registration": {
@@ -240,23 +240,23 @@
                         "stage_y": 0.0,
                         "stage_z": 0.0,
                         "pixel_size_um": 1.0,
-                        "acquired_at": "2026-06-17T16:44:25.989360",
+                        "acquired_at": "2026-05-20T12:40:26.231024",
                         "rotation": -108.1414,
                         "stage_image_rotation": null,
                         "x_offset": 0,
                         "y_offset": 0,
-                        "filename": "1781731432_timeseries.tiff"
+                        "filename": "1779302846_timeseries.tiff"
                     },
                     "intended_depth": 40,
-                    "calculated_power_mw": 54.75
+                    "calculated_power_mw": 50.0
                 },
                 {
-                    "targeted_x": -760.18,
-                    "targeted_y": -584.3,
-                    "targeted_depth": 277,
+                    "targeted_x": -574.72,
+                    "targeted_y": -876.4,
+                    "targeted_depth": 320,
                     "targeted_structure_id": "VISp",
                     "scanimage_roi_index": 0,
-                    "scanimage_scanfield_z": -52,
+                    "scanimage_scanfield_z": 231,
                     "fast_z_controller": "Z1",
                     "channel": "Channel1",
                     "registration": {
@@ -264,15 +264,15 @@
                         "stage_y": 0.0,
                         "stage_z": 0.0,
                         "pixel_size_um": 1.0,
-                        "acquired_at": "2026-06-17T16:44:25.989360",
+                        "acquired_at": "2026-05-20T12:40:26.231024",
                         "rotation": -108.1414,
                         "stage_image_rotation": null,
                         "x_offset": 0,
                         "y_offset": 0,
-                        "filename": "1781731432_timeseries.tiff"
+                        "filename": "1779302846_timeseries.tiff"
                     },
                     "intended_depth": 320,
-                    "calculated_power_mw": 135.44
+                    "calculated_power_mw": 155.62
                 }
             ]
         }

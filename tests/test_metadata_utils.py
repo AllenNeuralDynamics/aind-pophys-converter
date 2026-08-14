@@ -183,13 +183,15 @@ class TestAssetFixtures(unittest.TestCase):
     def _assert_meso_fixture(
         self,
         fixture_name: str,
+        instrument_id: str,
         dataset_name: str,
         session_id: int,
         parent_session: str,
+        is_child: bool,
     ) -> None:
         """Check core and platform metadata from a real Meso asset."""
         root, metadata = self._load_v1_and_v2(fixture_name)
-        self.assertEqual(metadata.instrument_id, "MESO.2")
+        self.assertEqual(metadata.instrument_id, instrument_id)
         self.assertEqual(metadata.dataset_name, dataset_name)
         self.assertEqual(len(metadata.fov_ids), 8)
         self.assertEqual(metadata.fov_ids[0], "VISp_0")
@@ -197,7 +199,9 @@ class TestAssetFixtures(unittest.TestCase):
         platform_paths = tuple((root / "v1" / "pophys").glob("*platform.json"))
         self.assertEqual(len(platform_paths), 1)
         platform_path = platform_paths[0]
-        self.assertTrue(is_child_session_via_platform_json(platform_path))
+        self.assertEqual(
+            is_child_session_via_platform_json(platform_path), is_child
+        )
         platform = json.loads(platform_path.read_text())
         self.assertEqual(platform["session_id"], session_id)
         self.assertEqual(platform["parent_session"], parent_session)
@@ -206,21 +210,29 @@ class TestAssetFixtures(unittest.TestCase):
         self.assertTrue((root / "v1" / "data_description.json").is_file())
 
     def test_parent_meso_fixture_uses_real_metadata(self) -> None:
-        """Load parent Meso metadata from Code Ocean data."""
+        """The 'parent' fixture is a true root session (no parent_session).
+
+        It exercises the non-child converter branch: MESO.1, and
+        ``is_child`` is False, so depth pairing is skipped.
+        """
         self._assert_meso_fixture(
             "meso_parent",
-            "multiplane-ophys_849375_2026-06-17_15-28-08",
-            1781731432,
+            "MESO.1",
             "multiplane-ophys_849375_2026-05-20_12-10-09",
+            1779302846,
+            None,
+            is_child=False,
         )
 
     def test_child_meso_fixture_uses_real_metadata(self) -> None:
         """Load child Meso metadata from Code Ocean data."""
         self._assert_meso_fixture(
             "meso_child",
+            "MESO.2",
             "multiplane-ophys_849375_2026-06-20_13-13-04",
             1781984614,
             "multiplane-ophys_849375_2026-06-17_15-28-08",
+            is_child=True,
         )
 
     def test_bergamo_fixture_v1_and_v2(self) -> None:

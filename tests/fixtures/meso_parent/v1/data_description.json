@@ -1,5 +1,5 @@
 {
-   "creation_time": "2026-06-17T15:28:08.824712-07:00",
+   "creation_time": "2026-05-20T12:10:09.287508-07:00",
    "data_level": "raw",
    "data_summary": "LearningmFISHTask1A",
    "describedBy": "https://raw.githubusercontent.com/AllenNeuralDynamics/aind-data-schema/main/src/aind_data_schema/core/data_description.py",
@@ -70,7 +70,7 @@
          "name": "Behavior"
       }
    ],
-   "name": "multiplane-ophys_849375_2026-06-17_15-28-08",
+   "name": "multiplane-ophys_849375_2026-05-20_12-10-09",
    "platform": {
       "abbreviation": "multiplane-ophys",
       "name": "Multiplane optical physiology platform"
