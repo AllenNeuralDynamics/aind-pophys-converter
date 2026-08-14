@@ -9,22 +9,29 @@
 
 Python library for converting raw population physiology imaging data to AIND
 standard formats. Handles multi-plane mesoscope (ScanImage TIFF → split HDF5)
-and single-plane Bergamo (per-epoch TIFFs → stitched HDF5) instruments,
-generates QC metrics, and emits structured logs to CloudWatch.
+and single-plane Bergamo (per-epoch TIFFs → stitched HDF5) instruments, emitting
+a v2 `processing.json` on both paths and a `quality_control.json` on the
+mesoscope path. Structured logs go to CloudWatch.
 
 ## Installation
 
-```bash
-pip install aind-pophys-converter
-```
-
-Or in editable mode from source:
+Editable, from source:
 
 ```bash
 git clone https://github.com/AllenNeuralDynamics/aind-pophys-converter.git
 cd aind-pophys-converter
 pip install -e .
 ```
+
+This package is not published to PyPI. Depend on it by **exact git commit**,
+never a branch or tag:
+
+```
+aind-pophys-converter @ git+https://github.com/AllenNeuralDynamics/aind-pophys-converter.git@<sha>
+```
+
+A given commit pins `aind-pophys-metadata`, which in turn pins the schema
+exactly.
 
 ## Usage
 
@@ -33,7 +40,7 @@ via `JobSettings`:
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `--input_dir` | path | yes | Directory containing the core acquisition file (v1 `session.json` or v2 `acquisition.json`), `data_description.json`, and a `pophys/` subdirectory |
+| `--input_dir` | path | yes | Directory containing the core acquisition file (v1 `session.json` or v2 `acquisition.json`), a `pophys/` subdirectory, and an optional `data_description.json` |
 | `--output_dir` | path | yes | Directory where HDF5 files, QC metrics, and images are written |
 | `--temp_dir` | path | no | Scratch directory for intermediate files during mesoscope splitting |
 | `--debug` | bool | no (default `False`) | Clip data volume — 100 frames/plane for mesoscope, 1 file/epoch for Bergamo |
@@ -42,10 +49,8 @@ All parameters can also be set as environment variables (e.g. `INPUT_DIR=/data/.
 
 ## Processing paths
 
-The top-level `job.run()` reads the core acquisition file (v1 `session.json` or
-v2 `acquisition.json`) and `data_description.json` from the input directory,
-then dispatches to one of two paths based on the
-instrument type.
+The top-level `job.run()` reads metadata from the input directory, then dispatches to one of two
+paths based on the instrument type.
 
 ### Bergamo (single-plane)
 
@@ -55,15 +60,19 @@ The Bergamo microscope produces a directory of per-epoch TIFF files under
 `pophys/`. `BergamoTiffStitcher.run_converter()`:
 
 1. Derives the output filename from the first canonical FOV id
-   (`metadata.fov_ids[0]`, e.g. `MO_0`).
-2. Groups `*.tif` files in `pophys/` by epoch stem, sorted numerically,
-   excluding z-stack calibration files.
+   (`metadata.fov_ids[0]`, e.g. `plane_0` for a single-plane session).
+2. Resolves stimulus epochs to their TIFF files. Epoch membership and order
+   come from the acquisition metadata (`metadata.epoch_stems`, ordered by
+   `stimulus_start_time`); a `*.tif` glob under `pophys/`, grouped by stem
+   and sorted numerically, supplies each epoch's files. Files whose stem matches no
+   stimulus epoch names — (stacks) — are ignored, and a
+   missing epoch or a missing epoch file raises.
 3. Reads each TIFF with `ScanImageTiffReader`, caching frames incrementally
-   into a single HDF5 file.
+   into a single HDF5 file, in acquisition order.
 4. Writes epoch location, trial location, epoch filename, and ScanImage header
    metadata as datasets in the same HDF5.
 
-Output: `<output_dir>/<fov_id>/<fov_id>.h5`
+Output: `<output_dir>/<fov_id>/<fov_id>.h5`, `processing.json`
 
 ### Mesoscope (multi-plane)
 
@@ -73,177 +82,98 @@ Output: `<output_dir>/<fov_id>/<fov_id>.h5`
 The mesoscope produces multiplexed ScanImage TIFFs that interleave frames from
 multiple ROIs and depths. `TiffSplitterCLI.run_job()`:
 
-1. Reads the core acquisition file to discover the set of imaging planes — v2
-   `ImagingConfig → PlanarImage → CoupledPlane`, or v1
-   `data_streams → ophys_fovs` — ordered by plane index.
+1. Reads metadata in the input_dir to determine FOVs
 2. For each plane, runs `AvgImageTiffSplitter` twice (depth and surface TIFFs)
    and `ZStackSplitter` (local z-stack, if `*local_z*.tiff` files are present)
    to write per-FOV depth, surface, and z-stack outputs.
 3. Processes the timeseries splitter separately across all planes, writing one
    HDF5 per plane from the multiplexed `*timeseries.tiff`.
-4. After splitting, `job.py` runs the QC pipeline:
-   - `create_vasculature` — converts the pre-existing `*_vasculature.tif` to
-     PNG and returns a `QCMetric`. Always runs.
+4. After splitting, `job.py` collects QC metrics:
    - `write_avg_depth_slices` + `pair_depth_tifs_with_avg_depth_pngs` — for
      child sessions only (gated by `is_child_session_via_platform_json`):
      writes per-z averaged-depth TIFs then pairs them with parent depth TIFs
      read from `platform.json`, producing merged PNGs and a list of metrics.
 
-   The collected metrics are written as one `quality_control.json`.
+   `qc.finalize_quality_control` then appends the vasculature metric (from
+   `*_vasculature.tif`, when present) and writes the collected metrics as one
+   `quality_control.json`.
 
 Output: per-plane HDF5s, `processing.json` and `quality_control.json`.
 
 If pre-split directories are already present in the input, `run_job()` skips
 splitting and writes only stub `.txt` pointer files.
 
-## Module reference
+## Modules
 
-### `job.py`
+- **`job.py`** — the entry point. `run()` loads settings and metadata, then
+  dispatches to the Bergamo or mesoscope path inside a `stage_guard` that always
+  emits a `processing.json`. Structured JSON logs come from the pinned
+  `log-schema` dependency (CloudWatch, degrading to console when the network is
+  blocked).
 
-Top-level orchestrator. `run()` is the library entry point called by the
-capsule. Loads settings, reads metadata, calls `setup_logging`, then dispatches
-to the Bergamo or mesoscope path. Emits `stage_start`, `stage_complete`, and
-`stage_error` log events.
+- **`settings.py`** — `JobSettings`, the pydantic-settings model parsing the CLI
+  args and environment variables. Also what the Code Ocean app panel is
+  generated from.
 
-### `settings.py`
+- **`bergamo_stitcher.py`** — the single-plane path. `BergamoTiffStitcher`
+  resolves the metadata's stimulus epochs to their TIFFs and streams them into
+  one HDF5 in acquisition order; `BaseStitcher` holds the shared HDF5 writers.
 
-`JobSettings` — a Pydantic-settings model that parses CLI arguments and
-environment variables. Fields: `input_dir`, `output_dir`, `temp_dir` (optional),
-`debug` (clips data volume when `True`; 100 frames/plane for mesoscope, 1
-file/epoch for Bergamo).
+- **`mesoscope_splitter.py`** — the multi-plane path. `TiffSplitterCLI` iterates
+  the imaging planes and dispatches to the splitters in `tiff_splitters`, plus
+  optional full-field stitching. `find_split_directories` lets an already-split
+  input skip re-splitting.
 
-### `bergamo_stitcher.py`
+- **`tiff_splitters.py`** — the ScanImage TIFF splitting classes
+  (`TiffSplitterBase` and its `AvgImageTiffSplitter` / `TimeSeriesSplitter` /
+  `ZStackSplitter` subclasses) that parse ROI/z layout and write the per-plane
+  outputs.
 
-`BergamoSettings` — Pydantic model holding `input_dir`, `output_dir` and
-`debug`.
+- **`qc.py`** — the `quality_control.json` path (mesoscope only). Metric
+  producers return metrics; `finalize_quality_control` writes one document for
+  the run, never per-metric fragments.
 
-`BaseStitcher` — shared HDF5 write helpers (`write_images`, `write_final_output`).
+- **`utils/metadata_utils.py`** — the converter's only point of contact with
+  schema-version differences; everything else reads the schema-agnostic
+  `ConverterMetadata` (`instrument_id`, `fov_ids`, `dataset_name`, `subject_id`,
+  `epoch_stems`). The reads themselves live in the shared
+  [`aind-pophys-metadata`](https://github.com/AllenNeuralDynamics/aind-pophys-metadata)
+  package. `instrument_id` drives Bergamo-versus-mesoscope routing; the rest are
+  labels or may be empty for malformed input.
 
-`BergamoTiffStitcher(BaseStitcher)` — concrete stitcher. Key methods:
-- `_discover_tiff_epochs()` — groups and sorts input TIFFs by epoch stem.
-- `write_bergamo()` — streams frames into HDF5 with epoch/trial metadata.
-- `run_converter()` — takes `unique_id` from `metadata.fov_ids[0]`, sets up the
-  output subdirectory, and orchestrates the full conversion.
-- `from_args()` — constructs a stitcher from CLI arguments for standalone use.
+- **`utils/tiff_metadata.py`** — `ScanImageMetadata`, a lazy wrapper over
+  ScanImage headers used by the splitters to read frame layout without loading
+  pixels.
 
-### `mesoscope_splitter.py`
+- **`utils/full_field_utils.py`** — stitches the full-field surface image into
+  `stitched_full_field_img.h5` when a `*fullfield*.tiff` is present.
 
-`TiffSplitterCLI` — orchestrates the full mesoscope split. Takes the loaded
-`ConverterMetadata`, iterates over its `fov_ids` via `_get_imaging_planes()`,
-and dispatches to `TimeSeriesSplitter`, `AvgImageTiffSplitter`, and
-`ZStackSplitter`. Also handles optional full-field surface image stitching via
-`full_field_utils` when a `*fullfield*.tiff` is present.
+- **`utils/image_utils.py`** — small PIL helpers (`add_border_and_label`) for QC
+  thumbnails.
 
-`find_split_directories()` — detects whether a previous split run already
-produced output directories, allowing `job.py` to skip re-splitting.
-
-### `tiff_splitters.py`
-
-Core ScanImage TIFF splitting classes. Class hierarchy:
-
-```
-IntFromZMapperMixin          ← maps z-values ↔ integer indices
-├── TiffSplitterBase         ← parses ScanImage metadata; validates ROI/z config
-│   ├── AvgImageTiffSplitter ← writes per-ROI depth-averaged TIFF
-│   └── TimeSeriesSplitter   ← splits multiplexed timeseries → per-plane HDF5
-└── ZStackSplitter           ← extracts z-stack calibration slices → HDF5
-```
-
-`mkstemp_clean()` — thin wrapper around `tempfile.mkstemp` that closes the file
-descriptor immediately, used throughout to avoid descriptor leaks.
-
-`DEBUG_N_FRAMES = 100` — frame count used when `debug=True`.
-
-### `qc.py`
-
-QC visual generation and metric serialization. Functions:
-
-- `write_avg_depth_slices` — saves averaged-depth slice images from an
-  `AvgImageTiffSplitter` to the output directory.
-- `pair_depth_tifs_with_avg_depth_pngs` — matches each split depth TIFF to an
-  averaged-depth PNG and returns one `QCMetric` per matched pair.
-- `create_vasculature` — converts the pre-existing `*_vasculature.tif` in
-  `pophys/` to PNG and returns its `QCMetric`, or `None` when absent.
-- `pending_qc_status` / `build_fov_qc_metric` / `build_vasculature_qc_metric` —
-  build the individual `QCMetric` objects; they return metrics rather than
-  writing them.
-- `build_quality_control` / `write_quality_control_json` — collect the metrics
-  into one `QualityControl` document and serialise it.
-
-The collector pattern is deliberate: metric-producing functions return metrics
-and the entrypoint writes a **single** `quality_control.json` for the whole run,
-rather than one file per metric.
-
-### `utils/metadata_utils.py`
-
-The converter's only point of contact with schema-version differences. The
-reads themselves live in the shared
-[`aind-pophys-metadata`](https://github.com/AllenNeuralDynamics/aind-pophys-metadata)
-package, so nothing else in this repo branches on v1 versus v2.
-
-| Object | Description |
-|---|---|
-| `ConverterMetadata` | Frozen, schema-agnostic view holding only what the conversion uses: `instrument_id`, `fov_ids`, `dataset_name`, `subject_id` |
-| `load_converter_metadata(input_dir)` | Discovers the core file, dispatches v1/v2, and populates `ConverterMetadata` via the shared getters |
-| `build_converter_code(job_parameters, input_data=)` | Builds the v2 `Code` block; `stage_guard` assembles the surrounding `DataProcess` and `Processing` |
-
-`instrument_id` is the only required field — it drives Bergamo versus mesoscope
-routing. `dataset_name` and `subject_id` are logging labels, and `fov_ids` may
-be empty for malformed input, which consumers fail fast on.
-
-### `utils/tiff_metadata.py`
-
-`ScanImageMetadata` — lazy-parsed wrapper around ScanImage TIFF headers.
-Exposes properties: `numVolumes`, `numSlices`, `channelSave`, `wavelengths`,
-and pixel scale values. Used by all splitter classes to determine frame layout
-without loading pixel data.
-
-### `utils/full_field_utils.py`
-
-Utilities for stitching full-field surface images and overlaying ROI boundaries.
-Used by `TiffSplitterCLI._process_full_field_image()` when a `*fullfield*.tiff`
-is present; produces `stitched_full_field_img.h5` in the output directory.
-
-### `utils/image_utils.py`
-
-Generic PIL/image helpers. Currently provides `add_border_and_label`, which
-annotates depth-slice PNG thumbnails with a coloured border and text label
-before they are embedded in QC outputs.
-
-### Logging
-
-Structured JSON logging comes from the pinned `log-schema` dependency, not from
-this package. `job.py` and `bergamo_stitcher.py` call
-`log_schema.main.setup_logging(use_cloudwatch=True, model={...})` with
-`acquisition_name` and `process_name`, so every record carries that context
-without it being passed at each call site. The CloudWatch handler degrades to
-console with a warning when it cannot initialise, so a blocked network does not
-fail a run.
-
-### `utils/platform_utils.py`
-
-Temporary helpers for reading `platform.json`. Currently exposes
-`is_child_session_via_platform_json(path)`, which returns `True` when a
-`parent_session` key is present. Used in `job.py` to gate the depth-TIFF
-pairing QC step, and in `qc.pair_depth_tifs_with_avg_depth_pngs` to read
-`imaging_plane_groups` for parent-depth matching. Will be removed once the
-depth-pairing step is migrated to `acquisition.json`.
+- **`utils/platform_utils.py`** — temporary `platform.json` reader gating the
+  child-session depth QC. Removed once depth-pairing moves to `acquisition.json`.
 
 ## Development
 
+The CI gate is `flake8 . && interrogate --verbose . && coverage run -m unittest
+discover && coverage report` — **unittest, not pytest**. Reproduce it locally
+before pushing:
+
 ```bash
-# Run tests
-python -m pytest tests/ -v
-
-# With coverage
-python -m pytest tests/ --cov=aind_pophys_converter --cov-fail-under=85
-
-# Lint / format
-black src/ tests/ --line-length 79
-isort src/ tests/
-flake8 src/ tests/
-interrogate src/
+flake8 . && interrogate --verbose . && coverage run -m unittest discover && coverage report
 ```
+
+Coverage and interrogate are both gated at 100%; black and flake8 are set to 79
+columns. Coverage counts `tests` as well as the package, so a non-test helper
+dropped into `tests/` is measured and will fail the gate — keep tooling out of
+that directory.
+
+## Level of Support
+
+- [x] Supported: We are releasing this code to the public as a tool we expect
+  others to use. Issues are welcomed, and we expect to address them promptly;
+  pull requests will be vetted by our staff before inclusion.
 
 ## License
 
