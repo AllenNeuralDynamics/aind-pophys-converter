@@ -25,8 +25,11 @@ from aind_pophys_converter.utils.tiff_metadata import ScanImageMetadata
 
 logger = logging.getLogger(__name__)
 
-# Number of frames per plane written when debug=True
-DEBUG_N_FRAMES = 100
+# Number of frames per plane written when debug=True. Sized to clear the
+# longest downstream analysis window (dff's 60 s long_window ~= 570 frames at
+# ~9.5 Hz) and movie-qc's short-movie threshold (1001), so a debug run
+# exercises the full pipeline rather than degenerate short-movie edge cases.
+DEBUG_N_FRAMES = 2000
 
 
 def mkstemp_clean(
