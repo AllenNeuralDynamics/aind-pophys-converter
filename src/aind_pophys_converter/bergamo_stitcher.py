@@ -14,7 +14,7 @@ import numpy as np
 from pydantic import BaseModel, Field
 from ScanImageTiffReader import ScanImageTiffReader
 
-from aind_pophys_converter.utils.logging_cfg import setup_logging
+from log_schema.main import setup_logging
 
 
 class BergamoSettings(BaseModel):
@@ -369,7 +369,10 @@ class BergamoTiffStitcher(BaseStitcher):
 
 
 if __name__ == "__main__":
-    setup_logging("aind_ophys_bergamo_stitcher.log")
+    setup_logging(
+        use_cloudwatch=True,
+        model={"process_name": "aind-pophys-converter"},
+    )
     sys_args = sys.argv[1:]
     logging.info("Started job...")
     runner = BergamoTiffStitcher.from_args(sys_args)

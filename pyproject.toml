@@ -18,6 +18,7 @@ dynamic = ["version"]
 
 dependencies = [
     'aind-ophys-utils',
+    'log-schema[cloudwatch] @ git+https://github.com/AllenNeuralDynamics/aind-log-utils.git@f09685e#subdirectory=python',
     'h5py',
     'pydantic',
     'pydantic-settings',
