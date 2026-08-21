@@ -5,7 +5,6 @@ import json
 import logging
 import os
 import re
-import sys
 from collections import defaultdict
 from datetime import datetime as dt
 from pathlib import Path
@@ -14,7 +13,6 @@ from typing import List, Tuple
 import h5py as h5
 import numpy as np
 from aind_pophys_metadata import find_one
-from log_schema.main import setup_logging
 from pydantic import BaseModel, Field
 from ScanImageTiffReader import ScanImageTiffReader
 
@@ -386,13 +384,3 @@ class BergamoTiffStitcher(BaseStitcher):
             output_dir=output_dir,
         )
         return cls(job_settings, metadata=metadata)
-
-
-if __name__ == "__main__":
-    setup_logging(
-        use_cloudwatch=True,
-        model={"process_name": "aind-pophys-converter"},
-    )
-    sys_args = sys.argv[1:]
-    runner = BergamoTiffStitcher.from_args(sys_args)
-    runner.run_converter()
