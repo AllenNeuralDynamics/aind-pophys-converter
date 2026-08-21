@@ -23,7 +23,7 @@ from aind_pophys_converter.qc import (
     pair_depth_tifs_with_avg_depth_pngs,
     write_avg_depth_slices,
 )
-from aind_pophys_converter.settings import JobSettings
+from aind_pophys_converter.settings import JobSettings, build_log_fields
 from aind_pophys_converter.tiff_splitters import AvgImageTiffSplitter
 from aind_pophys_converter.utils.metadata_utils import (
     DATA_PROCESS_NAME,
@@ -112,10 +112,9 @@ def run() -> None:
 
     setup_logging(
         use_cloudwatch=True,
-        model={
-            "acquisition_name": metadata.dataset_name or metadata.subject_id,
-            "process_name": "aind-pophys-converter",
-        },
+        model=build_log_fields(
+            metadata.dataset_name or metadata.subject_id
+        ),
     )
 
     pophys_dir = find_one(input_dir, _POPHYS_DIR_PATTERN, required=False)
