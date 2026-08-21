@@ -3,6 +3,8 @@
 import json
 from pathlib import Path
 
+from log_schema.main import setup_logging
+
 from aind_pophys_converter.bergamo_stitcher import (
     BergamoSettings,
     BergamoTiffStitcher,
@@ -11,7 +13,7 @@ from aind_pophys_converter.mesoscope_splitter import (
     TiffSplitterCLI,
     find_split_directories,
 )
-from aind_pophys_converter.settings import JobSettings
+from aind_pophys_converter.settings import JobSettings, build_log_fields
 
 
 def run() -> None:
@@ -24,6 +26,11 @@ def run() -> None:
     job_settings = JobSettings()
     input_dir = Path(job_settings.input_dir)
     output_dir = Path(job_settings.output_dir)
+
+    setup_logging(
+        use_cloudwatch=True,
+        model=build_log_fields(input_dir.name),
+    )
 
     session_fp = next(input_dir.rglob("*session.json"), None)
     if session_fp is None:

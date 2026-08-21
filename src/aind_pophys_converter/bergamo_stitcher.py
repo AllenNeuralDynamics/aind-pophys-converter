@@ -16,6 +16,8 @@ from ScanImageTiffReader import ScanImageTiffReader
 
 from log_schema.main import setup_logging
 
+from aind_pophys_converter.settings import build_log_fields
+
 
 class BergamoSettings(BaseModel):
     """Settings required to stitch Bergamo images"""
@@ -369,12 +371,12 @@ class BergamoTiffStitcher(BaseStitcher):
 
 
 if __name__ == "__main__":
+    sys_args = sys.argv[1:]
+    runner = BergamoTiffStitcher.from_args(sys_args)
     setup_logging(
         use_cloudwatch=True,
-        model={"process_name": "aind-pophys-converter"},
+        model=build_log_fields(runner.unique_id),
     )
-    sys_args = sys.argv[1:]
     logging.info("Started job...")
-    runner = BergamoTiffStitcher.from_args(sys_args)
     runner.run_converter()
     logging.info("Finished job...")
