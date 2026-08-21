@@ -16,7 +16,10 @@ from ScanImageTiffReader import ScanImageTiffReader
 
 from log_schema.main import setup_logging
 
-from aind_pophys_converter.settings import build_log_fields
+from aind_pophys_converter.settings import (
+    acquisition_name_from,
+    build_log_fields,
+)
 
 
 class BergamoSettings(BaseModel):
@@ -375,7 +378,9 @@ if __name__ == "__main__":
     runner = BergamoTiffStitcher.from_args(sys_args)
     setup_logging(
         use_cloudwatch=True,
-        model=build_log_fields(runner.unique_id),
+        model=build_log_fields(
+            acquisition_name_from(runner.session_fp.parent)
+        ),
     )
     logging.info("Started job...")
     runner.run_converter()

@@ -1,5 +1,6 @@
 """Job settings for aind-pophys-converter."""
 
+import json
 import os
 from pathlib import Path
 from typing import Dict, Optional, Union
@@ -12,6 +13,36 @@ PROCESS_NAME = "aind-pophys-converter"
 
 #: Exported by the pipeline runtime; unset for a standalone capsule run.
 PIPELINE_NAME_ENV = "PIPELINE_NAME"
+
+
+#: Canonical source of the acquisition name.
+DATA_DESCRIPTION_FILE = "data_description.json"
+
+
+def acquisition_name_from(metadata_dir: Path) -> str:
+    """Read the acquisition name from ``data_description.json``.
+
+    ``name`` in ``data_description.json`` is the acquisition/asset name. When
+    the file is absent or unreadable, the directory holding the metadata is
+    used, since a raw asset directory is named after its acquisition.
+
+    Parameters
+    ----------
+    metadata_dir : Path
+        Directory holding the raw asset's metadata files.
+
+    Returns
+    -------
+    str
+        The acquisition name.
+    """
+    path = Path(metadata_dir) / DATA_DESCRIPTION_FILE
+    try:
+        with open(path) as handle:
+            name = json.load(handle).get("name")
+    except (OSError, ValueError):
+        name = None
+    return str(name) if name else Path(metadata_dir).name
 
 
 def build_log_fields(acquisition_name: str) -> Dict[str, str]:

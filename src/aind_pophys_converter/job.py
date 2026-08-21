@@ -13,7 +13,11 @@ from aind_pophys_converter.mesoscope_splitter import (
     TiffSplitterCLI,
     find_split_directories,
 )
-from aind_pophys_converter.settings import JobSettings, build_log_fields
+from aind_pophys_converter.settings import (
+    JobSettings,
+    acquisition_name_from,
+    build_log_fields,
+)
 
 
 def run() -> None:
@@ -27,14 +31,17 @@ def run() -> None:
     input_dir = Path(job_settings.input_dir)
     output_dir = Path(job_settings.output_dir)
 
-    setup_logging(
-        use_cloudwatch=True,
-        model=build_log_fields(input_dir.name),
-    )
-
     session_fp = next(input_dir.rglob("*session.json"), None)
     if session_fp is None:
         raise FileNotFoundError(f"No session.json file found under {input_dir}")
+
+    # session.json sits in the raw asset directory; the input directory is
+    # only the mount root.
+    setup_logging(
+        use_cloudwatch=True,
+        model=build_log_fields(acquisition_name_from(session_fp.parent)),
+    )
+
     with open(session_fp) as f:
         session_data = json.load(f)
 
