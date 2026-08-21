@@ -35,8 +35,6 @@ def run() -> None:
     if session_fp is None:
         raise FileNotFoundError(f"No session.json file found under {input_dir}")
 
-    # session.json sits in the raw asset directory; the input directory is
-    # only the mount root.
     setup_logging(
         use_cloudwatch=True,
         model=build_log_fields(acquisition_name_from(session_fp.parent)),
