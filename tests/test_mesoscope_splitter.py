@@ -16,6 +16,7 @@ import tempfile
 import unittest
 from itertools import product
 from pathlib import Path
+from unittest.mock import Mock
 
 
 from aind_pophys_converter.mesoscope_splitter import (
@@ -268,10 +269,9 @@ class TestMesoscopeSplitter(unittest.TestCase):
             )
 
     def test_split_timeseries_tiff_logger_messages(self):
-        """Test that split_timeseries_tiff logs through the module logger."""
-        from unittest.mock import patch
-
-        from aind_pophys_converter import tiff_splitters
+        """Test that split_timeseries_tiff calls logger with
+        proper messages.
+        """
         from aind_pophys_converter.tiff_splitters import (
             split_timeseries_tiff,
         )
@@ -288,18 +288,23 @@ class TestMesoscopeSplitter(unittest.TestCase):
             output_path = temp_path / "output.h5"
             offset_to_path = {0: output_path}
 
-            # The module owns its logger; callers no longer pass one in.
-            with patch.object(tiff_splitters, "logger") as mock_logger:
-                try:
-                    split_timeseries_tiff(
-                        tiff_path=tiff_path,
-                        offset_to_path=offset_to_path,
-                        dump_every=10,
-                    )
-                except Exception:
-                    # Expected to fail due to invalid TIFF, but the start
-                    # message is logged before the failure.
-                    pass
+            # Mock logger
+            mock_logger = Mock()
+
+            # Try to test the logger calls - this will likely fail due to
+            # TIFF format issues
+            # but should at least test the logger path
+            try:
+                split_timeseries_tiff(
+                    tiff_path=tiff_path,
+                    offset_to_path=offset_to_path,
+                    logger=mock_logger,
+                    dump_every=10,
+                )
+            except Exception:
+                # Expected to fail due to invalid TIFF, but we should have
+                # captured some logger calls
+                pass
 
             # Verify logger.info was called (at minimum for the start message)
             mock_logger.info.assert_called()

@@ -391,6 +391,7 @@ class TiffSplitterCLI:
             output_path_map=output_path_lookup,
             tmp_dir=self.temp_dir,
             dump_every=self.session_data.get("dump_every", 1000),
+            logger=logging,
             debug=self.debug,
         )
 
