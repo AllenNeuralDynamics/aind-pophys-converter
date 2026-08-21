@@ -274,9 +274,7 @@ class TestTimeseriesUtils(unittest.TestCase):
         )
         offset_to_path = {0: tmpdir / "final0.h5"}
 
-        with self.assertLogs(
-            "aind_pophys_converter.tiff_splitters", level=logging.INFO
-        ) as captured:
+        with self.assertLogs(level=logging.INFO) as captured:
             split_timeseries_tiff(
                 tiff_path=tiff_path,
                 offset_to_path=offset_to_path,

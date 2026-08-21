@@ -23,8 +23,6 @@ from aind_ophys_utils.array_utils import normalize_array
 
 from aind_pophys_converter.utils.tiff_metadata import ScanImageMetadata
 
-logger = logging.getLogger(__name__)
-
 # Number of frames per plane written when debug=True. Sized to clear the
 # longest downstream analysis window (dff's 60 s long_window ~= 570 frames at
 # ~9.5 Hz) and movie-qc's short-movie threshold (1001), so a debug run
@@ -229,7 +227,7 @@ def _initialize_caches(
 def _log_progress(message: str, t0: float, page_ct: int) -> None:
     """Log progress with timing information."""
     duration = time.time() - t0
-    logger.info(f"{message} {page_ct} TIFF pages in {duration:.2e} seconds")
+    logging.info(f"{message} {page_ct} TIFF pages in {duration:.2e} seconds")
 
 
 def _finalize_output_files(
@@ -246,7 +244,7 @@ def _finalize_output_files(
             metadata=metadata,
         )
         duration = time.time() - t0
-        logger.info(
+        logging.info(
             f"Wrote {offset_to_path[offset]} after {duration:.2e} seconds"
         )
 
@@ -298,7 +296,7 @@ def _split_timeseries_tiff(
         Timeseries data is written to the paths specified in
         offset_to_path
     """
-    logger.info(f"Splitting {tiff_path}")
+    logging.info(f"Splitting {tiff_path}")
 
     max_offset = max(list(offset_to_path.keys()))
     fov_shape = None
@@ -315,7 +313,7 @@ def _split_timeseries_tiff(
         n_planes = max_offset + 1
         page_cap = n_planes * DEBUG_N_FRAMES if debug else None
         if page_cap is not None:
-            logger.info(
+            logging.info(
                 "Debug frame cap active: writing at most %s frames per "
                 "plane (%s planes, %s pages) from %s. Every downstream "
                 "stage sees this count, whatever truncation it reports.",
@@ -326,7 +324,7 @@ def _split_timeseries_tiff(
             )
         for page in tiff_file.pages:
             if page_cap is not None and page_ct >= page_cap:
-                logger.warning(
+                logging.warning(
                     "Debug frame cap reached: stopping %s after %s pages, "
                     "so each plane holds %s frames.",
                     tiff_path,
@@ -380,7 +378,7 @@ def _split_timeseries_tiff(
     _finalize_output_files(offset_to_tmp_files, offset_to_path, metadata, t0)
 
     duration = time.time() - t0
-    logger.info(f"Split {tiff_path} in {duration:.2e} seconds")
+    logging.info(f"Split {tiff_path} in {duration:.2e} seconds")
 
 
 def _gather_timeseries_caches(

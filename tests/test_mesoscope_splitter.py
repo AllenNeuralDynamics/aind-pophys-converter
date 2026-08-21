@@ -337,9 +337,7 @@ class TestMesoscopeSplitter(unittest.TestCase):
             output_path = temp_path / "output.h5"
             offset_to_path = {0: output_path}
 
-            with self.assertLogs(
-                "aind_pophys_converter.tiff_splitters", level=logging.INFO
-            ):
+            with self.assertLogs(level=logging.INFO):
                 try:
                     split_timeseries_tiff(
                         tiff_path=tiff_path,
