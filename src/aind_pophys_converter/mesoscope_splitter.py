@@ -897,6 +897,10 @@ class TiffSplitterBase(IntFromZMapperMixin):
         """
         return self._metadata.roi_center(i_roi=i_roi)
 
+    def roi_id(self, i_roi: int) -> str:
+        """Return the ROI ID stored in the TIFF header."""
+        return self._metadata.defined_rois[i_roi]["roiUuid"]
+
     def roi_size(self, i_roi: int) -> Tuple[float, float]:
         """
         The physical space size (x, y) of the i_roith ROI
@@ -1576,54 +1580,83 @@ def get_nearest_roi_center(
     return ans
 
 
-def validate_roi_pairing(
+def build_surface_roi_remap(
     depth_splitter,
     surface_splitter,
-    tolerance: float = 1.0,
-) -> None:
-    """Verify depth and surface splitters have the same ROI centers
-    (in any order) within tolerance. Raises if not a 1:1 match."""
-    depth_centers = [
-        depth_splitter.roi_center(i) for i in range(depth_splitter.n_rois)
-    ]
-    surface_centers = [
-        surface_splitter.roi_center(i)
-        for i in range(surface_splitter.n_rois)
-    ]
+    depth_remap: dict,
+) -> Tuple[dict, List[dict]]:
+    """Match surface ROIs to depth ROIs by their IDs.
 
-    if len(depth_centers) != len(surface_centers):
+    Surface images may be acquired before the operator adjusts the imaging
+    location, so coordinate differences are recorded without a cutoff.
+
+    Parameters
+    ----------
+    depth_splitter
+        Splitter for the averaged-depth TIFF.
+    surface_splitter
+        Splitter for the averaged-surface TIFF.
+    depth_remap : dict
+        Mapping from timeseries ROI index to depth TIFF ROI index.
+
+    Returns
+    -------
+    tuple
+        Surface remap plus the coordinates and distance for each ROI.
+    """
+    depth_by_id = {}
+    surface_by_id = {}
+    for splitter, lookup, label in (
+        (depth_splitter, depth_by_id, "depth"),
+        (surface_splitter, surface_by_id, "surface"),
+    ):
+        for roi_index in range(splitter.n_rois):
+            roi_id = splitter.roi_id(roi_index)
+            if roi_id in lookup:
+                raise RuntimeError(
+                    f"Duplicate {label} ROI ID {roi_id}: indices "
+                    f"{lookup[roi_id]} and {roi_index}"
+                )
+            lookup[roi_id] = roi_index
+
+    if set(depth_by_id) != set(surface_by_id):
         raise RuntimeError(
-            f"ROI count mismatch: depth has {len(depth_centers)}, "
-            f"surface has {len(surface_centers)}"
+            "Depth and surface ROI ID mismatch: "
+            f"depth={sorted(depth_by_id)}, "
+            f"surface={sorted(surface_by_id)}"
         )
 
-    used = set()
-    for d_idx, d_center in enumerate(depth_centers):
-        best_s_idx = None
-        best_dist = None
-        for s_idx, s_center in enumerate(surface_centers):
-            if s_idx in used:
-                continue
-            dist = np.sqrt(
-                (d_center[0] - s_center[0]) ** 2
-                + (d_center[1] - s_center[1]) ** 2
+    surface_remap = {}
+    position_pairs = []
+    for valid_index, depth_index in sorted(depth_remap.items()):
+        roi_id = depth_splitter.roi_id(depth_index)
+        surface_index = surface_by_id[roi_id]
+        depth_center = depth_splitter.roi_center(depth_index)
+        surface_center = surface_splitter.roi_center(surface_index)
+        distance = float(
+            np.hypot(
+                depth_center[0] - surface_center[0],
+                depth_center[1] - surface_center[1],
             )
-            if best_dist is None or dist < best_dist:
-                best_s_idx = s_idx
-                best_dist = dist
-        if best_dist > tolerance:
-            raise RuntimeError(
-                f"Depth roi {d_idx} at {d_center} has no surface match "
-                f"within tolerance={tolerance} (nearest: surface roi "
-                f"{best_s_idx} at {surface_centers[best_s_idx]}, "
-                f"dist={best_dist:.4f})"
-            )
-        used.add(best_s_idx)
+        )
+        surface_remap[valid_index] = surface_index
+        position_pairs.append(
+            {
+                "roi_id": roi_id,
+                "depth_xy": depth_center,
+                "surface_xy": surface_center,
+                "distance": distance,
+            }
+        )
+        logging.info(
+            "ROI %s depth center=%s surface center=%s distance=%.4f",
+            roi_id,
+            depth_center,
+            surface_center,
+            distance,
+        )
 
-    logging.info(
-        "validate_roi_pairing: depth and surface ROI centers "
-        "are a 1:1 match within tolerance=%.1f", tolerance
-    )
+    return surface_remap, position_pairs
 
 
 def build_roi_remap(
@@ -1990,13 +2023,12 @@ class TiffSplitterCLI:
             timeseries_splitter=timeseries_splitter
         )
 
-        # Validate depth and surface have the same FOVs
-        validate_roi_pairing(depth_splitter, surface_splitter)
-
         # Build roi index remaps for splitters whose roi ordering
         # may differ from the timeseries-derived valid centers
         depth_remap = build_roi_remap(depth_splitter, valid_roi_centers)
-        surface_remap = build_roi_remap(surface_splitter, valid_roi_centers)
+        surface_remap, _ = build_surface_roi_remap(
+            depth_splitter, surface_splitter, depth_remap
+        )
         zstack_remap = build_roi_remap(
             zstack_splitter,
             valid_roi_centers,
