@@ -7,9 +7,9 @@ import numpy as np
 
 from aind_pophys_converter.tiff_splitters import (
     build_roi_remap,
+    build_surface_roi_remap,
     get_nearest_roi_center,
     get_valid_roi_centers,
-    validate_roi_pairing,
 )
 
 
@@ -85,9 +85,10 @@ class TestRoiCenterFinding(unittest.TestCase):
 class MockSplitter:
     """Mock splitter with configurable ROI centers."""
 
-    def __init__(self, centers: dict) -> None:
-        """Initialize with a dict of ``{roi_index: (x, y) center}``."""
+    def __init__(self, centers: dict, roi_ids: dict = None) -> None:
+        """Initialize with centers and optional IDs by ROI index."""
         self._centers = centers
+        self._roi_ids = roi_ids or {i: f"roi-{i}" for i in centers}
         self._n_rois = len(centers)
 
     @property
@@ -99,49 +100,61 @@ class MockSplitter:
         """Return the (x, y) center for the given ROI index."""
         return self._centers[i_roi]
 
+    def roi_id(self, i_roi: int) -> str:
+        """Return the ID for the given ROI index."""
+        return self._roi_ids[i_roi]
 
-class TestValidateRoiPairing(unittest.TestCase):
-    """Test suite for validate_roi_pairing."""
 
-    def test_matching_centers_same_order(self) -> None:
-        """Depth and surface with same centers in same order passes."""
-        depth = MockSplitter({0: (1.0, 2.0), 1: (5.0, 6.0)})
-        surface = MockSplitter({0: (1.0, 2.0), 1: (5.0, 6.0)})
-        validate_roi_pairing(depth, surface)
+class TestBuildSurfaceRoiRemap(unittest.TestCase):
+    """Test surface ROI matching by ID."""
 
-    def test_matching_centers_swapped_order(self) -> None:
-        """Depth and surface with centers in swapped order passes."""
-        depth = MockSplitter({0: (1.0, 2.0), 1: (5.0, 6.0)})
-        surface = MockSplitter({0: (5.05, 6.05), 1: (1.05, 2.05)})
-        validate_roi_pairing(depth, surface, tolerance=1.0)
+    def test_large_position_change_is_recorded_without_failure(self) -> None:
+        """The issue 960 displacement is metadata, not a failure."""
+        depth = MockSplitter(
+            {0: (-1.47596333, -5.352231128)}, {0: "4FB78B4F0411E2FC"}
+        )
+        surface = MockSplitter(
+            {0: (-0.9794375629, -4.336539177)},
+            {0: "4FB78B4F0411E2FC"},
+        )
 
-    def test_count_mismatch_raises(self) -> None:
-        """Different number of ROIs raises RuntimeError."""
-        depth = MockSplitter({0: (1.0, 2.0), 1: (5.0, 6.0)})
-        surface = MockSplitter({0: (1.0, 2.0)})
-        with self.assertRaises(RuntimeError) as cm:
-            validate_roi_pairing(depth, surface)
-        self.assertIn("ROI count mismatch", str(cm.exception))
+        remap, pairs = build_surface_roi_remap(depth, surface, {0: 0})
 
-    def test_no_match_within_tolerance_raises(self) -> None:
-        """Surface ROI too far from any depth ROI raises RuntimeError."""
-        depth = MockSplitter({0: (1.0, 2.0), 1: (5.0, 6.0)})
-        surface = MockSplitter({0: (1.0, 2.0), 1: (50.0, 60.0)})
-        with self.assertRaises(RuntimeError) as cm:
-            validate_roi_pairing(depth, surface, tolerance=1.0)
-        self.assertIn("no surface match", str(cm.exception))
+        self.assertEqual(remap, {0: 0})
+        self.assertEqual(pairs[0]["roi_id"], "4FB78B4F0411E2FC")
+        self.assertAlmostEqual(pairs[0]["distance"], 1.1306, places=4)
 
-    def test_small_drift_within_tolerance(self) -> None:
-        """Small positional drift within tolerance passes."""
-        depth = MockSplitter({0: (-6.706, 4.707), 1: (-4.475, -5.792)})
-        surface = MockSplitter({0: (-4.599, -5.854), 1: (-6.835, 4.563)})
-        validate_roi_pairing(depth, surface, tolerance=1.0)
+    def test_uses_id_when_surface_order_differs(self) -> None:
+        """ROI ID wins when surface order and coordinates differ."""
+        depth = MockSplitter({0: (1.0, 2.0), 1: (5.0, 6.0)}, {0: "a", 1: "b"})
+        surface = MockSplitter(
+            {0: (50.0, 60.0), 1: (10.0, 20.0)}, {0: "b", 1: "a"}
+        )
 
-    def test_single_roi(self) -> None:
-        """Single ROI case works."""
-        depth = MockSplitter({0: (3.0, 4.0)})
-        surface = MockSplitter({0: (3.01, 4.01)})
-        validate_roi_pairing(depth, surface, tolerance=1.0)
+        remap, pairs = build_surface_roi_remap(depth, surface, {0: 0, 1: 1})
+
+        self.assertEqual(remap, {0: 1, 1: 0})
+        self.assertEqual([pair["roi_id"] for pair in pairs], ["a", "b"])
+
+    def test_id_mismatch_raises(self) -> None:
+        """Unmatched surface ROIs still fail clearly."""
+        depth = MockSplitter({0: (1.0, 2.0)}, {0: "depth"})
+        surface = MockSplitter({0: (3.0, 4.0)}, {0: "surface"})
+
+        with self.assertRaisesRegex(RuntimeError, "ROI ID mismatch"):
+            build_surface_roi_remap(depth, surface, {0: 0})
+
+    def test_duplicate_id_raises(self) -> None:
+        """Duplicate ROI IDs cannot silently select an ROI."""
+        depth = MockSplitter(
+            {0: (1.0, 2.0), 1: (5.0, 6.0)}, {0: "same", 1: "same"}
+        )
+        surface = MockSplitter(
+            {0: (1.0, 2.0), 1: (5.0, 6.0)}, {0: "same", 1: "other"}
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "Duplicate depth ROI ID"):
+            build_surface_roi_remap(depth, surface, {0: 0, 1: 1})
 
 
 class TestBuildRoiRemap(unittest.TestCase):

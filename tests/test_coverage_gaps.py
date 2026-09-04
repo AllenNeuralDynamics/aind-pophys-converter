@@ -355,6 +355,8 @@ class TestTiffSplitterCoverage(unittest.TestCase):
             invalid = object.__new__(TiffSplitterBase)
             invalid._metadata = SimpleNamespace(channelSave=2)
             invalid._file_path = root / "invalid.tiff"
+            invalid._metadata.defined_rois = [{"roiUuid": "roi-0"}]
+            self.assertEqual(invalid.roi_id(0), "roi-0")
             with self.assertRaises(RuntimeError):
                 invalid._filter_z_values_for_single_channel(np.array([1, 2]))
             invalid._metadata.channelSave = [1]
@@ -551,6 +553,9 @@ class TestJobCoverage(unittest.TestCase):
             guard, _ = self._stage_guard()
             metadata = self._metadata("MESO-1")
             runner = MagicMock()
+            position_pair = {"distance": 1.1306}
+            runner.run_job.return_value = [position_pair]
+            position_metric = Mock()
             metrics = [Mock()]
             find_values = [pophys, platform, avg_depth]
             with (
@@ -574,6 +579,11 @@ class TestJobCoverage(unittest.TestCase):
                     return_value=True,
                 ),
                 patch.object(job, "AvgImageTiffSplitter") as splitter,
+                patch.object(
+                    job,
+                    "build_surface_depth_position_qc_metric",
+                    return_value=position_metric,
+                ) as build_position_metric,
                 patch.object(job, "write_avg_depth_slices") as write_slices,
                 patch.object(
                     job,
@@ -587,8 +597,9 @@ class TestJobCoverage(unittest.TestCase):
             splitter.assert_called_once_with(avg_depth)
             write_slices.assert_called_once()
             pair.assert_called_once()
+            build_position_metric.assert_called_once_with(position_pair)
             finalize.assert_called_once_with(
-                metrics, pophys, settings.output_dir
+                [position_metric, *metrics], pophys, settings.output_dir
             )
 
     def test_run_writes_split_directory_markers(self) -> None:
@@ -849,9 +860,13 @@ class TestMesoscopeCoverage(unittest.TestCase):
                 patch.object(
                     mesoscope, "get_valid_roi_centers", return_value=[(0, 0)]
                 ),
-                patch.object(mesoscope, "validate_roi_pairing"),
                 patch.object(
                     mesoscope, "build_roi_remap", return_value={0: 0}
+                ),
+                patch.object(
+                    mesoscope,
+                    "build_surface_roi_remap",
+                    return_value=({0: 0}, []),
                 ),
             ):
                 cli.run_job()

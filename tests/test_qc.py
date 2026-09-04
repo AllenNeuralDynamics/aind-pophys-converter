@@ -18,6 +18,7 @@ from aind_data_schema_models.modalities import Modality
 from aind_pophys_converter.qc import (
     build_fov_qc_metric,
     build_quality_control,
+    build_surface_depth_position_qc_metric,
     build_vasculature_qc_metric,
     pending_qc_status,
     write_quality_control_json,
@@ -72,6 +73,23 @@ class TestBuildQcMetrics(unittest.TestCase):
         """build_vasculature_qc_metric reference matches input path."""
         fp = Path("/fake/vasculature.png")
         self.assertEqual(build_vasculature_qc_metric(fp).reference, str(fp))
+
+    def test_surface_depth_position_metric_records_coordinates(self) -> None:
+        """Surface/depth displacement is retained without failing QC."""
+        pair = {
+            "roi_id": "4FB78B4F0411E2FC",
+            "depth_xy": (-1.47596333, -5.352231128),
+            "surface_xy": (-0.9794375629, -4.336539177),
+            "distance": 1.1306,
+        }
+
+        metric = build_surface_depth_position_qc_metric(pair)
+
+        self.assertEqual(metric.value["roi_id"], pair["roi_id"])
+        self.assertEqual(metric.value["depth_xy"], list(pair["depth_xy"]))
+        self.assertEqual(metric.value["surface_xy"], list(pair["surface_xy"]))
+        self.assertEqual(metric.value["distance"], pair["distance"])
+        self.assertEqual(metric.status_history[-1].status, Status.PENDING)
 
 
 class TestPendingQcStatus(unittest.TestCase):

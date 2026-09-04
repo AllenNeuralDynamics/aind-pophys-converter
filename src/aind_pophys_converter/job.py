@@ -19,6 +19,7 @@ from aind_pophys_converter.mesoscope_splitter import (
     find_split_directories,
 )
 from aind_pophys_converter.qc import (
+    build_surface_depth_position_qc_metric,
     finalize_quality_control,
     pair_depth_tifs_with_avg_depth_pngs,
     write_avg_depth_slices,
@@ -159,16 +160,20 @@ def run() -> None:
             )
             job_settings.input_dir = pophys_dir
             split_directories = find_split_directories(pophys_dir)
+            qc_metrics = []
             if len(split_directories) == 0:
                 runner = TiffSplitterCLI(job_settings, metadata=metadata)
-                runner.run_job()
+                position_pairs = runner.run_job() or []
+                qc_metrics.extend(
+                    build_surface_depth_position_qc_metric(pair)
+                    for pair in position_pairs
+                )
             else:
                 for split_dir in split_directories:
                     new_directory = output_dir / split_dir
                     new_directory.mkdir(parents=True, exist_ok=True)
                     with open(new_directory / f"{split_dir}.txt", "w") as f:
                         f.write(f"{split_dir}.h5")
-            qc_metrics = []
             avg_depth_path = find_one(
                 pophys_dir,
                 "*_averaged_depth.tiff",

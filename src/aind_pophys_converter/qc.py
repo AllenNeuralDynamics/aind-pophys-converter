@@ -23,6 +23,7 @@ from aind_data_schema.core.quality_control import (
     Stage,
     Status,
 )
+from aind_data_schema_models.modalities import Modality
 from aind_pophys_metadata import find_one
 from aind_pophys_metadata import quality_control as shared_qc
 from PIL import Image
@@ -148,6 +149,45 @@ def build_vasculature_qc_metric(vasculature_output_fp: Path) -> QCMetric:
         ),
         stage=Stage.RAW,
         evaluator=_EVALUATOR,
+    )
+
+
+def build_surface_depth_position_qc_metric(
+    position_pair: dict,
+) -> QCMetric:
+    """Record depth and surface ROI coordinates without an exclusion limit.
+
+    Parameters
+    ----------
+    position_pair : dict
+        Depth and surface coordinates measured from TIFF headers.
+
+    Returns
+    -------
+    QCMetric
+        Informational metric carrying both positions and their distance.
+    """
+    return QCMetric(
+        name=f"ROI {position_pair['roi_id']} Surface and Depth Positions",
+        modality=Modality.POPHYS,
+        stage=Stage.RAW,
+        tags={
+            "evaluation": "Op. QC: Surface and Depth Position",
+            "type": "Operational QC",
+        },
+        description=(
+            "Coordinates read from the averaged-depth and averaged-surface "
+            "TIFF headers. The surface image may be collected before the "
+            "imaging position changes. This distance does not stop "
+            "conversion."
+        ),
+        status_history=[pending_qc_status()],
+        value={
+            "roi_id": position_pair["roi_id"],
+            "depth_xy": list(position_pair["depth_xy"]),
+            "surface_xy": list(position_pair["surface_xy"]),
+            "distance": position_pair["distance"],
+        },
     )
 
 

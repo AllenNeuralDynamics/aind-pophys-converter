@@ -17,9 +17,9 @@ from aind_pophys_converter.tiff_splitters import (
     TimeSeriesSplitter,
     ZStackSplitter,
     build_roi_remap,
+    build_surface_roi_remap,
     get_nearest_roi_center,
     get_valid_roi_centers,
-    validate_roi_pairing,
 )
 from aind_pophys_converter.utils.full_field_utils import (
     write_out_stitched_full_field_image,
@@ -424,8 +424,8 @@ class TiffSplitterCLI:
             file_metadata.append(this_metadata)
         return file_metadata
 
-    def run_job(self) -> None:
-        """Run the job to split TIFF files."""
+    def run_job(self) -> List[dict]:
+        """Split TIFF files and return depth/surface position measurements."""
         t0 = time.time()
         output = {"column_stacks": []}
         try:
@@ -447,15 +447,12 @@ class TiffSplitterCLI:
                 timeseries_splitter=timeseries_splitter
             )
 
-            # Validate depth and surface have the same FOVs (1:1 centers)
-            validate_roi_pairing(depth_splitter, surface_splitter)
-
             # Build per-splitter roi_index remaps so each TIFF is addressed
             # by its own indexing (depth, surface, and zstack TIFFs can
             # index ROIs in a different order than the timeseries).
             depth_remap = build_roi_remap(depth_splitter, valid_roi_centers)
-            surface_remap = build_roi_remap(
-                surface_splitter, valid_roi_centers
+            surface_remap, position_pairs = build_surface_roi_remap(
+                depth_splitter, surface_splitter, depth_remap
             )
             zstack_remap = build_roi_remap(
                 zstack_splitter,
@@ -522,6 +519,7 @@ class TiffSplitterCLI:
             logging.info(
                 f"Mesoscope TIFF splitting complete in {duration:.2e} seconds"
             )
+            return position_pairs
         except Exception:
             logging.exception(
                 "Unhandled exception in mesoscope TIFF splitting"
