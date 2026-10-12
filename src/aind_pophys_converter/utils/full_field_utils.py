@@ -12,6 +12,7 @@ import tifffile
 from aind_ophys_utils.array_utils import normalize_array
 from skimage.transform import resize as skimage_resize
 
+from aind_pophys_converter.tiff_splitters import AvgImageTiffSplitter
 from aind_pophys_converter.utils.tiff_metadata import ScanImageMetadata
 
 
@@ -42,8 +43,6 @@ def write_out_stitched_full_field_image(
     not fail so that the ophys session can continue to be
     processed in LIMS
     """
-    from ..mesoscope_splitter import AvgImageTiffSplitter
-
     try:
         full_field_metadata = ScanImageMetadata(path_to_full_field_tiff)
         full_field_img = stitch_full_field_tiff(path_to_full_field_tiff)
@@ -168,8 +167,6 @@ def stitch_tiff_with_rois(
     -------
     stitched_roi_img: np.ndarray
     """
-    from aind_pophys_converter.mesoscope_splitter import AvgImageTiffSplitter
-
     if isinstance(full_field_path, str):
         full_field_path = pathlib.Path(full_field_path)
 

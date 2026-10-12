@@ -15,7 +15,7 @@ import numpy as np
 import tifffile
 from aind_ophys_utils.array_utils import normalize_array
 
-from aind_pophys_converter.mesoscope_splitter import (
+from aind_pophys_converter.tiff_splitters import (
     AvgImageTiffSplitter,
     TimeSeriesSplitter,
     ZStackSplitter,

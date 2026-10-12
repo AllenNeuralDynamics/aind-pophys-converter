@@ -2,7 +2,7 @@
 
 import unittest
 
-from aind_pophys_converter.mesoscope_splitter import IntFromZMapperMixin
+from aind_pophys_converter.tiff_splitters import IntFromZMapperMixin
 
 
 class TestIntFromZMapperMixin(unittest.TestCase):

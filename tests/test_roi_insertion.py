@@ -9,7 +9,7 @@ import tifffile
 from aind_ophys_utils.array_utils import normalize_array
 from skimage.transform import resize as skimage_resize
 
-from aind_pophys_converter.mesoscope_splitter import (
+from aind_pophys_converter.tiff_splitters import (
     AvgImageTiffSplitter,
     mkstemp_clean,
 )

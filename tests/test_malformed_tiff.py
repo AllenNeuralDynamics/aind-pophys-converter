@@ -4,7 +4,7 @@ import pathlib
 import unittest
 from unittest.mock import Mock, patch
 
-from aind_pophys_converter.mesoscope_splitter import (
+from aind_pophys_converter.tiff_splitters import (
     AvgImageTiffSplitter,
     mkstemp_clean,
 )
