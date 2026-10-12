@@ -1,8 +1,13 @@
-"""Top-level job entrypoint for aind-pophys-converter."""
+"""Top-level job orchestration for aind-pophys-converter."""
 
-import json
+import logging
 from pathlib import Path
+from typing import List, Optional
 
+from aind_data_schema_models.process_names import ProcessName
+from aind_pophys_metadata import find_one, relative_to_root
+from aind_pophys_metadata.processing import collect_upstream_process_names
+from aind_pophys_metadata.runner import stage_guard
 from log_schema.main import setup_logging
 
 from aind_pophys_converter.bergamo_stitcher import (
@@ -13,60 +18,157 @@ from aind_pophys_converter.mesoscope_splitter import (
     TiffSplitterCLI,
     find_split_directories,
 )
-from aind_pophys_converter.settings import (
-    JobSettings,
-    acquisition_name_from,
-    build_log_fields,
+from aind_pophys_converter.settings import JobSettings, build_log_fields
+from aind_pophys_converter.utils.metadata_utils import (
+    DATA_PROCESS_NAME,
+    build_converter_code,
+    load_converter_metadata,
+)
+
+# instrument_id routing signals: Bergamo matched as a substring, mesoscope
+# rigs matched by the MESO.* prefix.
+_BERGAMO_INSTRUMENT = "Bergamo"
+_MESOSCOPE_INSTRUMENT_PREFIX = "MESO"
+
+_POPHYS_DIR_PATTERN = "pophys/"
+
+# Raw source files each conversion route reads out of the pophys directory.
+# This is the converter's ``code.input_data`` provenance: it is the only
+# process in the pipeline that consumes the raw asset directly, so nothing
+# else records what it read.
+_BERGAMO_RAW_PATTERNS = ("*.tif",)
+_MESOSCOPE_RAW_PATTERNS = (
+    "*platform.json",
+    "*timeseries.tiff",
+    "*averaged_depth.tiff",
+    "*averaged_surface.tiff",
+    "*local_z*.tiff",
+    "*fullfield*.tiff",
+    "*_vasculature.tif",
 )
 
 
-def run() -> None:
-    """Route one conversion job through the reusable library entrypoint.
+def raw_input_data(
+    input_dir: Path,
+    pophys_dir: Optional[Path],
+    instrument_id: str,
+) -> Optional[List[str]]:
+    """List the raw source files this run reads, for ``code.input_data``.
 
-    This initial library boundary deliberately retains the v1/session input
-    behavior. Schema-version dispatch and output metadata are introduced by
-    later stack layers.
+    Paths are returned relative to the mounted data root, so they name the
+    file inside its data asset rather than inside the task container: an
+    absolute container path is meaningless once the task is gone.
+
+    Never raises. Discovery here is provenance only; the conversion itself
+    re-resolves the files it needs and fails loudly there, inside the stage
+    guard, so a malformed input still produces a ``processing.json``.
+
+    Parameters
+    ----------
+    input_dir : Path
+        Mounted data root; every returned path is relative to it.
+    pophys_dir : Path or None
+        The located ``pophys`` directory, or ``None`` when absent.
+    instrument_id : str
+        Instrument identifier, used to pick the route's file patterns.
+
+    Returns
+    -------
+    list of str or None
+        Sorted data-root-relative paths, or ``None`` when nothing matched
+        (the caller then falls back to the mounted asset names).
     """
+    if pophys_dir is None:
+        return None
+    patterns = (
+        _BERGAMO_RAW_PATTERNS
+        if _BERGAMO_INSTRUMENT in instrument_id
+        else _MESOSCOPE_RAW_PATTERNS
+    )
+    found = {
+        relative_to_root(input_dir, match)
+        for pattern in patterns
+        for match in Path(pophys_dir).glob(pattern)
+    }
+    return sorted(found) or None
+
+
+def run() -> None:
+    """Entry point for the pophys converter capsule."""
     job_settings = JobSettings()
     input_dir = Path(job_settings.input_dir)
     output_dir = Path(job_settings.output_dir)
 
-    session_fp = next(input_dir.rglob("*session.json"), None)
-    if session_fp is None:
-        raise FileNotFoundError(f"No session.json file found under {input_dir}")
+    metadata = load_converter_metadata(input_dir)
 
     setup_logging(
         use_cloudwatch=True,
-        model=build_log_fields(acquisition_name_from(session_fp.parent)),
+        model=build_log_fields(
+            metadata.dataset_name or metadata.subject_id
+        ),
     )
 
-    with open(session_fp) as f:
-        session_data = json.load(f)
+    pophys_dir = find_one(input_dir, _POPHYS_DIR_PATTERN, required=False)
+    code = build_converter_code(
+        job_parameters=job_settings.model_dump(mode="json"),
+        input_data=(
+            raw_input_data(input_dir, pophys_dir, metadata.instrument_id)
+            or _mounted_input_assets(input_dir)
+        ),
+    )
 
-    pophys_dir = next(input_dir.rglob("pophys"), None)
-    if pophys_dir is None:
-        raise FileNotFoundError(f"No pophys directory found under {input_dir}")
-
-    instrument_id = session_data.get("instrument_id", "")
-    if "Bergamo" in instrument_id:
-        settings = BergamoSettings(
-            input_dir=pophys_dir,
-            output_dir=output_dir,
-            unique_id=input_dir.name,
-            session_fp=session_fp,
-            debug=job_settings.debug,
+    with stage_guard(
+        output_dir,
+        ProcessName.FILE_FORMAT_CONVERSION,
+        code,
+        name=DATA_PROCESS_NAME,
+    ) as ctx:
+        # The converter is the pipeline's first step, so in a normal run no
+        # upstream document exists and the graph is legitimately empty.
+        ctx.upstream_names = collect_upstream_process_names(
+            input_dir, exclude=DATA_PROCESS_NAME
         )
-        BergamoTiffStitcher(settings).run_converter()
-        return
+        if pophys_dir is None:
+            raise FileNotFoundError(
+                f"No {_POPHYS_DIR_PATTERN} directory found under {input_dir}"
+            )
+        if _BERGAMO_INSTRUMENT in metadata.instrument_id:
+            bergamo_settings = BergamoSettings(
+                input_dir=pophys_dir,
+                output_dir=output_dir,
+                debug=job_settings.debug,
+            )
+            bergamo_stitcher = BergamoTiffStitcher(
+                bergamo_settings, metadata=metadata
+            )
+            bergamo_stitcher.run_converter()
+        elif metadata.instrument_id.startswith(_MESOSCOPE_INSTRUMENT_PREFIX):
+            # recursive=False: rglob does not follow symlinks in Python
+            # <=3.12 and pophys/ is a symlink in dev.
+            job_settings.input_dir = pophys_dir
+            split_directories = find_split_directories(pophys_dir)
+            if len(split_directories) == 0:
+                runner = TiffSplitterCLI(job_settings, metadata=metadata)
+                runner.run_job()
+            else:
+                for split_dir in split_directories:
+                    new_directory = output_dir / split_dir
+                    new_directory.mkdir(parents=True, exist_ok=True)
+                    with open(new_directory / f"{split_dir}.txt", "w") as f:
+                        f.write(f"{split_dir}.h5")
 
-    job_settings.input_dir = pophys_dir
-    split_directories = find_split_directories(pophys_dir)
-    if not split_directories:
-        TiffSplitterCLI(job_settings).run_job()
-        return
 
-    for split_dir in split_directories:
-        new_directory = output_dir / split_dir
-        new_directory.mkdir(parents=True, exist_ok=True)
-        with open(new_directory / f"{split_dir}.txt", "w") as f:
-            f.write(f"{split_dir}.h5")
+def _mounted_input_assets(input_dir: Path) -> Optional[list]:
+    """Return the names of the data assets mounted under ``input_dir``.
+
+    Each immediate subdirectory of the capsule's data directory is one
+    attached asset, so their names are a coarse input-data provenance. Used
+    only as the fallback for :func:`raw_input_data`, which names the
+    individual source files. Returns ``None`` when nothing is mounted or the
+    directory is unreadable.
+    """
+    try:
+        names = sorted(p.name for p in Path(input_dir).iterdir() if p.is_dir())
+    except OSError:
+        return None
+    return names or None
