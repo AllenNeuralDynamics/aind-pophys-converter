@@ -3,7 +3,6 @@ import argparse
 import json
 import logging
 import os
-import sys
 from datetime import datetime as dt
 from pathlib import Path
 from typing import List
@@ -13,8 +12,6 @@ import h5py as h5
 import numpy as np
 from pydantic import BaseModel, Field
 from ScanImageTiffReader import ScanImageTiffReader
-
-from aind_pophys_converter.utils.logging_cfg import setup_logging
 
 
 class BergamoSettings(BaseModel):
@@ -366,12 +363,3 @@ class BergamoTiffStitcher(BaseStitcher):
         return cls(
             job_settings,
         )
-
-
-if __name__ == "__main__":
-    setup_logging("aind_ophys_bergamo_stitcher.log")
-    sys_args = sys.argv[1:]
-    logging.info("Started job...")
-    runner = BergamoTiffStitcher.from_args(sys_args)
-    runner.run_converter()
-    logging.info("Finished job...")
