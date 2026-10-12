@@ -1,4 +1,10 @@
-"""TIFF splitter classes and timeseries utilities for mesoscope data."""
+"""TIFF splitter classes and timeseries utilities for mesoscope data.
+
+Contains the base classes (IntFromZMapperMixin, TiffSplitterBase) and
+concrete splitters (AvgImageTiffSplitter, TimeSeriesSplitter, ZStackSplitter)
+used to split ScanImage TIFF files, plus the low-level timeseries splitting
+helper functions used by TimeSeriesSplitter.
+"""
 
 import datetime
 import json
@@ -8,16 +14,20 @@ import shutil
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Dict, List, Optional, Set, Tuple, Union
 
 import h5py as h5
 import numpy as np
 import tifffile
 from aind_ophys_utils.array_utils import normalize_array
+
 from aind_pophys_converter.utils.tiff_metadata import ScanImageMetadata
 
-# Number of frames per plane written when debug=True
-DEBUG_N_FRAMES = 100
+# Number of frames per plane written when debug=True. Sized to clear the
+# longest downstream analysis window (dff's 60 s long_window ~= 570 frames at
+# ~9.5 Hz) and movie-qc's short-movie threshold (1001), so a debug run
+# exercises the full pipeline rather than degenerate short-movie edge cases.
+DEBUG_N_FRAMES = 2000
 
 
 def mkstemp_clean(
@@ -53,7 +63,7 @@ def mkstemp_clean(
     causing some of our unit tests to overwhelm the OS's limit
     on the number of open files.
     """
-    (descriptor, file_path) = tempfile.mkstemp(
+    descriptor, file_path = tempfile.mkstemp(
         dir=dir, prefix=prefix, suffix=suffix
     )
 
@@ -125,7 +135,6 @@ def split_timeseries_tiff(
     offset_to_path: Dict,
     tmp_dir: Optional[Path] = None,
     dump_every: int = 1000,
-    logger: Optional[callable] = None,
     metadata: Optional[dict] = None,
     debug: Optional[bool] = False,
 ) -> None:
@@ -155,9 +164,6 @@ def split_timeseries_tiff(
     dump_every: int
         Write frames to the temporary files every dump_every
         frames per movie.
-
-    logger: Optional[callable]
-        Log statements will be written to logger.info()
 
     metadata: Optional[dict]
         The metadata read by tifffile.read_scanimage_metadata.
@@ -194,7 +200,6 @@ def split_timeseries_tiff(
             offset_to_tmp_files=offset_to_tmp_files,
             offset_to_tmp_dir=offset_to_tmp_dir,
             dump_every=dump_every,
-            logger=logger,
             metadata=metadata,
             debug=debug,
         )
@@ -203,8 +208,11 @@ def split_timeseries_tiff(
 
 
 def _initialize_caches(
-    offset_to_path: Dict, fov_shape: tuple, video_dtype, dump_every: int
-):
+    offset_to_path: Dict,
+    fov_shape: Tuple[int, int],
+    video_dtype: np.dtype,
+    dump_every: int,
+) -> Dict[int, np.ndarray]:
     """Initialize caches for all offsets."""
     offset_to_cache = dict()
     for offset in offset_to_path:
@@ -216,21 +224,18 @@ def _initialize_caches(
     return offset_to_cache
 
 
-def _log_progress(logger, message: str, t0: float, page_ct: int):
+def _log_progress(message: str, t0: float, page_ct: int) -> None:
     """Log progress with timing information."""
-    if logger is not None:
-        duration = time.time() - t0
-        full_msg = f"{message} {page_ct} TIFF pages in {duration:.2e} seconds"
-        logger.info(full_msg)
+    duration = time.time() - t0
+    logging.info(f"{message} {page_ct} TIFF pages in {duration:.2e} seconds")
 
 
 def _finalize_output_files(
     offset_to_tmp_files: Dict,
     offset_to_path: Dict,
     metadata: Optional[dict],
-    logger: Optional[callable],
     t0: float,
-):
+) -> None:
     """Write final output files from temporary caches."""
     for offset in offset_to_tmp_files:
         _gather_timeseries_caches(
@@ -238,11 +243,10 @@ def _finalize_output_files(
             final_output_path=offset_to_path[offset],
             metadata=metadata,
         )
-        if logger is not None:
-            duration = time.time() - t0
-            msg = f"Wrote {offset_to_path[offset]} after "
-            msg += f"{duration:.2e} seconds"
-            logger.info(msg)
+        duration = time.time() - t0
+        logging.info(
+            f"Wrote {offset_to_path[offset]} after {duration:.2e} seconds"
+        )
 
 
 def _split_timeseries_tiff(
@@ -251,7 +255,6 @@ def _split_timeseries_tiff(
     offset_to_tmp_files: Dict,
     offset_to_tmp_dir: Dict,
     dump_every: int = 1000,
-    logger: Optional[callable] = None,
     metadata: Optional[dict] = None,
     debug: Optional[bool] = False,
 ) -> None:
@@ -279,9 +282,6 @@ def _split_timeseries_tiff(
     dump_every: int
         Write to the temporary files every dump_every frames
 
-    logger: Optional[callable]
-        Log statements will be written to logger.info()
-
     metadata: Optional[dict]
         The metadata read by tifffile.read_scanimage_metadata.
         If not None, will be serialized and stored as a bytestring
@@ -296,8 +296,7 @@ def _split_timeseries_tiff(
         Timeseries data is written to the paths specified in
         offset_to_path
     """
-    if logger is not None:
-        logger.info(f"Splitting {tiff_path}")
+    logging.info(f"Splitting {tiff_path}")
 
     max_offset = max(list(offset_to_path.keys()))
     fov_shape = None
@@ -311,13 +310,27 @@ def _split_timeseries_tiff(
         current_offset = -1
         cache_ct = 0
 
-        if debug and logger is not None:
-            logger.info(
-                f"Debug mode active: clipping timeseries to "
-                f"{DEBUG_N_FRAMES} frames per plane."
+        n_planes = max_offset + 1
+        page_cap = n_planes * DEBUG_N_FRAMES if debug else None
+        if page_cap is not None:
+            logging.info(
+                "Debug frame cap active: writing at most %s frames per "
+                "plane (%s planes, %s pages) from %s. Every downstream "
+                "stage sees this count, whatever truncation it reports.",
+                DEBUG_N_FRAMES,
+                n_planes,
+                page_cap,
+                tiff_path,
             )
         for page in tiff_file.pages:
-            if debug and page_ct >= (max_offset + 1) * DEBUG_N_FRAMES:
+            if page_cap is not None and page_ct >= page_cap:
+                logging.warning(
+                    "Debug frame cap reached: stopping %s after %s pages, "
+                    "so each plane holds %s frames.",
+                    tiff_path,
+                    page_ct,
+                    DEBUG_N_FRAMES,
+                )
                 break
             page_ct += 1
             arr = page.asarray()
@@ -345,7 +358,7 @@ def _split_timeseries_tiff(
                         offset_to_tmp_dir=offset_to_tmp_dir,
                     )
                     cache_ct = 0
-                    _log_progress(logger, "Iterated through", t0, page_ct)
+                    _log_progress("Iterated through", t0, page_ct)
 
             # Now safely store the data
             offset_to_cache[current_offset][cache_ct, :, :] = arr
@@ -359,17 +372,13 @@ def _split_timeseries_tiff(
         offset_to_tmp_dir=offset_to_tmp_dir,
     )
 
-    _log_progress(logger, "Iterated through all", t0, page_ct)
+    _log_progress("Iterated through all", t0, page_ct)
 
     # Write final output files
-    _finalize_output_files(
-        offset_to_tmp_files, offset_to_path, metadata, logger, t0
-    )
+    _finalize_output_files(offset_to_tmp_files, offset_to_path, metadata, t0)
 
-    if logger is not None:
-        duration = time.time() - t0
-        msg = f"Split {tiff_path} in {duration:.2e} seconds"
-        logger.info(msg)
+    duration = time.time() - t0
+    logging.info(f"Split {tiff_path} in {duration:.2e} seconds")
 
 
 def _gather_timeseries_caches(
@@ -463,7 +472,7 @@ def _gather_timeseries_caches(
         for file_path in file_path_list:
             with h5.File(file_path, "r") as in_file:
                 chunk = in_file["data"][()]
-                out_file["data"][i0: i0 + chunk.shape[0], :, :] = chunk
+                out_file["data"][i0 : i0 + chunk.shape[0], :, :] = chunk
                 i0 += chunk.shape[0]
             os.unlink(file_path)
 
@@ -609,7 +618,7 @@ class TiffSplitterBase(IntFromZMapperMixin):
         Path to the TIFF file whose metadata we are parsing
     """
 
-    def __init__(self, tiff_path: Path):
+    def __init__(self, tiff_path: Path) -> None:
         """Initialize the TiffSplitterBase with a path to a TIFF file."""
         self._file_path = tiff_path
         self._metadata = ScanImageMetadata(tiff_path=tiff_path)
@@ -619,13 +628,13 @@ class TiffSplitterBase(IntFromZMapperMixin):
         self._frame_shape = dict()
 
     @property
-    def raw_metadata(self):
+    def raw_metadata(self) -> tuple:
         """
         The ScanImage metadata as a dict
         """
         return self._metadata.raw_metadata
 
-    def _validate_channel_save(self):
+    def _validate_channel_save(self) -> None:
         """Validate that channelSave is in expected format."""
         if self._metadata.channelSave not in (1, [1, 2]):
             raise RuntimeError(
@@ -633,7 +642,7 @@ class TiffSplitterBase(IntFromZMapperMixin):
                 f"{self._metadata.channelSave}\n{self._file_path}"
             )
 
-    def _process_z_value_array(self):
+    def _process_z_value_array(self) -> np.ndarray:
         """Process and validate the z value array."""
         z_value_array = self._metadata.all_zs()
 
@@ -649,7 +658,9 @@ class TiffSplitterBase(IntFromZMapperMixin):
 
         return z_value_array
 
-    def _filter_z_values_for_single_channel(self, z_value_array):
+    def _filter_z_values_for_single_channel(
+        self, z_value_array: np.ndarray
+    ) -> np.ndarray:
         """Filter z values for single channel case."""
         if isinstance(self._metadata.channelSave, int):
             if self._metadata.channelSave != 1:
@@ -670,7 +681,7 @@ class TiffSplitterBase(IntFromZMapperMixin):
             self._validate_dual_channel()
             return z_value_array
 
-    def _validate_dual_channel(self):
+    def _validate_dual_channel(self) -> None:
         """Validate dual channel configuration."""
         valid_channel = isinstance(self._metadata.channelSave, list)
         if valid_channel:
@@ -682,7 +693,9 @@ class TiffSplitterBase(IntFromZMapperMixin):
                 f"{self._metadata.channelSave}\n{self._file_path}"
             )
 
-    def _validate_roi_z_duplicates(self, defined_rois):
+    def _validate_roi_z_duplicates(
+        self, defined_rois: List[dict]
+    ) -> Tuple[List[Set[int]], str]:
         """Check for duplicate z values within ROIs."""
         z_int_per_roi = []
         msg = ""
@@ -702,7 +715,11 @@ class TiffSplitterBase(IntFromZMapperMixin):
 
         return z_int_per_roi, msg
 
-    def _validate_roi_z_order(self, z_value_array, z_int_per_roi):
+    def _validate_roi_z_order(
+        self,
+        z_value_array: np.ndarray,
+        z_int_per_roi: List[Set[int]],
+    ) -> str:
         """Validate that z values occur in ROI order."""
         msg = ""
         n_roi = len(z_int_per_roi)
@@ -721,7 +738,7 @@ class TiffSplitterBase(IntFromZMapperMixin):
             these_z_ints = set(
                 [
                     self._int_from_z(z_value=zz)
-                    for zz in z_value_array[offset: offset + n_z_per_roi]
+                    for zz in z_value_array[offset : offset + n_z_per_roi]
                 ]
             )
             if these_z_ints != roi_z_ints:
@@ -732,7 +749,7 @@ class TiffSplitterBase(IntFromZMapperMixin):
 
         return msg
 
-    def _raise_validation_error(self, msg):
+    def _raise_validation_error(self, msg: str) -> None:
         """Raise a detailed validation error."""
         full_msg = "Unclear how to split this TIFF\n"
         full_msg += f"{self._file_path.resolve().absolute()}\n"
@@ -742,7 +759,7 @@ class TiffSplitterBase(IntFromZMapperMixin):
             full_msg += f"zs: {roi['zs']}\n"
         raise RuntimeError(full_msg)
 
-    def _validate_z_stack(self):
+    def _validate_z_stack(self) -> None:
         """
         Make sure that the zsAllActuators are arranged the
         way we expect, i.e.
@@ -776,7 +793,7 @@ class TiffSplitterBase(IntFromZMapperMixin):
         if len(msg) > 0:
             self._raise_validation_error(msg)
 
-    def _get_z_manifest(self):
+    def _get_z_manifest(self) -> None:
         """
         Populate various member objects that help us keep
         track of what z values go with what ROIs in this TIFF
@@ -933,7 +950,7 @@ class AvgImageTiffSplitter(TiffSplitterBase):
     """A class to split a timeseries TIFF file into"""
 
     @property
-    def n_pages(self):
+    def n_pages(self) -> int:
         """
         The number of pages in this TIFF
         """
@@ -1151,7 +1168,7 @@ class TimeSeriesSplitter(TiffSplitterBase):
 
     def _create_offset_to_path_map(
         self, output_path_map: Dict[Tuple[int, float], Path]
-    ) -> Dict:
+    ) -> Dict[int, Path]:
         """Create offset to path mapping with validation
         for duplicate offsets.
         """
@@ -1173,7 +1190,6 @@ class TimeSeriesSplitter(TiffSplitterBase):
         output_path_map: Dict[Tuple[int, float], Path],
         tmp_dir: Optional[Path] = None,
         dump_every: int = 1000,
-        logger: Optional[callable] = None,
         debug: Optional[bool] = False,
     ) -> None:
         """
@@ -1193,9 +1209,8 @@ class TimeSeriesSplitter(TiffSplitterBase):
             Number of frames to store in each temprorary file
             (see Notes)
 
-        logger: Optional[callable]
-            Logger which will be invoked with logger.INFO
-            by worker methods
+        debug: Optional[bool]
+            If True, stop after DEBUG_N_FRAMES frames per plane.
 
         Returns
         -------
@@ -1226,7 +1241,6 @@ class TimeSeriesSplitter(TiffSplitterBase):
             tmp_dir=tmp_dir,
             offset_to_path=offset_to_path,
             dump_every=dump_every,
-            logger=logger,
             metadata=self.raw_metadata,
             debug=debug,
         )
@@ -1246,7 +1260,7 @@ class ZStackSplitter(IntFromZMapperMixin):
         associated with this OPhys session.
     """
 
-    def __init__(self, tiff_path_list: List[Path]):
+    def __init__(self, tiff_path_list: List[Path]) -> None:
         """
         Initialize the ZStackSplitter with a list of paths to
         _local_z_stack.tiff files.
@@ -1544,8 +1558,8 @@ def get_nearest_roi_center(
 
 
 def validate_roi_pairing(
-    depth_splitter,
-    surface_splitter,
+    depth_splitter: TiffSplitterBase,
+    surface_splitter: TiffSplitterBase,
     tolerance: float = 1.0,
 ) -> None:
     """Verify depth and surface splitters have the same ROI centers
@@ -1554,8 +1568,7 @@ def validate_roi_pairing(
         depth_splitter.roi_center(i) for i in range(depth_splitter.n_rois)
     ]
     surface_centers = [
-        surface_splitter.roi_center(i)
-        for i in range(surface_splitter.n_rois)
+        surface_splitter.roi_center(i) for i in range(surface_splitter.n_rois)
     ]
 
     if len(depth_centers) != len(surface_centers):
@@ -1589,26 +1602,35 @@ def validate_roi_pairing(
 
     logging.info(
         "validate_roi_pairing: depth and surface ROI centers "
-        "are a 1:1 match within tolerance=%.1f", tolerance
+        "are a 1:1 match within tolerance=%.1f",
+        tolerance,
     )
 
 
 def build_roi_remap(
-    splitter,
+    splitter: Union[TiffSplitterBase, ZStackSplitter],
     valid_roi_centers: List[Tuple[float, float]],
     tolerance: float = 1.0,
-    roi_indices: list = None,
-) -> dict:
-    """Map each valid center index to the splitter roi_index nearest to it.
+    roi_indices: Optional[List[int]] = None,
+) -> Dict[int, int]:
+    """Map each valid center index to the splitter roi_index nearest it.
 
-    Returns a dict: {valid_center_index: splitter_roi_index}.
-    Raises if the mapping is not 1:1 or any match exceeds tolerance.
+    Returns a dict ``{valid_center_index: splitter_roi_index}``. Raises if
+    the mapping is not 1:1 or any match exceeds ``tolerance``.
 
     Parameters
     ----------
-    roi_indices : list, optional
-        Explicit list of roi indices to consider. If None, uses
-        range(splitter.n_rois).
+    splitter
+        Any splitter exposing ``roi_center(i_roi)``. ZStack-like splitters
+        whose roi indices are non-contiguous must pass ``roi_indices``.
+    valid_roi_centers : list of (x, y)
+        Canonical centers (typically derived from the timeseries splitter).
+    tolerance : float
+        Maximum allowed distance between a valid center and its nearest
+        splitter ROI before a RuntimeError is raised.
+    roi_indices : list of int, optional
+        Explicit list of roi indices to consider. If ``None``, uses
+        ``range(splitter.n_rois)``.
     """
     if roi_indices is None:
         roi_indices = list(range(splitter.n_rois))

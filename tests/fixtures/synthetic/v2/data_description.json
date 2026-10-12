@@ -1,0 +1,13 @@
+{
+    "schema_version": "2.3.3",
+    "name": "multiplane-ophys_000000_2025-05-17_10-00-00",
+    "subject_id": "000000",
+    "creation_time": "2025-05-17T10:00:00-07:00",
+    "institution": {
+        "abbreviation": "AIND",
+        "name": "Allen Institute for Neural Dynamics"
+    },
+    "data_level": "raw",
+    "modalities": [{"abbreviation": "pophys", "name": "Planar optical physiology"}],
+    "project_name": "Test Project"
+}

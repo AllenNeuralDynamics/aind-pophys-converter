@@ -13,6 +13,7 @@ import numpy as np
 import tifffile
 
 from aind_pophys_converter.tiff_splitters import (
+    DEBUG_N_FRAMES,
     _dump_timeseries_caches,
     _gather_timeseries_caches,
     _split_timeseries_tiff,
@@ -24,16 +25,18 @@ class TestTimeseriesUtils(unittest.TestCase):
     """Test cases for the timeseries utilities in the
     aind_pophys_converter package."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test fixtures and suppress ResourceWarnings."""
         rng = np.random.RandomState(1123)
+        # int16 matches the dtype ScanImage raw movies carry through the
+        # split into per-plane HDF5.
         self.timeseries_fixtures = [
-            rng.random((37, 12, 12)),
-            rng.random((37, 12, 12)),
-            rng.random((36, 12, 12)),
+            rng.randint(-200, 3000, (37, 12, 12)).astype(np.int16),
+            rng.randint(-200, 3000, (37, 12, 12)).astype(np.int16),
+            rng.randint(-200, 3000, (36, 12, 12)).astype(np.int16),
         ]
 
-    def make_timeseries_tiff(self, tmpdir):
+    def make_timeseries_tiff(self, tmpdir: pathlib.Path) -> pathlib.Path:
         """Create a TIFF file from the timeseries fixtures."""
         tiff_path = tmpdir / "eg_timeseries.tiff"
         all_data = []
@@ -45,7 +48,7 @@ class TestTimeseriesUtils(unittest.TestCase):
         tifffile.imwrite(tiff_path, all_data)
         return tiff_path
 
-    def test_dump_timeseries_caches(self):
+    def test_dump_timeseries_caches(self) -> None:
         """Test the _dump_timeseries_caches function with various
         chunk sizes.
         """
@@ -101,7 +104,7 @@ class TestTimeseriesUtils(unittest.TestCase):
                     else:
                         self.assertEqual(len(offset_to_tmp_files[offset]), 0)
 
-    def test_gather_timeseries_caches(self):
+    def test_gather_timeseries_caches(self) -> None:
         """Test the _gather_timeseries_caches function with various
         metadata parameters."""
         param_list = [{"a": 1, "b": 2}, None]
@@ -114,7 +117,7 @@ class TestTimeseriesUtils(unittest.TestCase):
                     tempfile.mkdtemp(prefix="gather_output")
                 )
                 rng = np.random.default_rng(581321)
-                data = rng.random((29, 13, 13))
+                data = rng.integers(-200, 3000, (29, 13, 13), dtype=np.int16)
                 file_path_list = []
                 for fname, i0, i1 in zip(
                     ("cache0.h5", "cache1.h5", "cache2.h5"),
@@ -144,7 +147,7 @@ class TestTimeseriesUtils(unittest.TestCase):
                 filename_list = [f for f in tmpdir.iterdir()]
                 self.assertEqual(len(filename_list), 0)
 
-    def test_split_timeseries_tiff_worker(self):
+    def test_split_timeseries_tiff_worker(self) -> None:
         """Test the _split_timeseries_tiff function with various
         parameters including metadata and temporary directories."""
         param_list = list(
@@ -207,7 +210,7 @@ class TestTimeseriesUtils(unittest.TestCase):
                         actual = in_file["data"][()]
                     np.testing.assert_allclose(expected, actual)
 
-    def test_split_timeseries_tiff(self):
+    def test_split_timeseries_tiff(self) -> None:
         """Test the split_timeseries_tiff function with various
         parameters including metadata and temporary directories."""
         param_list = list(product((50, 17, 8), (None, {"a": 1, "b": 2})))
@@ -256,6 +259,36 @@ class TestTimeseriesUtils(unittest.TestCase):
                     np.testing.assert_allclose(expected, actual)
                 cache_paths = [f for f in tmpdir.iterdir()]
                 self.assertEqual(len(cache_paths), 0)
+
+    def test_split_timeseries_tiff_debug_cap_is_logged(self) -> None:
+        """debug=True caps the movie and says so, naming the frame count."""
+        import logging
+        import tempfile
+
+        n_extra_pages = 5
+        tmpdir = pathlib.Path(tempfile.mkdtemp(prefix="split_tiff_debug"))
+        tiff_path = tmpdir / "debug_timeseries.tiff"
+        tifffile.imwrite(
+            tiff_path,
+            np.zeros((DEBUG_N_FRAMES + n_extra_pages, 12, 12), dtype=np.int16),
+        )
+        offset_to_path = {0: tmpdir / "final0.h5"}
+
+        with self.assertLogs(level=logging.INFO) as captured:
+            split_timeseries_tiff(
+                tiff_path=tiff_path,
+                offset_to_path=offset_to_path,
+                tmp_dir=tmpdir,
+                dump_every=10,
+                debug=True,
+            )
+
+        messages = "\n".join(captured.output)
+        self.assertIn("Debug frame cap active", messages)
+        self.assertIn("Debug frame cap reached", messages)
+        self.assertIn(str(DEBUG_N_FRAMES), messages)
+        with h5py.File(offset_to_path[0], "r") as in_file:
+            self.assertEqual(in_file["data"].shape[0], DEBUG_N_FRAMES)
 
 
 if __name__ == "__main__":
