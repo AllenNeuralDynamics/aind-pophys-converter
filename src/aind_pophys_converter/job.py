@@ -18,6 +18,7 @@ from aind_pophys_converter.mesoscope_splitter import (
     TiffSplitterCLI,
     find_split_directories,
 )
+from aind_pophys_converter.qc import finalize_quality_control
 from aind_pophys_converter.settings import JobSettings, build_log_fields
 from aind_pophys_converter.utils.metadata_utils import (
     DATA_PROCESS_NAME,
@@ -156,6 +157,7 @@ def run() -> None:
                     new_directory.mkdir(parents=True, exist_ok=True)
                     with open(new_directory / f"{split_dir}.txt", "w") as f:
                         f.write(f"{split_dir}.h5")
+            finalize_quality_control([], pophys_dir, output_dir)
 
 
 def _mounted_input_assets(input_dir: Path) -> Optional[list]:
