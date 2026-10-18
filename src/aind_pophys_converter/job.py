@@ -198,7 +198,7 @@ def run() -> None:
                             pophys_dir,
                             avg_slice_dir,
                             platform_fp,
-                            Path("/results/matched_tiff_vals"),
+                            output_dir / "matched_tiff_vals",
                         )
                     )
             finalize_quality_control(qc_metrics, pophys_dir, output_dir)

@@ -587,6 +587,10 @@ class TestJobCoverage(unittest.TestCase):
             splitter.assert_called_once_with(avg_depth)
             write_slices.assert_called_once()
             pair.assert_called_once()
+            self.assertEqual(
+                pair.call_args.args[3],
+                settings.output_dir / "matched_tiff_vals",
+            )
             finalize.assert_called_once_with(
                 metrics, pophys, settings.output_dir
             )
