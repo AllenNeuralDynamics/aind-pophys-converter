@@ -776,9 +776,8 @@ class TestMesoscopeCoverage(unittest.TestCase):
             self.assertEqual(splitters[3].write_output_file.call_count, 1)
 
             cli.metadata.fov_ids = ("plane_0", "plane_1")
+            cli._roi_z_per_plane = Mock(return_value=[(0, 1.0), (1, 2.0)])
             splitter = MagicMock()
-            splitter.roi_z_int_manifest = [(0, 1), (1, 2)]
-            splitter._z_from_int.side_effect = lambda value: float(value)
             splitter.frame_shape.return_value = (4, 5)
             experiments = [
                 cli._create_experiment_metadata("plane_0"),

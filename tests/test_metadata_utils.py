@@ -235,6 +235,14 @@ class TestAssetFixtures(unittest.TestCase):
             is_child=True,
         )
 
+    def test_child_meso_fixture_plane_depths(self) -> None:
+        """Plane depths follow plane-index order in both schema versions."""
+        _, metadata = self._load_v1_and_v2("meso_child")
+        self.assertEqual(
+            metadata.plane_depths,
+            (156.0, 172.0, 116.0, 202.0, 76.0, 230.0, 36.0, 276.0),
+        )
+
     def test_bergamo_fixture_v1_and_v2(self) -> None:
         """Both views preserve fields recovered from the DocDB record."""
         _, metadata = self._load_v1_and_v2("bergamo")

@@ -2,11 +2,12 @@
 
 import argparse
 import logging
+import math
 import re
 import sys
 import time
 from pathlib import Path
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 from aind_pophys_metadata import find_one
 
@@ -28,7 +29,14 @@ from aind_pophys_converter.utils.metadata_utils import (
     ConverterMetadata,
     load_converter_metadata,
 )
+from aind_pophys_converter.utils.platform_utils import (
+    load_platform_plane_positions,
+)
 from aind_pophys_converter.utils.tiff_metadata import ScanImageMetadata
+
+#: Largest difference, in micrometres, between a plane's metadata depth and
+#: its platform.json ``targeted_depth`` that still counts as the same plane.
+DEPTH_TOLERANCE_UM = 1e-6
 
 
 def find_split_directories(directory: Path) -> List[Path]:
@@ -215,11 +223,11 @@ class TiffSplitterCLI:
     ) -> List[Tuple[int, float]]:
         """Return the ``(roi_index, z_value)`` locating each imaging plane.
 
-        Paired by position: ``fov_ids`` are sorted by the metadata's declared
-        plane index, the TIFF manifest is ROI-major (each ROI's zs in
-        actuator order). Assumes the two numberings agree. There is no key to
-        join on -- metadata records depth in micrometres, the TIFF raw
-        actuator coordinates.
+        Each plane is located by its platform.json entry
+        (``scanimage_roi_index``, ``scanimage_scanfield_z``), which names the
+        ROI and z value ScanImage records for its TIFF pages. platform.json
+        lists planes in plane-index order; each plane's metadata depth is
+        checked against its entry's ``targeted_depth``.
 
         Parameters
         ----------
@@ -235,9 +243,10 @@ class TiffSplitterCLI:
         Raises
         ------
         ValueError
-            If the manifest and the metadata disagree on plane count. Pairing
-            by position would then select the wrong plane for every FOV and
-            write correct-looking filenames over wrong data, so fail loudly.
+            If the metadata, platform.json and TIFF disagree on plane count,
+            if a plane's metadata depth differs from its platform.json depth,
+            or if a plane's position is not in the TIFF or is shared with
+            another plane.
         """
         fov_ids = self._get_imaging_planes()
         manifest = timeseries_splitter.roi_z_int_manifest
@@ -248,10 +257,84 @@ class TiffSplitterCLI:
                 f"{timeseries_splitter.input_path} contains "
                 f"{len(manifest)}. Cannot pair planes to TIFF pages."
             )
-        return [
-            (roi_index, timeseries_splitter._z_from_int(z_int))
-            for roi_index, z_int in manifest
-        ]
+        platform_fp = find_one(
+            self.input_dir, "*platform.json", recursive=False
+        )
+        positions = load_platform_plane_positions(platform_fp)
+        if len(positions) != len(fov_ids):
+            raise ValueError(
+                f"Plane count mismatch: metadata in {self.input_dir} "
+                f"declares {len(fov_ids)} plane(s), but {platform_fp} "
+                f"lists {len(positions)}."
+            )
+        roi_z = []
+        for plane_index, fov_id in enumerate(fov_ids):
+            roi_index, z_value, platform_depth = positions[plane_index]
+            self._check_plane_depth(
+                plane_index, fov_id, platform_depth, platform_fp
+            )
+            if not (
+                0 <= roi_index < timeseries_splitter.n_rois
+                and timeseries_splitter.is_z_valid_for_roi(
+                    i_roi=roi_index, z_value=z_value
+                )
+            ):
+                raise ValueError(
+                    f"Plane {fov_id}: {platform_fp} places it at ROI "
+                    f"{roi_index}, z {z_value}, which "
+                    f"{timeseries_splitter.input_path} does not contain."
+                )
+            z_value = timeseries_splitter._z_from_int(
+                timeseries_splitter._int_from_z(z_value)
+            )
+            if (roi_index, z_value) in roi_z:
+                raise ValueError(
+                    f"Plane {fov_id}: {platform_fp} places it at ROI "
+                    f"{roi_index}, z {z_value}, already used by another "
+                    "plane."
+                )
+            roi_z.append((roi_index, z_value))
+        return roi_z
+
+    def _check_plane_depth(
+        self,
+        plane_index: int,
+        fov_id: str,
+        platform_depth: Optional[float],
+        platform_fp: Path,
+    ) -> None:
+        """Raise when a plane's metadata depth differs from platform.json.
+
+        Skipped when either side records no depth.
+
+        Parameters
+        ----------
+        plane_index : int
+            Index of the plane in ``fov_ids``.
+        fov_id : str
+            Canonical id of the plane, for the error message.
+        platform_depth : float or None
+            The plane's ``targeted_depth`` in platform.json.
+        platform_fp : Path
+            The platform.json file, for the error message.
+
+        Raises
+        ------
+        ValueError
+            If both depths are recorded and differ.
+        """
+        depths = self.metadata.plane_depths
+        if not depths or depths[plane_index] is None or platform_depth is None:
+            return
+        if not math.isclose(
+            depths[plane_index], platform_depth, abs_tol=DEPTH_TOLERANCE_UM
+        ):
+            raise ValueError(
+                f"Plane {fov_id} (index {plane_index}): metadata depth "
+                f"{depths[plane_index]} does not match {platform_fp} "
+                f"targeted_depth {platform_depth}, so platform.json is not "
+                "in plane-index order."
+            )
 
     def _process_single_fov(
         self,
