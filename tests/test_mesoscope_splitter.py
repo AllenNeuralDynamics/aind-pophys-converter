@@ -20,7 +20,7 @@ from dataclasses import replace
 from itertools import product
 from pathlib import Path
 from typing import List, Optional, Tuple
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from aind_pophys_converter.mesoscope_splitter import (
     TiffSplitterCLI,
@@ -28,6 +28,7 @@ from aind_pophys_converter.mesoscope_splitter import (
 )
 from aind_pophys_converter.tiff_splitters import (
     IntFromZMapperMixin,
+    TiffSplitterBase,
     mkstemp_clean,
 )
 from aind_pophys_converter.utils.metadata_utils import (
@@ -35,8 +36,16 @@ from aind_pophys_converter.utils.metadata_utils import (
     PlaneChannel,
     load_converter_metadata,
 )
+from aind_pophys_converter.utils.platform_utils import (
+    load_platform_plane_positions,
+)
 
 MESO_CHILD = Path(__file__).parent / "fixtures" / "meso_child"
+
+#: Patch target for the platform.json reader the splitter calls.
+PLATFORM_READER = (
+    "aind_pophys_converter.mesoscope_splitter.load_platform_plane_positions"
+)
 
 #: ``SI.hStackManager.zsAllActuators`` of the meso_child timeseries TIFF:
 #: one ROI, each coupled pair in actuator order (Z1, then Z2).
@@ -51,9 +60,15 @@ MESO_CHILD_ZS_ALL_ACTUATORS = [
 class _ManifestSplitter(IntFromZMapperMixin):
     """Timeseries splitter stand-in holding a ScanImage ROI/z manifest."""
 
+    is_z_valid_for_roi = TiffSplitterBase.is_z_valid_for_roi
+
     def __init__(self, zs_per_roi: List[List[float]]) -> None:
         """Build the manifest from each ROI's z values in TIFF page order."""
         self.input_path = Path("timeseries.tiff")
+        self.n_rois = len(zs_per_roi)
+        self._valid_z_int_per_roi = [
+            {self._int_from_z(z) for z in zs} for zs in zs_per_roi
+        ]
         self.roi_z_int_manifest = [
             (i_roi, self._int_from_z(z))
             for i_roi, zs in enumerate(zs_per_roi)
@@ -84,6 +99,21 @@ def _channel_named_acquisition(directory: Path) -> Path:
                 image["channel_name"] = channels[plane["plane_index"]]
     (directory / "acquisition.json").write_text(json.dumps(acquisition))
     return directory
+
+
+def _write_platform(directory: Path, planes: List[dict]) -> None:
+    """Write a one-group platform.json listing ``planes`` into directory."""
+    platform = {"imaging_plane_groups": [{"imaging_planes": planes}]}
+    (directory / "s_platform.json").write_text(json.dumps(platform))
+
+
+def _plane(roi_index: int, z_value: float, depth: Optional[float]) -> dict:
+    """Build one platform.json imaging plane entry."""
+    return {
+        "scanimage_roi_index": roi_index,
+        "scanimage_scanfield_z": z_value,
+        "targeted_depth": depth,
+    }
 
 
 def _planes(
@@ -147,20 +177,36 @@ class TestMesoscopeSplitter(unittest.TestCase):
         return splitter
 
     def _cli(
-        self, fov_ids: Tuple[str, ...], planes: Tuple[PlaneChannel, ...]
+        self,
+        fov_ids: Tuple[str, ...],
+        planes: Tuple[PlaneChannel, ...] = (),
+        depths: Tuple[Optional[float], ...] = (),
     ) -> TiffSplitterCLI:
         """Build a splitter CLI over the given planes."""
         cli = object.__new__(TiffSplitterCLI)
         cli.metadata = replace(
-            _make_metadata(), fov_ids=fov_ids, plane_channels=planes
+            _make_metadata(),
+            fov_ids=fov_ids,
+            plane_channels=planes,
+            plane_depths=depths,
         )
         cli.input_dir = self.test_path
         return cli
 
-    def test_roi_z_per_plane_uses_channel_slot(self) -> None:
-        """Each plane takes its channel's page, not the TIFF page order.
+    def _meso_child_cli(self, metadata_dir: Path) -> TiffSplitterCLI:
+        """Build a splitter CLI over the meso_child metadata in a directory."""
+        cli = object.__new__(TiffSplitterCLI)
+        cli.input_dir = self.test_path
+        cli.metadata = load_converter_metadata(metadata_dir)
+        return cli
 
-        The meso_child TIFF stores each coupled pair as (Z1, Z2) while its
+    def _meso_child_manifest(
+        self,
+    ) -> Tuple[_ManifestSplitter, List[Tuple[int, float]]]:
+        """Return the meso_child TIFF manifest and each plane's true position.
+
+        The true (roi, z) of a plane is the ScanImage position its v1 session
+        records. The TIFF stores each coupled pair as (Z1, Z2) while the
         metadata indexes the Z2 plane first, so pairing by page order would
         swap every pair.
         """
@@ -178,36 +224,90 @@ class TestMesoscopeSplitter(unittest.TestCase):
             for roi, z_int in splitter.roi_z_int_manifest
         ]
         self.assertNotEqual(page_order, expected)
+        return splitter, expected
 
-        cli = object.__new__(TiffSplitterCLI)
-        cli.input_dir = self.test_path
-        cli.metadata = load_converter_metadata(
-            _channel_named_acquisition(self.test_path)
-        )
+    def _copy_meso_child_platform(self) -> None:
+        """Copy the real meso_child platform.json into the test directory."""
+        platform = next((MESO_CHILD / "v1" / "pophys").glob("*platform.json"))
+        shutil.copy(platform, self.test_path / platform.name)
+
+    def test_roi_z_per_plane_uses_channel_slot(self) -> None:
+        """Each plane takes its channel's page, not the TIFF page order.
+
+        The test directory holds no platform.json: the channels alone locate
+        the planes.
+        """
+        splitter, expected = self._meso_child_manifest()
+        cli = self._meso_child_cli(_channel_named_acquisition(self.test_path))
         self.assertEqual(cli._roi_z_per_plane(splitter), expected)
 
-    def test_roi_z_per_plane_requires_a_known_channel(self) -> None:
-        """Metadata without Channel1/Channel2 per plane fails loudly."""
-        splitter = _ManifestSplitter(
-            [[z for pair in MESO_CHILD_ZS_ALL_ACTUATORS for z in pair]]
-        )
+    def test_roi_z_per_plane_channels_take_precedence(self) -> None:
+        """Planes naming every channel are not located from platform.json."""
+        self._copy_meso_child_platform()
+        splitter, expected = self._meso_child_manifest()
+        cli = self._meso_child_cli(_channel_named_acquisition(self.test_path))
+        with patch(
+            PLATFORM_READER, wraps=load_platform_plane_positions
+        ) as read_platform:
+            self.assertEqual(cli._roi_z_per_plane(splitter), expected)
+        read_platform.assert_not_called()
+
+    def test_roi_z_per_plane_uses_platform_position(self) -> None:
+        """Each plane gets its own scanfield z, not the TIFF page order."""
+        self._copy_meso_child_platform()
+        splitter, expected = self._meso_child_manifest()
         for version in ("v1", "v2"):
             with self.subTest(version=version):
-                cli = object.__new__(TiffSplitterCLI)
-                cli.input_dir = self.test_path
-                cli.metadata = load_converter_metadata(MESO_CHILD / version)
+                cli = self._meso_child_cli(MESO_CHILD / version)
+                self.assertEqual(cli._roi_z_per_plane(splitter), expected)
+
+    def test_roi_z_per_plane_v1_input_takes_platform_path(self) -> None:
+        """v1 input records no channel, so platform.json locates the planes."""
+        self._copy_meso_child_platform()
+        splitter, expected = self._meso_child_manifest()
+        cli = self._meso_child_cli(MESO_CHILD / "v1")
+        self.assertEqual(
+            {plane.channel_name for plane in cli.metadata.plane_channels},
+            {None},
+        )
+        with patch(
+            PLATFORM_READER, wraps=load_platform_plane_positions
+        ) as read_platform:
+            self.assertEqual(cli._roi_z_per_plane(splitter), expected)
+        read_platform.assert_called_once()
+
+    def test_roi_z_per_plane_partial_channels_use_platform(self) -> None:
+        """Every plane needs a known channel to skip platform.json."""
+        _write_platform(
+            self.test_path, [_plane(0, -20, None), _plane(0, -10, None)]
+        )
+        cli = self._cli(("A_0", "A_1"), _planes(("Channel1", 1), (None, 0)))
+        self.assertEqual(
+            cli._roi_z_per_plane(_ManifestSplitter([[-10, -20]])),
+            [(0, -20.0), (0, -10.0)],
+        )
+
+    def test_roi_z_per_plane_without_channels_or_platform_raises(self) -> None:
+        """No known channels and no platform.json: planes cannot be located."""
+        splitter = _ManifestSplitter([[-10], [-20]])
+        clis = {
+            "no channel records": self._cli(("A_0", "A_1")),
+            "one channel unnamed": self._cli(
+                ("A_0", "A_1"), _planes(("Channel1", None), (None, None))
+            ),
+            "generic channel": self._cli(
+                ("A_0", "A_1"),
+                _planes(("Ophys Channel", None), ("Ophys Channel", None)),
+            ),
+            "record for one of two planes": self._cli(
+                ("A_0", "A_1"), _planes(("Channel1", None))
+            ),
+        }
+        for label, cli in clis.items():
+            with self.subTest(case=label):
                 with self.assertRaises(ValueError) as cm:
                     cli._roi_z_per_plane(splitter)
-                self.assertIn(
-                    "must name each plane's channel", str(cm.exception)
-                )
-
-    def test_roi_z_per_plane_requires_a_channel_per_plane(self) -> None:
-        """Planes without channel records are not paired silently."""
-        cli = self._cli(("A_0", "A_1"), ())
-        with self.assertRaises(ValueError) as cm:
-            cli._roi_z_per_plane(_ManifestSplitter([[-10, -20]]))
-        self.assertIn("for 0 of 2", str(cm.exception))
+                self.assertIn("has no *platform.json", str(cm.exception))
 
     def test_roi_z_per_plane_uncoupled_planes(self) -> None:
         """Each uncoupled plane takes its own one-page slice."""
@@ -253,6 +353,58 @@ class TestMesoscopeSplitter(unittest.TestCase):
         with self.assertRaises(ValueError) as cm:
             cli._roi_z_per_plane(_ManifestSplitter([[-10], [-20]]))
         self.assertIn("spans ROIs", str(cm.exception))
+
+    def test_roi_z_per_plane_platform_count_mismatch_raises(self) -> None:
+        """platform.json must list one entry per metadata plane."""
+        _write_platform(self.test_path, [_plane(0, -10, 10)])
+        cli = self._cli(("A_0", "A_1"))
+        with self.assertRaises(ValueError) as cm:
+            cli._roi_z_per_plane(_ManifestSplitter([[-10, -20]]))
+        self.assertIn("lists 1", str(cm.exception))
+
+    def test_roi_z_per_plane_depth_mismatch_raises(self) -> None:
+        """A plane whose platform depth differs from its metadata depth."""
+        _write_platform(
+            self.test_path, [_plane(0, -10, 20), _plane(0, -20, 10)]
+        )
+        cli = self._cli(("A_0", "A_1"), depths=(10.0, 20.0))
+        with self.assertRaises(ValueError) as cm:
+            cli._roi_z_per_plane(_ManifestSplitter([[-10, -20]]))
+        self.assertIn("not in plane-index order", str(cm.exception))
+
+    def test_roi_z_per_plane_skips_unrecorded_depth(self) -> None:
+        """Depth is checked only where both sides record one."""
+        _write_platform(
+            self.test_path, [_plane(0, -10, None), _plane(0, -20, 10)]
+        )
+        cli = self._cli(("A_0", "A_1"), depths=(20.0, None))
+        self.assertEqual(
+            cli._roi_z_per_plane(_ManifestSplitter([[-20, -10]])),
+            [(0, -10.0), (0, -20.0)],
+        )
+
+    def test_roi_z_per_plane_position_not_in_tiff_raises(self) -> None:
+        """A platform position the TIFF does not contain fails loudly."""
+        for planes in (
+            [_plane(0, -10, 10), _plane(0, -30, 20)],
+            [_plane(0, -10, 10), _plane(5, -20, 20)],
+        ):
+            with self.subTest(planes=planes):
+                _write_platform(self.test_path, planes)
+                cli = self._cli(("A_0", "A_1"))
+                with self.assertRaises(ValueError) as cm:
+                    cli._roi_z_per_plane(_ManifestSplitter([[-10, -20]]))
+                self.assertIn("does not contain", str(cm.exception))
+
+    def test_roi_z_per_plane_shared_position_raises(self) -> None:
+        """Two planes cannot claim the same TIFF position."""
+        _write_platform(
+            self.test_path, [_plane(0, -10, 10), _plane(0, -10, 20)]
+        )
+        cli = self._cli(("A_0", "A_1"))
+        with self.assertRaises(ValueError) as cm:
+            cli._roi_z_per_plane(_ManifestSplitter([[-10, -20]]))
+        self.assertIn("already used", str(cm.exception))
 
     def test_roi_z_per_plane_count_mismatch_raises(self) -> None:
         """A manifest longer than the plane list is not paired silently."""

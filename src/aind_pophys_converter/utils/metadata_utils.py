@@ -72,6 +72,9 @@ class ConverterMetadata:
     plane_channels : tuple of PlaneChannel
         Imaging channel and coupled partner of each plane, in ``fov_ids``
         order.
+    plane_depths : tuple of (float or None)
+        Imaging depth of each plane, in ``fov_ids`` order; ``None`` where
+        the input records no depth.
     dataset_name : str or None
         Dataset name from ``data_description.json``; used as the logging
         label. ``None`` when no data_description.
@@ -87,6 +90,7 @@ class ConverterMetadata:
     instrument_id: str
     fov_ids: Tuple[str, ...]
     plane_channels: Tuple[PlaneChannel, ...] = ()
+    plane_depths: Tuple[Optional[float], ...] = ()
     dataset_name: Optional[str] = None
     subject_id: Optional[str] = None
     epoch_stems: Tuple[str, ...] = ()
@@ -137,6 +141,7 @@ def load_converter_metadata(input_dir: Path) -> ConverterMetadata:
             )
             for record in records
         ),
+        plane_depths=tuple(record["depth"] for record in records),
         dataset_name=core.get_dataset_name(),
         subject_id=core.get_subject_id(),
         epoch_stems=_epoch_stems_by_start_time(core),

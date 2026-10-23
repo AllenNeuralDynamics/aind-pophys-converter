@@ -84,7 +84,9 @@ multiple ROIs and depths. `TiffSplitterCLI.run_job()`:
 
 1. Reads metadata in the input_dir to determine FOVs, and locates each plane's
    TIFF pages from its `acquisition.json` imaging channel (`Channel1` or
-   `Channel2`) within its coupled pair
+   `Channel2`) within its coupled pair when every plane records one, otherwise
+   from its `platform.json` ScanImage ROI and z (`scanimage_roi_index`,
+   `scanimage_scanfield_z`)
 2. For each plane, runs `AvgImageTiffSplitter` twice (depth and surface TIFFs)
    and `ZStackSplitter` (local z-stack, if `*local_z*.tiff` files are present)
    to write per-FOV depth, surface, and z-stack outputs.
@@ -153,8 +155,9 @@ splitting and writes only stub `.txt` pointer files.
 - **`utils/image_utils.py`** — small PIL helpers (`add_border_and_label`) for QC
   thumbnails.
 
-- **`utils/platform_utils.py`** — temporary `platform.json` reader gating the
-  child-session depth QC. Removed once depth-pairing moves to `acquisition.json`.
+- **`utils/platform_utils.py`** — `platform.json` readers: each plane's
+  ScanImage position for the splitter, and the child-session gate for the
+  depth QC.
 
 ## Development
 
