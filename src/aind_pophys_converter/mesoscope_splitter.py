@@ -2,12 +2,11 @@
 
 import argparse
 import logging
-import math
 import re
 import sys
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Tuple, Union
 
 from aind_pophys_metadata import find_one
 
@@ -27,16 +26,14 @@ from aind_pophys_converter.utils.full_field_utils import (
 )
 from aind_pophys_converter.utils.metadata_utils import (
     ConverterMetadata,
+    PlaneChannel,
     load_converter_metadata,
-)
-from aind_pophys_converter.utils.platform_utils import (
-    load_platform_plane_positions,
 )
 from aind_pophys_converter.utils.tiff_metadata import ScanImageMetadata
 
-#: Largest difference, in micrometres, between a plane's metadata depth and
-#: its platform.json ``targeted_depth`` that still counts as the same plane.
-DEPTH_TOLERANCE_UM = 1e-6
+#: Page slot, within its coupled pair's TIFF slice, of the plane imaged on
+#: each channel. ScanImage writes a slice's pages in channel order.
+CHANNEL_SLOTS = {"Channel1": 0, "Channel2": 1}
 
 
 def find_split_directories(directory: Path) -> List[Path]:
@@ -223,11 +220,9 @@ class TiffSplitterCLI:
     ) -> List[Tuple[int, float]]:
         """Return the ``(roi_index, z_value)`` locating each imaging plane.
 
-        Each plane is located by its platform.json entry
-        (``scanimage_roi_index``, ``scanimage_scanfield_z``), which names the
-        ROI and z value ScanImage records for its TIFF pages. platform.json
-        lists planes in plane-index order; each plane's metadata depth is
-        checked against its entry's ``targeted_depth``.
+        Coupled pairs (by ``coupled_plane_index``) are matched to the TIFF's
+        slices in plane-index order, and each plane takes the page of its
+        imaging channel within its pair's slice (``CHANNEL_SLOTS``).
 
         Parameters
         ----------
@@ -243,10 +238,10 @@ class TiffSplitterCLI:
         Raises
         ------
         ValueError
-            If the metadata, platform.json and TIFF disagree on plane count,
-            if a plane's metadata depth differs from its platform.json depth,
-            or if a plane's position is not in the TIFF or is shared with
-            another plane.
+            If the metadata and the TIFF disagree on plane count, a plane's
+            imaging channel is not in ``CHANNEL_SLOTS``, coupled partners do
+            not name each other, or a pair's slice spans two ROIs or has no
+            page for one of its channels.
         """
         fov_ids = self._get_imaging_planes()
         manifest = timeseries_splitter.roi_z_int_manifest
@@ -257,83 +252,146 @@ class TiffSplitterCLI:
                 f"{timeseries_splitter.input_path} contains "
                 f"{len(manifest)}. Cannot pair planes to TIFF pages."
             )
-        platform_fp = find_one(
-            self.input_dir, "*platform.json", recursive=False
-        )
-        positions = load_platform_plane_positions(platform_fp)
-        if len(positions) != len(fov_ids):
+        planes = self.metadata.plane_channels
+        if len(planes) != len(fov_ids):
             raise ValueError(
-                f"Plane count mismatch: metadata in {self.input_dir} "
-                f"declares {len(fov_ids)} plane(s), but {platform_fp} "
-                f"lists {len(positions)}."
+                f"Metadata in {self.input_dir} records an imaging channel "
+                f"for {len(planes)} of {len(fov_ids)} plane(s)."
             )
-        roi_z = []
-        for plane_index, fov_id in enumerate(fov_ids):
-            roi_index, z_value, platform_depth = positions[plane_index]
-            self._check_plane_depth(
-                plane_index, fov_id, platform_depth, platform_fp
-            )
-            if not (
-                0 <= roi_index < timeseries_splitter.n_rois
-                and timeseries_splitter.is_z_valid_for_roi(
-                    i_roi=roi_index, z_value=z_value
+        slots = [
+            self._channel_slot(fov_id, plane)
+            for fov_id, plane in zip(fov_ids, planes)
+        ]
+        roi_z: List[Tuple[int, float]] = [None] * len(fov_ids)
+        offset = 0
+        for pair in self._coupled_pairs(fov_ids, planes):
+            pages = manifest[offset : offset + len(pair)]
+            offset += len(pair)
+            self._check_pair_pages(fov_ids, pair, slots, pages)
+            for position in pair:
+                roi_index, z_int = pages[slots[position]]
+                roi_z[position] = (
+                    roi_index,
+                    timeseries_splitter._z_from_int(z_int),
                 )
-            ):
-                raise ValueError(
-                    f"Plane {fov_id}: {platform_fp} places it at ROI "
-                    f"{roi_index}, z {z_value}, which "
-                    f"{timeseries_splitter.input_path} does not contain."
-                )
-            z_value = timeseries_splitter._z_from_int(
-                timeseries_splitter._int_from_z(z_value)
-            )
-            if (roi_index, z_value) in roi_z:
-                raise ValueError(
-                    f"Plane {fov_id}: {platform_fp} places it at ROI "
-                    f"{roi_index}, z {z_value}, already used by another "
-                    "plane."
-                )
-            roi_z.append((roi_index, z_value))
         return roi_z
 
-    def _check_plane_depth(
-        self,
-        plane_index: int,
-        fov_id: str,
-        platform_depth: Optional[float],
-        platform_fp: Path,
-    ) -> None:
-        """Raise when a plane's metadata depth differs from platform.json.
-
-        Skipped when either side records no depth.
+    def _channel_slot(self, fov_id: str, plane: PlaneChannel) -> int:
+        """Return a plane's page slot within its pair from its channel.
 
         Parameters
         ----------
-        plane_index : int
-            Index of the plane in ``fov_ids``.
         fov_id : str
             Canonical id of the plane, for the error message.
-        platform_depth : float or None
-            The plane's ``targeted_depth`` in platform.json.
-        platform_fp : Path
-            The platform.json file, for the error message.
+        plane : PlaneChannel
+            The plane's recorded channel and partner.
+
+        Returns
+        -------
+        int
+            The plane's ``CHANNEL_SLOTS`` entry.
 
         Raises
         ------
         ValueError
-            If both depths are recorded and differ.
+            If the plane's channel is not in ``CHANNEL_SLOTS``.
         """
-        depths = self.metadata.plane_depths
-        if not depths or depths[plane_index] is None or platform_depth is None:
-            return
-        if not math.isclose(
-            depths[plane_index], platform_depth, abs_tol=DEPTH_TOLERANCE_UM
+        if plane.channel_name not in CHANNEL_SLOTS:
+            raise ValueError(
+                f"Plane {fov_id}: imaging channel {plane.channel_name!r} in "
+                f"the metadata for {self.input_dir} is not one of "
+                f"{sorted(CHANNEL_SLOTS)}. acquisition.json must name each "
+                "plane's channel to locate its TIFF pages."
+            )
+        return CHANNEL_SLOTS[plane.channel_name]
+
+    @staticmethod
+    def _coupled_pairs(
+        fov_ids: Tuple[str, ...], planes: Tuple[PlaneChannel, ...]
+    ) -> List[List[int]]:
+        """Group plane positions into coupled pairs, in plane-index order.
+
+        Parameters
+        ----------
+        fov_ids : tuple of str
+            Canonical plane ids, for error messages.
+        planes : tuple of PlaneChannel
+            Recorded channel and partner of each plane, in ``fov_ids`` order.
+
+        Returns
+        -------
+        list of list of int
+            Positions in ``fov_ids`` of each pair's planes; an uncoupled
+            plane forms a pair of one.
+
+        Raises
+        ------
+        ValueError
+            If a plane's coupled partner is missing or does not name it back.
+        """
+        position_of = {plane.plane_index: i for i, plane in enumerate(planes)}
+        pairs: List[List[int]] = []
+        paired = set()
+        for i, plane in enumerate(planes):
+            if i in paired:
+                continue
+            pair = [i]
+            if plane.coupled_plane_index is not None:
+                j = position_of.get(plane.coupled_plane_index)
+                if (
+                    j is None
+                    or j == i
+                    or planes[j].coupled_plane_index != plane.plane_index
+                ):
+                    raise ValueError(
+                        f"Plane {fov_ids[i]}: coupled_plane_index "
+                        f"{plane.coupled_plane_index} does not name a plane "
+                        "that is coupled back to it."
+                    )
+                pair.append(j)
+            paired.update(pair)
+            pairs.append(pair)
+        return pairs
+
+    @staticmethod
+    def _check_pair_pages(
+        fov_ids: Tuple[str, ...],
+        pair: List[int],
+        slots: List[int],
+        pages: List[Tuple[int, int]],
+    ) -> None:
+        """Raise unless a pair's slice covers each of its planes' channels.
+
+        Parameters
+        ----------
+        fov_ids : tuple of str
+            Canonical plane ids, for error messages.
+        pair : list of int
+            Positions of the pair's planes in ``fov_ids``.
+        slots : list of int
+            Page slot of every plane, in ``fov_ids`` order.
+        pages : list of (int, int)
+            The pair's slice of the TIFF manifest, ``(roi_index, z_int)``.
+
+        Raises
+        ------
+        ValueError
+            If the slice spans two ROIs, or two planes share a slot or a slot
+            has no page.
+        """
+        names = [fov_ids[position] for position in pair]
+        pair_slots = [slots[position] for position in pair]
+        if len({roi for roi, _ in pages}) != 1:
+            raise ValueError(
+                f"Planes {names}: their TIFF slice spans ROIs "
+                f"{sorted({roi for roi, _ in pages})}."
+            )
+        if len(set(pair_slots)) != len(pair_slots) or any(
+            slot >= len(pages) for slot in pair_slots
         ):
             raise ValueError(
-                f"Plane {fov_id} (index {plane_index}): metadata depth "
-                f"{depths[plane_index]} does not match {platform_fp} "
-                f"targeted_depth {platform_depth}, so platform.json is not "
-                "in plane-index order."
+                f"Planes {names}: channel slots {pair_slots} do not match "
+                f"their TIFF slice of {len(pages)} page(s)."
             )
 
     def _process_single_fov(

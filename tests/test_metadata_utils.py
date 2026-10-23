@@ -10,6 +10,7 @@ and the conversion ``Code`` builder.
 import json
 import tempfile
 import unittest
+from dataclasses import replace
 from importlib.metadata import version
 from pathlib import Path
 
@@ -85,11 +86,17 @@ class TestLoadConverterMetadata(unittest.TestCase):
         self.assertEqual(meta.epoch_stems, ())
 
     def test_v1_and_v2_equivalent(self) -> None:
-        """Semantically-equal v1/v2 fixtures map to equal metadata."""
+        """Semantically-equal v1/v2 fixtures map to equal metadata.
+
+        Only the plane channels differ: v1 sessions record no channel.
+        """
+        v1 = load_converter_metadata(SYNTHETIC_FIXTURES / "v1")
+        v2 = load_converter_metadata(SYNTHETIC_FIXTURES / "v2")
         self.assertEqual(
-            load_converter_metadata(SYNTHETIC_FIXTURES / "v1"),
-            load_converter_metadata(SYNTHETIC_FIXTURES / "v2"),
+            replace(v1, plane_channels=()), replace(v2, plane_channels=())
         )
+        self.assertEqual(v1.plane_channels[0].channel_name, None)
+        self.assertEqual(v2.plane_channels[0].channel_name, "Ch1")
 
     def test_multiplane_bare_string_structures(self) -> None:
         """Real multi-plane v1 (bare-string structures, no dd)."""
@@ -175,7 +182,9 @@ class TestAssetFixtures(unittest.TestCase):
         root = FIXTURES / fixture_name
         v1 = load_converter_metadata(root / "v1")
         v2 = load_converter_metadata(root / "v2")
-        self.assertEqual(v1, v2)
+        self.assertEqual(
+            replace(v1, plane_channels=()), replace(v2, plane_channels=())
+        )
         self.assertTrue((root / "v2" / "acquisition.json").is_file())
         self.assertTrue((root / "v2" / "data_description.json").is_file())
         return root, v1
@@ -235,12 +244,25 @@ class TestAssetFixtures(unittest.TestCase):
             is_child=True,
         )
 
-    def test_child_meso_fixture_plane_depths(self) -> None:
-        """Plane depths follow plane-index order in both schema versions."""
-        _, metadata = self._load_v1_and_v2("meso_child")
+    def test_child_meso_fixture_plane_channels(self) -> None:
+        """Channels and coupled partners follow plane-index order.
+
+        The v1 session records no channel and a coupled-FOV group index; the
+        upgraded v2 acquisition records the generic channel and each plane's
+        partner.
+        """
+        v1 = load_converter_metadata(FIXTURES / "meso_child" / "v1")
+        v2 = load_converter_metadata(FIXTURES / "meso_child" / "v2")
         self.assertEqual(
-            metadata.plane_depths,
-            (156.0, 172.0, 116.0, 202.0, 76.0, 230.0, 36.0, 276.0),
+            [p.plane_index for p in v2.plane_channels], list(range(8))
+        )
+        self.assertEqual({p.channel_name for p in v1.plane_channels}, {None})
+        self.assertEqual(
+            {p.channel_name for p in v2.plane_channels}, {"Ophys Channel"}
+        )
+        self.assertEqual(
+            [p.coupled_plane_index for p in v2.plane_channels],
+            [1, 0, 3, 2, 5, 4, 7, 6],
         )
 
     def test_bergamo_fixture_v1_and_v2(self) -> None:
