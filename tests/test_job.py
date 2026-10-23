@@ -129,6 +129,7 @@ class TestCreateVasculature(unittest.TestCase):
         self.assertFalse((vas_dir / "vasculature_metric.json").exists())
         self.assertIsInstance(metric, QCMetric)
         self.assertEqual(metric.name, "Vasculature Image")
+        self.assertEqual(metric.tags["evaluation"], "Window Clarity")
 
 
 class TestPairDepthTifsWithAvgDepthPngs(unittest.TestCase):
@@ -211,7 +212,10 @@ class TestPairDepthTifsWithAvgDepthPngs(unittest.TestCase):
         # One metric returned, no standalone metric JSON written
         self.assertEqual(len(metrics), 1)
         self.assertIsInstance(metrics[0], QCMetric)
-        self.assertIn("VISp_200", metrics[0].name)
+        self.assertEqual(metrics[0].name, "VISp_200um Parent-Child FOV")
+        self.assertEqual(
+            metrics[0].tags["evaluation"], "Field-of-view Matching"
+        )
         self.assertEqual(list(self.output_dir.glob("*_fov_metric.json")), [])
         # Merged PNG written
         pngs = list(self.output_dir.glob("*_merged.png"))

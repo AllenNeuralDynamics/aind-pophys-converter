@@ -60,7 +60,7 @@ def build_fov_qc_metric(
     Parameters
     ----------
     unique_id : str
-        Identifier string like 'VISp_200'.
+        Structure and intended depth in microns, like 'VISp_200'.
     raw_tif_path : Path
         Path to the parent depth snapshot TIFF.
     intended_depth : int
@@ -78,8 +78,8 @@ def build_fov_qc_metric(
         Constructed QCMetric object, not yet serialized.
     """
     return shared_qc.dropdown_metric(
-        name=f"{unique_id} Parent-Child FOV",
-        evaluation="Op. QC: Field-of-view Matching",
+        name=f"{unique_id}um Parent-Child FOV",
+        evaluation="Field-of-view Matching",
         options=[
             "FOV Matches parent FOV",
             "FOV does not match parent FOV.",
@@ -87,12 +87,9 @@ def build_fov_qc_metric(
         status=[Status.PASS, Status.FAIL],
         reference=str(merged_path),
         description=(
-            f"Side-by-side comparison of the parent session depth snapshot "
-            f"({raw_tif_path.stem}, intended_depth={intended_depth}µm, "
-            f"structure={targeted_structure_id}) and the current session's "
-            f"averaged-depth image at the closest matching z-plane "
-            f"(child z: {closest_z}µm). "
-            f"Pass if the fields of view align spatially across sessions."
+            "Parent session depth image beside this session's averaged "
+            "image at the nearest z-plane. Pass if the two fields of view "
+            "match."
         ),
         stage=Stage.RAW,
         evaluator=_EVALUATOR,
@@ -114,7 +111,7 @@ def build_vasculature_qc_metric(vasculature_output_fp: Path) -> QCMetric:
     """
     return shared_qc.dropdown_metric(
         name="Vasculature Image",
-        evaluation="Op. QC: Window Clarity",
+        evaluation="Window Clarity",
         options=[
             "Quality is sufficient",
             "Poor vasculature image quality",
@@ -140,11 +137,8 @@ def build_vasculature_qc_metric(vasculature_output_fp: Path) -> QCMetric:
         ],
         reference=str(vasculature_output_fp),
         description=(
-            "Vasculature image captured at session start to assess brain "
-            "surface health and cranial window clarity. Select the option "
-            "that best describes the observed surface condition. Bruising, "
-            "bubbles, or discoloration may indicate compromised tissue or "
-            "optical path quality."
+            "Vasculature image for judging brain surface health and window "
+            "clarity."
         ),
         stage=Stage.RAW,
         evaluator=_EVALUATOR,
