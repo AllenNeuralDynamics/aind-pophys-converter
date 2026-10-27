@@ -23,7 +23,7 @@ from aind_data_schema.core.quality_control import (
     Stage,
     Status,
 )
-from aind_pophys_metadata import find_one
+from aind_pophys_metadata import find_one, relative_to_root
 from aind_pophys_metadata import quality_control as shared_qc
 from PIL import Image
 
@@ -70,7 +70,7 @@ def build_fov_qc_metric(
     closest_z : float
         Closest child z-plane in microns.
     merged_path : Path
-        Path to the saved merged PNG.
+        Saved merged PNG, relative to the results root.
 
     Returns
     -------
@@ -102,7 +102,7 @@ def build_vasculature_qc_metric(vasculature_output_fp: Path) -> QCMetric:
     Parameters
     ----------
     vasculature_output_fp : Path
-        Path to the saved vasculature PNG.
+        Saved vasculature PNG, relative to the results root.
 
     Returns
     -------
@@ -224,6 +224,7 @@ def pair_depth_tifs_with_avg_depth_pngs(
     avg_slice_dir: Path,
     platform_fp: Path,
     output_dir: Path,
+    results_root: Path,
 ) -> List[QCMetric]:
     """Pair parent depth TIFs with child averaged-depth PNGs; return QC.
 
@@ -246,6 +247,8 @@ def pair_depth_tifs_with_avg_depth_pngs(
         Path to the session platform.json.
     output_dir : Path
         Directory to save merged PNGs.
+    results_root : Path
+        Results root; metric references are recorded relative to it.
 
     Returns
     -------
@@ -370,7 +373,7 @@ def pair_depth_tifs_with_avg_depth_pngs(
                 intended_depth=intended_depth,
                 targeted_structure_id=targeted_structure_id,
                 closest_z=closest_z,
-                merged_path=merged_path,
+                merged_path=Path(relative_to_root(results_root, merged_path)),
             )
         )
 
@@ -407,7 +410,9 @@ def create_vasculature(
     with Image.open(vasculature_fp) as im:
         im.save(vasculature_output_fp)
     logging.info(f"Saved vasculature image -> {vasculature_output_fp}")
-    return build_vasculature_qc_metric(vasculature_output_fp)
+    return build_vasculature_qc_metric(
+        Path(relative_to_root(output_dir, vasculature_output_fp))
+    )
 
 
 def finalize_quality_control(
