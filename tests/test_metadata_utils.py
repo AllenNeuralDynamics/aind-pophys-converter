@@ -15,8 +15,6 @@ from importlib.metadata import version
 from pathlib import Path
 
 from aind_pophys_converter.utils.metadata_utils import (
-    LIBRARY_NAME,
-    REPOSITORY_URL,
     ConverterMetadata,
     build_converter_code,
     load_converter_metadata,
@@ -27,6 +25,7 @@ from aind_pophys_converter.utils.platform_utils import (
 
 FIXTURES = Path(__file__).parent / "fixtures"
 SYNTHETIC_FIXTURES = FIXTURES / "synthetic"
+LIBRARY = "aind-pophys-converter"
 
 
 def _write_input(root: Path, core_name: str, core: dict) -> Path:
@@ -301,16 +300,14 @@ class TestBuildConverterCode(unittest.TestCase):
             "debug": False,
         }
 
-    def test_url_is_the_repository_landing_page(self) -> None:
-        """code.url is the repo root, with no /tree/<ref>/code suffix."""
+    def test_identity_is_the_installed_library(self) -> None:
+        """name, version and url all describe this library's package."""
         code = build_converter_code(self._params())
-        self.assertEqual(code.url, REPOSITORY_URL)
-        self.assertNotIn("/tree/", code.url)
-
-    def test_version_comes_from_the_installed_distribution(self) -> None:
-        """code.version identifies the backing library, never empty."""
-        code = build_converter_code(self._params())
-        self.assertEqual(code.version, version(LIBRARY_NAME))
+        self.assertEqual(code.name, LIBRARY)
+        self.assertEqual(code.version, version(LIBRARY))
+        self.assertEqual(
+            code.url, f"https://github.com/AllenNeuralDynamics/{LIBRARY}"
+        )
 
     def test_code_parameters_are_only_job_parameters(self) -> None:
         """code.parameters reflects exactly the JobSettings dict."""
