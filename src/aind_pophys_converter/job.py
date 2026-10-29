@@ -34,10 +34,10 @@ from aind_pophys_converter.utils.platform_utils import (
     is_child_session_via_platform_json,
 )
 
-# instrument_id routing signals: Bergamo matched as a substring, mesoscope
-# rigs matched by the MESO.* prefix.
+# instrument_id routing signals, each matched as a substring: v1 names a
+# mesoscope MESO.1, v2 422_MESO2_20260122.
 _BERGAMO_INSTRUMENT = "Bergamo"
-_MESOSCOPE_INSTRUMENT_PREFIX = "MESO"
+_MESOSCOPE_INSTRUMENT = "MESO"
 
 _POPHYS_DIR_PATTERN = "pophys/"
 
@@ -55,6 +55,22 @@ _MESOSCOPE_RAW_PATTERNS = (
     "*fullfield*.tiff",
     "*_vasculature.tif",
 )
+
+
+def is_mesoscope(instrument_id: str) -> bool:
+    """Return whether an instrument id names a mesoscope rig.
+
+    Parameters
+    ----------
+    instrument_id : str
+        v1 ``rig_id`` or v2 ``instrument_id``.
+
+    Returns
+    -------
+    bool
+        ``True`` when ``MESO`` appears anywhere in the id.
+    """
+    return _MESOSCOPE_INSTRUMENT in instrument_id.upper()
 
 
 def raw_input_data(
@@ -151,7 +167,7 @@ def run() -> None:
                 bergamo_settings, metadata=metadata
             )
             bergamo_stitcher.run_converter()
-        elif metadata.instrument_id.startswith(_MESOSCOPE_INSTRUMENT_PREFIX):
+        elif is_mesoscope(metadata.instrument_id):
             # recursive=False: rglob does not follow symlinks in Python
             # <=3.12 and pophys/ is a symlink in dev.
             platform_fp = find_one(

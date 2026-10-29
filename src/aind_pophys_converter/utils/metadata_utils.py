@@ -27,6 +27,27 @@ from aind_pophys_metadata import processing as shared_processing
 
 
 @dataclass(frozen=True)
+class PlaneChannel:
+    """One plane's imaging channel and coupled partner, as recorded.
+
+    Attributes
+    ----------
+    plane_index : int
+        The plane's index.
+    channel_name : str or None
+        Imaging channel of the plane's image in ``acquisition.json``;
+        ``None`` when the input records none (v1 sessions).
+    coupled_plane_index : int or None
+        The plane's ``coupled_plane_index`` record field; in
+        ``acquisition.json`` the index of its coupled partner.
+    """
+
+    plane_index: int
+    channel_name: Optional[str]
+    coupled_plane_index: Optional[int]
+
+
+@dataclass(frozen=True)
 class ConverterMetadata:
     """Minimal, schema-agnostic metadata the converter actually uses.
 
@@ -46,9 +67,14 @@ class ConverterMetadata:
         ``("plane_0",)`` single-plane, or ``("MOp_0", "VISp_1")``
         multi-plane). Produced by the shared naming rule
         (``aind_pophys_metadata.CoreMetadata.get_fov_ids``) so the
-        ids are identical across capsules. Paired with the TIFF's scan-order
-        planes by position (``fov_ids[i]`` is the i-th scanned plane). Empty
-        only for malformed input with no planes (consumers fail-fast on that).
+        ids are identical across capsules. Empty only for malformed input
+        with no planes (consumers fail-fast on that).
+    plane_channels : tuple of PlaneChannel
+        Imaging channel and coupled partner of each plane, in ``fov_ids``
+        order.
+    plane_depths : tuple of (float or None)
+        Imaging depth of each plane, in ``fov_ids`` order; ``None`` where
+        the input records no depth.
     dataset_name : str or None
         Dataset name from ``data_description.json``; used as the logging
         label. ``None`` when no data_description.
@@ -63,6 +89,8 @@ class ConverterMetadata:
 
     instrument_id: str
     fov_ids: Tuple[str, ...]
+    plane_channels: Tuple[PlaneChannel, ...] = ()
+    plane_depths: Tuple[Optional[float], ...] = ()
     dataset_name: Optional[str] = None
     subject_id: Optional[str] = None
     epoch_stems: Tuple[str, ...] = ()
@@ -101,9 +129,19 @@ def load_converter_metadata(input_dir: Path) -> ConverterMetadata:
         required ``instrument_id`` is missing.
     """
     core = CoreMetadata.load(input_dir)
+    records = sorted(core.get_plane_records(), key=lambda r: r["plane_index"])
     return ConverterMetadata(
         instrument_id=core.get_instrument_id(required=True),
         fov_ids=core.get_fov_ids(),
+        plane_channels=tuple(
+            PlaneChannel(
+                plane_index=record["plane_index"],
+                channel_name=record["channel_name"],
+                coupled_plane_index=record["coupled_plane_index"],
+            )
+            for record in records
+        ),
+        plane_depths=tuple(record["depth"] for record in records),
         dataset_name=core.get_dataset_name(),
         subject_id=core.get_subject_id(),
         epoch_stems=_epoch_stems_by_start_time(core),

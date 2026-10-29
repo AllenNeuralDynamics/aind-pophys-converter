@@ -257,6 +257,29 @@ class TestWriteAvgDepthSlices(unittest.TestCase):
         self.assertEqual(len(tifs), 2)
 
 
+class TestIsMesoscope(unittest.TestCase):
+    """Tests for is_mesoscope, the converter's mesoscope route."""
+
+    def test_v1_and_v2_mesoscope_ids(self) -> None:
+        """v2 names a mesoscope by its dated instrument id."""
+        from aind_pophys_converter.job import is_mesoscope
+
+        for instrument_id in (
+            "MESO.1",
+            "MESO.2",
+            "422_MESO2_20260122",
+            "429_MESO1_20260122",
+        ):
+            with self.subTest(instrument_id=instrument_id):
+                self.assertTrue(is_mesoscope(instrument_id))
+
+    def test_bergamo_is_not_a_mesoscope(self) -> None:
+        """The Bergamo rig takes the other route."""
+        from aind_pophys_converter.job import is_mesoscope
+
+        self.assertFalse(is_mesoscope("442_Bergamo_2p_photostim"))
+
+
 class TestRawInputData(unittest.TestCase):
     """Tests for raw_input_data, the converter's input_data provenance."""
 
