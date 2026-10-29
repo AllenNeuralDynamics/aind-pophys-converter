@@ -211,7 +211,7 @@ class TestQualityControlCoverage(unittest.TestCase):
                 tifffile.imwrite(pophys / name, np.ones((4, 4)))
             with self.assertLogs(level="WARNING") as logged:
                 result = qc.pair_depth_tifs_with_avg_depth_pngs(
-                    pophys, avg, platform, output
+                    pophys, avg, platform, output, root
                 )
             self.assertEqual(len(result), 1)
             self.assertTrue(list(output.glob("*.png")))
@@ -242,7 +242,7 @@ class TestQualityControlCoverage(unittest.TestCase):
             tifffile.imwrite(avg / "10.0.tif", np.zeros((4, 4)))
             with self.assertRaises(ValueError) as cm:
                 qc.pair_depth_tifs_with_avg_depth_pngs(
-                    pophys, avg, platform, output
+                    pophys, avg, platform, output, root
                 )
             self.assertIn("No parent depth TIF", str(cm.exception))
 
@@ -272,7 +272,7 @@ class TestQualityControlCoverage(unittest.TestCase):
             tifffile.imwrite(child, np.ones((4, 4)))
             with patch.object(Path, "unlink", side_effect=OSError("locked")):
                 result = qc.pair_depth_tifs_with_avg_depth_pngs(
-                    pophys, avg, platform, output
+                    pophys, avg, platform, output, root
                 )
             self.assertEqual(len(result), 1)
             self.assertTrue(child.exists())

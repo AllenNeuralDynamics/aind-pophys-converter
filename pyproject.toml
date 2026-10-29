@@ -19,20 +19,23 @@ dynamic = ["version"]
 dependencies = [
     'aind-data-schema==2.9.0',
     'aind-data-schema-models==6.2.0',
-    'aind-pophys-metadata @ git+https://github.com/AllenNeuralDynamics/aind-pophys-metadata.git@4a0334501f0f5dfb7039014f224bace43028966b',
+    'aind-pophys-metadata @ git+https://github.com/AllenNeuralDynamics/aind-pophys-metadata.git@v0.3.0',
     'log-schema[cloudwatch] @ git+https://github.com/AllenNeuralDynamics/aind-log-utils.git@f09685e#subdirectory=python',
     'aind-ophys-utils==0.0.8',
     'h5py==3.16.0',
-    'numpy>=1.26',
+    'numpy==2.2.6',
     'Pillow==12.1.1',
     'pydantic==2.11.10',
     'pydantic-settings==2.8.1',
     'python-dateutil==2.9.0.post0',
     'pytz==2025.2',
-    'scikit-image>=0.25.0',
+    'scikit-image==0.25.2',
     'tifffile==2024.2.12',
     'scanimage-tiff-reader==1.4.1.4',
 ]
+
+[project.urls]
+Repository = "https://github.com/AllenNeuralDynamics/aind-pophys-converter"
 
 [project.optional-dependencies]
 dev = [

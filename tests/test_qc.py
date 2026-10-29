@@ -23,6 +23,14 @@ from aind_pophys_converter.qc import (
     write_quality_control_json,
 )
 
+FOV_DESCRIPTION = (
+    "Parent session depth image beside this session's averaged image at the "
+    "nearest z-plane. Pass if the two fields of view match."
+)
+VASCULATURE_DESCRIPTION = (
+    "Vasculature image for judging brain surface health and window clarity."
+)
+
 
 class TestBuildQcMetrics(unittest.TestCase):
     """Tests for build_fov_qc_metric and build_vasculature_qc_metric."""
@@ -51,8 +59,8 @@ class TestBuildQcMetrics(unittest.TestCase):
         )
         self.assertEqual(metric.modality, Modality.POPHYS)
 
-    def test_fov_metric_name_contains_unique_id(self) -> None:
-        """build_fov_qc_metric name includes the unique_id."""
+    def test_fov_metric_name_restores_um_unit(self) -> None:
+        """build_fov_qc_metric name is the unique_id plus the um unit."""
         metric = build_fov_qc_metric(
             unique_id="MOp_100",
             raw_tif_path=Path("/fake/parent.tif"),
@@ -61,7 +69,57 @@ class TestBuildQcMetrics(unittest.TestCase):
             closest_z=-100.0,
             merged_path=Path("/fake/merged.png"),
         )
-        self.assertIn("MOp_100", metric.name)
+        self.assertEqual(metric.name, "MOp_100um Parent-Child FOV")
+
+    def test_fov_metric_group_and_type(self) -> None:
+        """build_fov_qc_metric is Operational QC in the FOV matching group."""
+        metric = build_fov_qc_metric(
+            unique_id="VISp_200",
+            raw_tif_path=Path("/fake/parent.tif"),
+            intended_depth=200,
+            targeted_structure_id="VISp",
+            closest_z=-200.0,
+            merged_path=Path("/fake/merged.png"),
+        )
+        self.assertEqual(
+            metric.tags,
+            {"evaluation": "Field-of-view Matching", "type": "Operational QC"},
+        )
+
+    def test_fov_metric_description_is_independent_of_the_run(self) -> None:
+        """build_fov_qc_metric description holds no per-plane values."""
+        first = build_fov_qc_metric(
+            unique_id="VISp_160",
+            raw_tif_path=Path("/fake/1781731432_160_VISp_depth.tif"),
+            intended_depth=160,
+            targeted_structure_id="VISp",
+            closest_z=345.0,
+            merged_path=Path("/fake/merged.png"),
+        )
+        second = build_fov_qc_metric(
+            unique_id="MOp_100",
+            raw_tif_path=Path("/fake/1781731433_100_MOp_depth.tif"),
+            intended_depth=100,
+            targeted_structure_id="MOp",
+            closest_z=100.0,
+            merged_path=Path("/fake/merged.png"),
+        )
+        self.assertEqual(first.description, FOV_DESCRIPTION)
+        self.assertEqual(second.description, FOV_DESCRIPTION)
+
+    def test_vasculature_metric_name_group_and_type(self) -> None:
+        """build_vasculature_qc_metric is Operational QC, Window Clarity."""
+        metric = build_vasculature_qc_metric(Path("/fake/vasculature.png"))
+        self.assertEqual(metric.name, "Vasculature Image")
+        self.assertEqual(
+            metric.tags,
+            {"evaluation": "Window Clarity", "type": "Operational QC"},
+        )
+
+    def test_vasculature_metric_description(self) -> None:
+        """build_vasculature_qc_metric carries the agreed description."""
+        metric = build_vasculature_qc_metric(Path("/fake/vasculature.png"))
+        self.assertEqual(metric.description, VASCULATURE_DESCRIPTION)
 
     def test_vasculature_metric_stage(self) -> None:
         """build_vasculature_qc_metric returns Stage.RAW."""

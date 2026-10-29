@@ -129,6 +129,8 @@ class TestCreateVasculature(unittest.TestCase):
         self.assertFalse((vas_dir / "vasculature_metric.json").exists())
         self.assertIsInstance(metric, QCMetric)
         self.assertEqual(metric.name, "Vasculature Image")
+        self.assertEqual(metric.tags["evaluation"], "Window Clarity")
+        self.assertEqual(metric.reference, "vasculature/vasculature.png")
 
 
 class TestPairDepthTifsWithAvgDepthPngs(unittest.TestCase):
@@ -164,7 +166,9 @@ class TestPairDepthTifsWithAvgDepthPngs(unittest.TestCase):
     def test_skips_when_no_imaging_planes(self) -> None:
         """Returns [] when platform.json has no imaging planes."""
         fp = self._write_platform([])
-        result = self.fn(self.pophys_dir, self.avg_dir, fp, self.output_dir)
+        result = self.fn(
+            self.pophys_dir, self.avg_dir, fp, self.output_dir, self.tmp_path
+        )
         self.assertEqual(result, [])
         self.assertEqual(list(self.output_dir.glob("*.json")), [])
 
@@ -178,7 +182,9 @@ class TestPairDepthTifsWithAvgDepthPngs(unittest.TestCase):
             }
         ]
         fp = self._write_platform(planes)
-        result = self.fn(self.pophys_dir, self.avg_dir, fp, self.output_dir)
+        result = self.fn(
+            self.pophys_dir, self.avg_dir, fp, self.output_dir, self.tmp_path
+        )
         self.assertEqual(result, [])
         self.assertEqual(list(self.output_dir.glob("*.json")), [])
 
@@ -206,12 +212,20 @@ class TestPairDepthTifsWithAvgDepthPngs(unittest.TestCase):
         child_arr = np.random.uniform(4, 32, (64, 64)).astype(np.float32)
         tifffile.imwrite(self.avg_dir / "276.0.tif", child_arr)
 
-        metrics = self.fn(self.pophys_dir, self.avg_dir, fp, self.output_dir)
+        metrics = self.fn(
+            self.pophys_dir, self.avg_dir, fp, self.output_dir, self.tmp_path
+        )
 
         # One metric returned, no standalone metric JSON written
         self.assertEqual(len(metrics), 1)
         self.assertIsInstance(metrics[0], QCMetric)
-        self.assertIn("VISp_200", metrics[0].name)
+        self.assertEqual(metrics[0].name, "VISp_200um Parent-Child FOV")
+        self.assertEqual(
+            metrics[0].reference, "output/ts_200_VISp_depth_merged.png"
+        )
+        self.assertEqual(
+            metrics[0].tags["evaluation"], "Field-of-view Matching"
+        )
         self.assertEqual(list(self.output_dir.glob("*_fov_metric.json")), [])
         # Merged PNG written
         pngs = list(self.output_dir.glob("*_merged.png"))

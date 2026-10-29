@@ -239,7 +239,11 @@ class TestMesoscopeSplitter(unittest.TestCase):
         """
         splitter, expected = self._meso_child_manifest()
         cli = self._meso_child_cli(_channel_named_acquisition(self.test_path))
-        self.assertEqual(cli._roi_z_per_plane(splitter), expected)
+        with self.assertLogs(level="INFO") as logged:
+            self.assertEqual(cli._roi_z_per_plane(splitter), expected)
+        self.assertTrue(
+            any("acquisition channels" in line for line in logged.output)
+        )
 
     def test_roi_z_per_plane_channels_take_precedence(self) -> None:
         """Planes naming every channel are not located from platform.json."""
@@ -259,7 +263,13 @@ class TestMesoscopeSplitter(unittest.TestCase):
         for version in ("v1", "v2"):
             with self.subTest(version=version):
                 cli = self._meso_child_cli(MESO_CHILD / version)
-                self.assertEqual(cli._roi_z_per_plane(splitter), expected)
+                with self.assertLogs(level="INFO") as logged:
+                    self.assertEqual(
+                        cli._roi_z_per_plane(splitter), expected
+                    )
+                self.assertTrue(
+                    any("platform.json positions" in m for m in logged.output)
+                )
 
     def test_roi_z_per_plane_v1_input_takes_platform_path(self) -> None:
         """v1 input records no channel, so platform.json locates the planes."""

@@ -260,7 +260,12 @@ class TiffSplitterCLI:
                 f"{len(manifest)}. Cannot pair planes to TIFF pages."
             )
         if self._names_every_channel():
+            logging.info("Locating planes by their acquisition channels")
             return self._roi_z_from_channels(timeseries_splitter)
+        logging.info(
+            "Locating planes by platform.json positions; the metadata does "
+            "not name a known channel for every plane"
+        )
         return self._roi_z_from_platform(timeseries_splitter)
 
     def _names_every_channel(self) -> bool:

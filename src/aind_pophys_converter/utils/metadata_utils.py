@@ -173,16 +173,6 @@ def _epoch_stems_by_start_time(core: CoreMetadata) -> Tuple[str, ...]:
 # Code block
 # ---------------------------------------------------------------------------
 
-#: Distribution name. The shared builder derives ``code.version`` from it;
-#: this repo is its own backing library.
-LIBRARY_NAME = "aind-pophys-converter"
-
-#: ``code.url``. Only this repo knows where its own code lives, so the url is
-#: passed to the shared builder rather than derived from ``LIBRARY_NAME``.
-REPOSITORY_URL = "https://github.com/AllenNeuralDynamics/aind-pophys-converter"
-
-_CODE_NAME = "AIND Pophys Converter"
-
 #: ``DataProcess.name``. Set explicitly because ``ophys_nwb`` also uses
 #: ``ProcessName.FILE_FORMAT_CONVERSION``, so both would otherwise derive the
 #: same default name ("File format conversion") and the run-level aggregator
@@ -215,12 +205,11 @@ def build_converter_code(
     Returns
     -------
     Code
-        The populated code block.
+        The populated code block; name, version and url are this library's
+        installed package metadata.
     """
     return shared_processing.build_code(
-        name=_CODE_NAME,
-        library_name=LIBRARY_NAME,
-        url=REPOSITORY_URL,
+        __name__,
         parameters=job_parameters,
         input_data=input_data,
     )

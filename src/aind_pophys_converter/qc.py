@@ -23,7 +23,7 @@ from aind_data_schema.core.quality_control import (
     Stage,
     Status,
 )
-from aind_pophys_metadata import find_one
+from aind_pophys_metadata import find_one, relative_to_root
 from aind_pophys_metadata import quality_control as shared_qc
 from PIL import Image
 
@@ -60,7 +60,7 @@ def build_fov_qc_metric(
     Parameters
     ----------
     unique_id : str
-        Identifier string like 'VISp_200'.
+        Structure and intended depth in microns, like 'VISp_200'.
     raw_tif_path : Path
         Path to the parent depth snapshot TIFF.
     intended_depth : int
@@ -70,7 +70,7 @@ def build_fov_qc_metric(
     closest_z : float
         Closest child z-plane in microns.
     merged_path : Path
-        Path to the saved merged PNG.
+        Saved merged PNG, relative to the results root.
 
     Returns
     -------
@@ -78,8 +78,8 @@ def build_fov_qc_metric(
         Constructed QCMetric object, not yet serialized.
     """
     return shared_qc.dropdown_metric(
-        name=f"{unique_id} Parent-Child FOV",
-        evaluation="Op. QC: Field-of-view Matching",
+        name=f"{unique_id}um Parent-Child FOV",
+        evaluation="Field-of-view Matching",
         options=[
             "FOV Matches parent FOV",
             "FOV does not match parent FOV.",
@@ -87,12 +87,9 @@ def build_fov_qc_metric(
         status=[Status.PASS, Status.FAIL],
         reference=str(merged_path),
         description=(
-            f"Side-by-side comparison of the parent session depth snapshot "
-            f"({raw_tif_path.stem}, intended_depth={intended_depth}µm, "
-            f"structure={targeted_structure_id}) and the current session's "
-            f"averaged-depth image at the closest matching z-plane "
-            f"(child z: {closest_z}µm). "
-            f"Pass if the fields of view align spatially across sessions."
+            "Parent session depth image beside this session's averaged "
+            "image at the nearest z-plane. Pass if the two fields of view "
+            "match."
         ),
         stage=Stage.RAW,
         evaluator=_EVALUATOR,
@@ -105,7 +102,7 @@ def build_vasculature_qc_metric(vasculature_output_fp: Path) -> QCMetric:
     Parameters
     ----------
     vasculature_output_fp : Path
-        Path to the saved vasculature PNG.
+        Saved vasculature PNG, relative to the results root.
 
     Returns
     -------
@@ -114,7 +111,7 @@ def build_vasculature_qc_metric(vasculature_output_fp: Path) -> QCMetric:
     """
     return shared_qc.dropdown_metric(
         name="Vasculature Image",
-        evaluation="Op. QC: Window Clarity",
+        evaluation="Window Clarity",
         options=[
             "Quality is sufficient",
             "Poor vasculature image quality",
@@ -140,11 +137,8 @@ def build_vasculature_qc_metric(vasculature_output_fp: Path) -> QCMetric:
         ],
         reference=str(vasculature_output_fp),
         description=(
-            "Vasculature image captured at session start to assess brain "
-            "surface health and cranial window clarity. Select the option "
-            "that best describes the observed surface condition. Bruising, "
-            "bubbles, or discoloration may indicate compromised tissue or "
-            "optical path quality."
+            "Vasculature image for judging brain surface health and window "
+            "clarity."
         ),
         stage=Stage.RAW,
         evaluator=_EVALUATOR,
@@ -230,6 +224,7 @@ def pair_depth_tifs_with_avg_depth_pngs(
     avg_slice_dir: Path,
     platform_fp: Path,
     output_dir: Path,
+    results_root: Path,
 ) -> List[QCMetric]:
     """Pair parent depth TIFs with child averaged-depth PNGs; return QC.
 
@@ -252,6 +247,8 @@ def pair_depth_tifs_with_avg_depth_pngs(
         Path to the session platform.json.
     output_dir : Path
         Directory to save merged PNGs.
+    results_root : Path
+        Results root; metric references are recorded relative to it.
 
     Returns
     -------
@@ -376,7 +373,7 @@ def pair_depth_tifs_with_avg_depth_pngs(
                 intended_depth=intended_depth,
                 targeted_structure_id=targeted_structure_id,
                 closest_z=closest_z,
-                merged_path=merged_path,
+                merged_path=Path(relative_to_root(results_root, merged_path)),
             )
         )
 
@@ -413,7 +410,9 @@ def create_vasculature(
     with Image.open(vasculature_fp) as im:
         im.save(vasculature_output_fp)
     logging.info(f"Saved vasculature image -> {vasculature_output_fp}")
-    return build_vasculature_qc_metric(vasculature_output_fp)
+    return build_vasculature_qc_metric(
+        Path(relative_to_root(output_dir, vasculature_output_fp))
+    )
 
 
 def finalize_quality_control(
