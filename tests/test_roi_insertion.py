@@ -2,6 +2,7 @@
 
 import pathlib
 import unittest
+from typing import List, Tuple
 from unittest.mock import Mock, patch
 
 import numpy as np
@@ -9,7 +10,7 @@ import tifffile
 from aind_ophys_utils.array_utils import normalize_array
 from skimage.transform import resize as skimage_resize
 
-from aind_pophys_converter.mesoscope_splitter import (
+from aind_pophys_converter.tiff_splitters import (
     AvgImageTiffSplitter,
     mkstemp_clean,
 )
@@ -31,7 +32,7 @@ def _create_avg_surface_tiff(
     origin_x: float,
     origin_y: float,
     output_dir: pathlib.Path,
-):
+) -> Tuple[pathlib.Path, List[np.ndarray], List[dict]]:
     """
     Returns 12 x 12 ROIs where each pixel in the ROI
     corresponds to pixel_size physical units
@@ -64,7 +65,7 @@ def _create_avg_surface_tiff(
     avg_images = []
 
     n_pages_per_roi = 5
-    data = np.zeros((n_pages_per_roi * n_rois, nrows, ncols))
+    data = np.zeros((n_pages_per_roi * n_rois, nrows, ncols), dtype=np.uint16)
 
     for i_roi in range(n_rois):
         this_data = rng.integers(
@@ -106,7 +107,7 @@ def _create_avg_surface_tiff(
 class TestRoiInsertion(unittest.TestCase):
     """Tests for inserting ROIs into stitched full field images"""
 
-    def test_insertion_worker(self):
+    def test_insertion_worker(self) -> None:
         """
         Test the insertion worker by creating a set of average images
         """
@@ -122,7 +123,7 @@ class TestRoiInsertion(unittest.TestCase):
                 tmpdir = pathlib.Path(
                     tempfile.mkdtemp(prefix="insertion_worker")
                 )
-                (tiff_path, expected_avg, avg_metadata) = (
+                tiff_path, expected_avg, avg_metadata = (
                     _create_avg_surface_tiff(
                         n_rois=n_rois,
                         pixel_size=roi_pixel,
@@ -194,12 +195,12 @@ class TestRoiInsertion(unittest.TestCase):
                         roi_row0 * roi_pixel / bckgd_pixel
                     ).astype(int)
                     actual = img[
-                        roi_row0: roi_row0 + expected.shape[0],
-                        roi_col0: roi_col0 + expected.shape[1],
+                        roi_row0 : roi_row0 + expected.shape[0],
+                        roi_col0 : roi_col0 + expected.shape[1],
                     ]
                     mask_missing[
-                        roi_row0: roi_row0 + expected.shape[0],
-                        roi_col0: roi_col0 + expected.shape[1],
+                        roi_row0 : roi_row0 + expected.shape[0],
+                        roi_col0 : roi_col0 + expected.shape[1],
                     ] = False
                     np.testing.assert_allclose(actual, expected)
                 # verify that all of the pixels that should not be
@@ -207,7 +208,7 @@ class TestRoiInsertion(unittest.TestCase):
                 # still NaNs
                 self.assertTrue(np.all(np.isnan(img[mask_missing])))
 
-    def test_user_facing_insertion(self):
+    def test_user_facing_insertion(self) -> None:
         """
         This is really just a smoke test of stitch_tiff_with_rois
         """
@@ -216,7 +217,7 @@ class TestRoiInsertion(unittest.TestCase):
         tmpdir = pathlib.Path(tempfile.mkdtemp(prefix="user_facing_insertion"))
         origin_x = 21.2
         origin_y = 11.1
-        (avg_tiff_path, avg_images, avg_metadata) = _create_avg_surface_tiff(
+        avg_tiff_path, avg_images, avg_metadata = _create_avg_surface_tiff(
             n_rois=3,
             pixel_size=1.3,
             origin_x=origin_x,
@@ -229,7 +230,7 @@ class TestRoiInsertion(unittest.TestCase):
         gap = 3
         nrows = gap * (nrois - 1) + roiy * nrois
         ncols = roix
-        (bckgd_path, bckgd_img, bckgd_metadata) = _create_full_field_tiff(
+        bckgd_path, bckgd_img, bckgd_metadata = _create_full_field_tiff(
             numVolumes=2,
             numSlices=7,
             seed=45678,
@@ -248,7 +249,7 @@ class TestRoiInsertion(unittest.TestCase):
         )
         bckgd_metadata.append(roi_metadata)
 
-        def mock_read_metadata(tiff_path):
+        def mock_read_metadata(tiff_path: pathlib.Path) -> List[dict]:
             """
             Mock function to return metadata based on the tiff path.
             """
@@ -265,6 +266,8 @@ class TestRoiInsertion(unittest.TestCase):
             )
         self.assertIsInstance(img, np.ndarray)
         self.assertEqual(img.dtype, np.uint16)
+        with self.assertRaises(RuntimeError):
+            mock_read_metadata(pathlib.Path("unexpected.tiff"))
 
 
 if __name__ == "__main__":

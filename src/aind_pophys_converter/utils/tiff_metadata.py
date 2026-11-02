@@ -1,4 +1,5 @@
 """Utilities for reading and parsing ScanImage TIFF metadata"""
+
 import copy
 import pathlib
 from typing import List, Tuple, Union
@@ -7,7 +8,7 @@ import numpy as np
 import tifffile
 
 
-def _read_metadata(tiff_path: pathlib.Path):
+def _read_metadata(tiff_path: pathlib.Path) -> tuple:
     """
     Calls tifffile.read_scanimage_metadata on the specified
     path and returns teh result. This method was factored
@@ -27,7 +28,7 @@ class ScanImageMetadata(object):
         Path to the TIFF file whose metadata we are parsing
     """
 
-    def __init__(self, tiff_path: pathlib.Path):
+    def __init__(self, tiff_path: pathlib.Path) -> None:
         """Initialize the ScanImageMetadata object"""
         self._file_path = tiff_path
         if not tiff_path.is_file():

@@ -1,20 +1,25 @@
 """This module provides functionality to stitch together multiple TIFF files"""
+
 import argparse
 import json
 import logging
 import os
-import sys
+import re
+from collections import defaultdict
 from datetime import datetime as dt
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 
-import dateutil
 import h5py as h5
 import numpy as np
+from aind_pophys_metadata import find_one
 from pydantic import BaseModel, Field
 from ScanImageTiffReader import ScanImageTiffReader
 
-from aind_pophys_converter.utils.logging_cfg import setup_logging
+from aind_pophys_converter.utils.metadata_utils import (
+    ConverterMetadata,
+    load_converter_metadata,
+)
 
 
 class BergamoSettings(BaseModel):
@@ -22,10 +27,6 @@ class BergamoSettings(BaseModel):
 
     input_dir: Path = Field(description="directory of tiff files")
     output_dir: Path = Field(description="where to save the hdf5 file")
-    unique_id: str = Field(
-        description="name for data (how it relates to the experiment)"
-    )
-    session_fp: Path = Field(description="path to the session file")
     debug: bool = Field(
         default=False,
         description=(
@@ -37,13 +38,25 @@ class BergamoSettings(BaseModel):
 
 class BaseStitcher:
     """Base class for stitching TIFF files into a single HDF5 file"""
-    def __init__(self, bergamo_settings: BergamoSettings):
-        """Initialize the stitcher with settings"""
+
+    def __init__(
+        self,
+        bergamo_settings: BergamoSettings,
+        metadata: ConverterMetadata,
+    ) -> None:
+        """Initialize the stitcher with settings and converter metadata.
+
+        Parameters
+        ----------
+        bergamo_settings : BergamoSettings
+            CLI-driven settings (input/output dirs, debug flag).
+        metadata : ConverterMetadata
+            Schema-agnostic metadata loaded from v1 or v2 input.
+        """
         self.input_dir = bergamo_settings.input_dir
         self.output_dir = bergamo_settings.output_dir
-        self.unique_id = bergamo_settings.unique_id
-        self.session_fp = bergamo_settings.session_fp
         self.debug = bergamo_settings.debug
+        self.metadata = metadata
 
     def write_images(
         self,
@@ -69,14 +82,14 @@ class BaseStitcher:
         with h5.File(cache_filepath, "a") as f:
             f["data"].resize(initial_frame + len(image_data_to_cache), axis=0)
             f["data"][
-                initial_frame: initial_frame + len(image_data_to_cache)
+                initial_frame : initial_frame + len(image_data_to_cache)
             ] = image_data_to_cache
 
     def write_final_output(
         self,
         output_filepath: Path,
         **kwargs: dict,
-    ):
+    ) -> None:
         """Writes the final output to disk along with the metadata.
         Clears the temporary
         hdf5 data file
@@ -114,54 +127,68 @@ class BaseStitcher:
 
 class BergamoTiffStitcher(BaseStitcher):
     """Class to stitch together TIFF files from a Bergamo session"""
-    def __init__(self, bergamo_settings: BergamoSettings):
-        """Initialize the BergamoTiffStitcher with settings"""
-        super().__init__(bergamo_settings)
 
-    def _load_session(self) -> dict:
-        """Loads the session file
-        Returns
-        -------
-        dict
-            The session dictionary
-        """
-        with open(self.session_fp, "r") as f:
-            return json.load(f)
+    def __init__(
+        self,
+        bergamo_settings: BergamoSettings,
+        metadata: ConverterMetadata,
+    ) -> None:
+        """Initialize the BergamoTiffStitcher with settings and metadata."""
+        super().__init__(bergamo_settings, metadata=metadata)
 
-    def _extract_tiff_from_session(self, session_data: dict) -> dict:
-        """Builds tiff data structures used for the header data later
-        Parameters
-        ----------
-        session_data : dict
-            The session data dictionary
+    def _discover_tiff_epochs(self) -> dict:
+        """Resolve stimulus epochs to their tiff files, in acquisition order.
+
+        Iterates the stimulus epochs recorded in the acquisition metadata,
+        ordered by start time (``metadata.epoch_stems``), and resolves each
+        to the ``*.tif`` files on disk whose filename stem (everything before
+        the trailing ``_NNNNN`` numeric suffix) matches, sorted by numeric
+        suffix. Files on disk whose stem no epoch names -- including the
+        ``stack`` z-stack calibration scans -- are ignored.
 
         Returns
         -------
         dict
-            A dictionary containing the tiff data structure
-        """
+            ``{stem: {"tiff_files": [sorted absolute path strings]}}``,
+            insertion-ordered by acquisition start time.
 
-        # Extract the tiff file names from the session file
-        stimulus_epochs = sorted(
-            session_data.get("stimulus_epochs", {}),
-            key=lambda x: dateutil.parser.parse(x["stimulus_start_time"]),
-        )
-        if not stimulus_epochs:
-            raise ValueError("No stimulus epochs found in session file")
-        native_tiffs = [i for i in self.input_dir.rglob("*.tif")]
-        native_tiffs_dict = dict(
-            zip([i.name for i in native_tiffs], native_tiffs)
-        )
+        Raises
+        ------
+        ValueError
+            If the acquisition metadata records no stimulus epochs, or if an
+            epoch's tiff files are missing from input_dir.
+        """
+        if not self.metadata.epoch_stems:
+            raise ValueError(
+                "No stimulus epochs found in the acquisition metadata for "
+                f"{self.input_dir}; cannot stitch Bergamo epochs."
+            )
+
+        _suffix = re.compile(r"^(.+)_(\d+)$")
+        groups: dict = defaultdict(list)
+
+        for tif in self.input_dir.glob("*.tif"):
+            m = _suffix.match(tif.stem)
+            stem = m.group(1) if m else tif.stem
+            groups[stem].append(tif)
+
+        def _sort_key(p: Path) -> int:
+            """Extract numeric suffix for sorting."""
+            m = _suffix.match(p.stem)
+            return int(m.group(2)) if m else 0
+
         epochs = {}
-        for epoch in stimulus_epochs:
-            epoch_files = []
-            if not epoch.get("output_parameters", {}):
-                continue
-            tiff_stem = epoch["output_parameters"]["tiff_stem"]
-            for stim in epoch["output_parameters"]["tiff_files"]:
-                epoch_files.append(str(native_tiffs_dict[stim]))
-            epochs[tiff_stem] = {"tiff_files": epoch_files}
-            epochs[tiff_stem]["stimulus_name"] = epoch["stimulus_name"]
+        for stem in self.metadata.epoch_stems:
+            if stem not in groups:
+                raise ValueError(
+                    f"Stimulus epoch '{stem}' from the acquisition metadata "
+                    f"has no tiff files in {self.input_dir}."
+                )
+            epochs[stem] = {
+                "tiff_files": [
+                    str(p) for p in sorted(groups[stem], key=_sort_key)
+                ]
+            }
         if self.debug:
             logging.info(
                 "Debug mode: limiting to 1 file per epoch "
@@ -169,23 +196,21 @@ class BergamoTiffStitcher(BaseStitcher):
                 sum(len(v["tiff_files"]) for v in epochs.values()),
             )
             epochs = {
-                stem: {
-                    "tiff_files": v["tiff_files"][:1],
-                    "stimulus_name": v["stimulus_name"],
-                }
+                stem: {"tiff_files": v["tiff_files"][:1]}
                 for stem, v in epochs.items()
             }
         return epochs
 
-    def _get_image_dim(self) -> tuple:
+    def _get_image_dim(self) -> Tuple[int, ...]:
         """Grab image shape from metdata"""
-        file_path = next(self.input_dir.glob("*.tif"))
+        file_path = find_one(self.input_dir, "*.tif", recursive=False)
         with ScanImageTiffReader(str(file_path)) as reader:
             return reader.shape()[1:]
 
     def write_bergamo(
         self,
         epochs: dict,
+        unique_id: str,
         image_width: int = 800,
         image_height: int = 800,
     ) -> Path:
@@ -197,6 +222,8 @@ class BergamoTiffStitcher(BaseStitcher):
         ----------
         epochs : dict
             A dictionary containg the sorted epochs
+        unique_id : str
+            Name for the output HDF5 file (without extension).
         image_width : int, optional
             The width of the image, by default 800
         image_height : int, optional
@@ -214,7 +241,7 @@ class BergamoTiffStitcher(BaseStitcher):
         start_epoch_count = 0
         trial_counter = 0
         header_data = {}
-        output_filepath = self.output_dir / f"{self.unique_id}.h5"
+        output_filepath = self.output_dir / f"{unique_id}.h5"
         with h5.File(output_filepath, "w") as f:
             f.create_dataset(
                 "data",
@@ -227,6 +254,7 @@ class BergamoTiffStitcher(BaseStitcher):
         # location of the epoch image in the stack
         epoch_location = {}
         trial_locations = {}
+        image_shape = None
         for epoch in epochs.keys():
             header_count = 0
             for filename in epochs[epoch]["tiff_files"]:
@@ -258,44 +286,58 @@ class BergamoTiffStitcher(BaseStitcher):
         )
         total_time = dt.now() - start_time
         logging.info("Time to cache %s seconds", total_time.total_seconds())
-        return self.output_dir / f"{self.unique_id}.h5", image_shape
+        if image_shape is None:
+            raise ValueError("No tiff files were processed")
+        return self.output_dir / f"{unique_id}.h5", image_shape
 
     def run_converter(self) -> Path:
         """
         Reads in a list of tiff files from a specified path (initialized above)
         and converts them to a single h5 file. Writes relevant metadata to the
-        h5 file.
+        h5 file. The output filename is derived from the acquisition metadata.
 
         Returns
         -------
         Path
             converted filepath
         """
-
+        if not self.metadata.fov_ids:
+            raise ValueError(
+                f"No imaging planes found in {self.input_dir}; cannot "
+                "derive the Bergamo output name. Check that the "
+                "acquisition/session metadata defines an imaging FOV/plane."
+            )
+        unique_id = self.metadata.fov_ids[0]
+        self.output_dir = self.output_dir / unique_id
+        self.output_dir.mkdir(exist_ok=True)
         # Convert the file and build the final metadata structure
-        session_meta = self._load_session()
-        epochs = self._extract_tiff_from_session(session_meta)
+        epochs = self._discover_tiff_epochs()
         shape = self._get_image_dim()
-        # metadata dictionary where the keys are the image filename and the
-        # values are the index of the order in which the image was read, which
-        # epoch it's associated with,  the location of the image in the h5
-        # stack and the image shape
-        # tmp_file = TemporaryFile(prefix=self.unique_id, suffix=".h5")
+        # metadata dictionary where the keys are the image filename and
+        # the values are the index of the order in which the image was
+        # read, which epoch it's associated with, the location of the
+        # image in the h5 stack and the image shape
         output_filepath = self.write_bergamo(
             epochs=epochs,
+            unique_id=unique_id,
             image_width=shape[0],
             image_height=shape[1],
         )
         return output_filepath
 
     @classmethod
-    def from_args(cls, args: list):
-        """
-        Adds ability to construct settings from a list of arguments.
+    def from_args(cls, args: List[str]) -> "BergamoTiffStitcher":
+        """Construct a stitcher from command line arguments.
+
         Parameters
         ----------
-        args : list
-        A list of command line arguments to parse.
+        args : list of str
+            CLI arguments. Expects ``--input-dir`` (tiff directory; its
+            parent is searched for v1 ``session.json`` or v2
+            ``acquisition.json``), and optionally ``--output-dir``
+            (defaults to input directory) and ``--metadata-dir``
+            (overrides where metadata files are looked up; defaults to
+            ``input-dir.parent``).
         """
 
         parser = argparse.ArgumentParser()
@@ -304,11 +346,7 @@ class BergamoTiffStitcher(BaseStitcher):
             "--input-dir",
             required=True,
             type=str,
-            help=(
-                """
-                data-directory for bergamo settings
-                """
-            ),
+            help="directory containing the tiff files to stitch",
         )
         parser.add_argument(
             "-o",
@@ -316,62 +354,33 @@ class BergamoTiffStitcher(BaseStitcher):
             required=False,
             default=None,
             type=str,
-            help=(
-                """
-                output-directory for bergamo settings
-                """
-            ),
+            help="directory to write outputs into",
         )
         parser.add_argument(
-            "-u",
-            "--unique-id",
+            "-m",
+            "--metadata-dir",
             required=False,
             default=None,
             type=str,
             help=(
-                """
-                unique name for h5 file
-                """
-            ),
-        )
-        parser.add_argument(
-            "-s",
-            "--session-file",
-            required=True,
-            type=str,
-            help=(
-                """
-                path to the session file
-                """
+                "directory to search for acquisition.json / session.json"
+                " and data_description.json (defaults to input-dir.parent)"
             ),
         )
         job_args = parser.parse_args(args)
 
-        # Provide default values for optional arguments
+        input_dir = Path(job_args.input_dir)
         output_dir = (
-            Path(job_args.output_dir)
-            if job_args.output_dir
-            else Path(job_args.input_dir)
+            Path(job_args.output_dir) if job_args.output_dir else input_dir
         )
-        unique_id = (
-            job_args.unique_id if job_args.unique_id else "bergamo_stitched"
+        metadata_dir = (
+            Path(job_args.metadata_dir)
+            if job_args.metadata_dir
+            else input_dir.parent
         )
-
+        metadata = load_converter_metadata(metadata_dir)
         job_settings = BergamoSettings(
-            input_dir=Path(job_args.input_dir),
+            input_dir=input_dir,
             output_dir=output_dir,
-            unique_id=unique_id,
-            session_fp=Path(job_args.session_file),
         )
-        return cls(
-            job_settings,
-        )
-
-
-if __name__ == "__main__":
-    setup_logging("aind_ophys_bergamo_stitcher.log")
-    sys_args = sys.argv[1:]
-    logging.info("Started job...")
-    runner = BergamoTiffStitcher.from_args(sys_args)
-    runner.run_converter()
-    logging.info("Finished job...")
+        return cls(job_settings, metadata=metadata)

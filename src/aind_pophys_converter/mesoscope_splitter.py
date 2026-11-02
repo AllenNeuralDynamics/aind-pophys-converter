@@ -1,31 +1,47 @@
-"""This module provides functionality to split a timeseries TIFF file"""
+"""Mesoscope TIFF splitting CLI and orchestration."""
 
 import argparse
-import datetime
-import json
 import logging
-import os
+import math
 import re
-import shutil
 import sys
-import tempfile
 import time
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
-import h5py as h5
-import numpy as np
-import tifffile
-from aind_ophys_utils.array_utils import normalize_array
-from pydantic import BaseModel, Field
+from aind_pophys_metadata import find_one
 
+from aind_pophys_converter.settings import JobSettings
+from aind_pophys_converter.tiff_splitters import (
+    AvgImageTiffSplitter,
+    TiffSplitterBase,
+    TimeSeriesSplitter,
+    ZStackSplitter,
+    build_roi_remap,
+    get_nearest_roi_center,
+    get_valid_roi_centers,
+    validate_roi_pairing,
+)
 from aind_pophys_converter.utils.full_field_utils import (
     write_out_stitched_full_field_image,
 )
+from aind_pophys_converter.utils.metadata_utils import (
+    ConverterMetadata,
+    PlaneChannel,
+    load_converter_metadata,
+)
+from aind_pophys_converter.utils.platform_utils import (
+    load_platform_plane_positions,
+)
 from aind_pophys_converter.utils.tiff_metadata import ScanImageMetadata
 
-# Number of frames per plane written when debug=True
-DEBUG_N_FRAMES = 100
+#: Page slot, within its coupled pair's TIFF slice, of the plane imaged on
+#: each channel. ScanImage writes a slice's pages in channel order.
+CHANNEL_SLOTS = {"Channel1": 0, "Channel2": 1}
+
+#: Largest difference, in micrometres, between a plane's metadata depth and
+#: its platform.json ``targeted_depth`` that still counts as the same plane.
+DEPTH_TOLERANCE_UM = 1e-6
 
 
 def find_split_directories(directory: Path) -> List[Path]:
@@ -53,1686 +69,65 @@ def find_split_directories(directory: Path) -> List[Path]:
     return matching_dirs
 
 
-def mkstemp_clean(
-    dir: Optional[Union[Path, str]] = None,
-    prefix: Optional[str] = None,
-    suffix: Optional[str] = None,
-) -> str:
-    """
-    A thin wrapper around tempfile mkstemp that automatically
-    closes the file descripter returned by mkstemp.
-
-    Parameters
-    ----------
-    dir: Optional[Union[Path, str]]
-        The directory where the tempfile is created
-
-    prefix: Optional[str]
-        The prefix of the tempfile's name
-
-    suffix: Optional[str]
-        The suffix of the tempfile's name
-
-    Returns
-    -------
-    file_path: str
-        Path to a valid temporary file
-
-    Notes
-    -----
-    Because this calls tempfile mkstemp, the file will be created,
-    though it will be empty. This wrapper is needed because
-    mkstemp automatically returns an open file descriptor, which was
-    causing some of our unit tests to overwhelm the OS's limit
-    on the number of open files.
-    """
-    (descriptor, file_path) = tempfile.mkstemp(
-        dir=dir, prefix=prefix, suffix=suffix
-    )
-
-    os.close(descriptor)
-    return file_path
-
-
-def _create_timestamp() -> str:
-    """Create a unique timestamp string for temp directories."""
-    now = datetime.datetime.now()
-    return (
-        f"{now.year}_{now.month}_"
-        f"{now.day}_{now.hour}_"
-        f"{now.minute}_{now.second}"
-    )
-
-
-def _setup_temp_directories(
-    offset_to_path: Dict, tmp_dir: Optional[Path], tmp_prefix: str
-) -> Tuple[Dict, Dict, List[Path]]:
-    """
-    Set up temporary directories and file mappings for timeseries splitting.
-
-    Returns
-    -------
-    Tuple[Dict, Dict, List[Path]]
-        offset_to_tmp_files, offset_to_tmp_dir, directories_to_clean
-    """
-    directories_to_clean = []
-    offset_to_tmp_files = dict()
-    offset_to_tmp_dir = dict()
-
-    if tmp_dir is not None:
-        actual_tmp_dir = Path(tempfile.mkdtemp(dir=tmp_dir, prefix=tmp_prefix))
-        directories_to_clean.append(actual_tmp_dir)
-
-    for offset in offset_to_path:
-        if tmp_dir is not None:
-            offset_to_tmp_dir[offset] = actual_tmp_dir
-        else:
-            pth = offset_to_path[offset]
-            actual_tmp_dir = Path(
-                tempfile.mkdtemp(dir=pth.parent, prefix=tmp_prefix)
-            )
-            offset_to_tmp_dir[offset] = actual_tmp_dir
-            directories_to_clean.append(actual_tmp_dir)
-        offset_to_tmp_files[offset] = []
-
-    return offset_to_tmp_files, offset_to_tmp_dir, directories_to_clean
-
-
-def _cleanup_temp_files(
-    offset_to_tmp_files: Dict, directories_to_clean: List[Path]
-) -> None:
-    """Clean up temporary files and directories."""
-    for offset in offset_to_tmp_files:
-        for tmp_pth in offset_to_tmp_files[offset]:
-            if tmp_pth.exists():
-                os.unlink(tmp_pth)
-
-    # clean up temporary directories
-    for dir_pth in directories_to_clean:
-        if dir_pth.exists():
-            shutil.rmtree(dir_pth)
-
-
-def split_timeseries_tiff(
-    tiff_path: Path,
-    offset_to_path: Dict,
-    tmp_dir: Optional[Path] = None,
-    dump_every: int = 1000,
-    logger: Optional[callable] = None,
-    metadata: Optional[dict] = None,
-    debug: Optional[bool] = False,
-) -> None:
-    """
-    Split a timeseries TIFF containing multiple mesoscope
-    movies into individual HDF5 files.
-
-    Parameters
-    ----------
-    tiff_path: Path
-        Path to the timeseries TIFF file
-
-    offset_to_path: Dict
-        A dict mapping the offset corresponding to each timeseries
-        to the path to the HDF5 file where that timeseries will be
-        written (i.e. offset_to_path[0] = 'fileA.h5',
-        offset_to_path[1] = 'fileB.h5', offset_to_path[2] = 'fileC.h5')
-        corresponds to a TIFF file whose pages are arranged like
-        [fileA, fileB, fileC, fileA, fileB, fileC, fileA, fileB, fileC....]
-
-    tmp_dir: Optional[Path]
-        Directory where temporary files are written (if None,
-        the temporary files corresponding to each HDF5 file will
-        be written to the directory where the final HDF5 is meant
-        to be written)
-
-    dump_every: int
-        Write frames to the temporary files every dump_every
-        frames per movie.
-
-    logger: Optional[callable]
-        Log statements will be written to logger.info()
-
-    metadata: Optional[dict]
-        The metadata read by tifffile.read_scanimage_metadata.
-        If not None, will be serialized and stored as a bytestring
-        in the HDF5 file.
-
-    Returns
-    -------
-    None
-        Timeseries are written to HDF5 files specified in offset_to_path
-
-    Notes
-    -----
-    Because there is no way to get the number of pages in a BigTIFF
-    without (expensively) scanning through all of the pages, this
-    method operates by iterating through the pages once, writing
-    the pages corresponding to each timeseries to a series of temporary
-    files associated with that timeseries. Once all of the pages have
-    been written to the temporary files, the temporary files associated
-    with each timeseries are joined into the appropriate HDF5 files
-    and deleted.
-    """
-    timestamp = _create_timestamp()
-    tmp_prefix = f"mesoscope_timeseries_tmp_{timestamp}_"
-
-    offset_to_tmp_files, offset_to_tmp_dir, directories_to_clean = (
-        _setup_temp_directories(offset_to_path, tmp_dir, tmp_prefix)
-    )
-
-    try:
-        _split_timeseries_tiff(
-            tiff_path=tiff_path,
-            offset_to_path=offset_to_path,
-            offset_to_tmp_files=offset_to_tmp_files,
-            offset_to_tmp_dir=offset_to_tmp_dir,
-            dump_every=dump_every,
-            logger=logger,
-            metadata=metadata,
-            debug=debug,
-        )
-    finally:
-        _cleanup_temp_files(offset_to_tmp_files, directories_to_clean)
-
-
-def _initialize_caches(
-    offset_to_path: Dict, fov_shape: tuple, video_dtype, dump_every: int
-):
-    """Initialize caches for all offsets."""
-    offset_to_cache = dict()
-    for offset in offset_to_path:
-        cache = np.zeros(
-            (dump_every, fov_shape[0], fov_shape[1]),
-            dtype=video_dtype,
-        )
-        offset_to_cache[offset] = cache
-    return offset_to_cache
-
-
-def _log_progress(logger, message: str, t0: float, page_ct: int):
-    """Log progress with timing information."""
-    if logger is not None:
-        duration = time.time() - t0
-        full_msg = f"{message} {page_ct} TIFF pages in {duration:.2e} seconds"
-        logger.info(full_msg)
-
-
-def _finalize_output_files(
-    offset_to_tmp_files: Dict,
-    offset_to_path: Dict,
-    metadata: Optional[dict],
-    logger: Optional[callable],
-    t0: float,
-):
-    """Write final output files from temporary caches."""
-    for offset in offset_to_tmp_files:
-        _gather_timeseries_caches(
-            file_path_list=offset_to_tmp_files[offset],
-            final_output_path=offset_to_path[offset],
-            metadata=metadata,
-        )
-        if logger is not None:
-            duration = time.time() - t0
-            msg = f"Wrote {offset_to_path[offset]} after "
-            msg += f"{duration:.2e} seconds"
-            logger.info(msg)
-
-
-def _split_timeseries_tiff(
-    tiff_path: Path,
-    offset_to_path: Dict,
-    offset_to_tmp_files: Dict,
-    offset_to_tmp_dir: Dict,
-    dump_every: int = 1000,
-    logger: Optional[callable] = None,
-    metadata: Optional[dict] = None,
-    debug: Optional[bool] = False,
-) -> None:
-    """
-    Method to do the work behind split_timeseries_tiff
-
-    Parameters
-    ----------
-    tiff_path: Path
-        Path to the timeseries TIFF being split
-
-    offset_to_path: Dict
-        Dict mapping offset to final HDF5 path (see
-        split_timeseries_tiff for explanation)
-
-    offset_to_tmp_files: Dict
-        An empty dict for storing the lists of temporary
-        files generated for each individual timeseries.
-        This method wil populate the dict in place.
-
-    offset_to_tmp_dir: Dict
-        A dict mapping offset to the directory where
-        the corresponding temporary files will be written
-
-    dump_every: int
-        Write to the temporary files every dump_every frames
-
-    logger: Optional[callable]
-        Log statements will be written to logger.info()
-
-    metadata: Optional[dict]
-        The metadata read by tifffile.read_scanimage_metadata.
-        If not None, will be serialized and stored as a bytestring
-        in the HDF5 file.
-
-    debug: Optional[bool]
-        If True, stop after DEBUG_N_FRAMES frames per plane.
-
-    Returns
-    -------
-    None
-        Timeseries data is written to the paths specified in
-        offset_to_path
-    """
-    if logger is not None:
-        logger.info(f"Splitting {tiff_path}")
-
-    max_offset = max(list(offset_to_path.keys()))
-    fov_shape = None
-    video_dtype = None
-    offset_to_cache = dict()
-    offset_to_valid_cache = dict()
-    t0 = time.time()
-    page_ct = 0
-
-    with tifffile.TiffFile(tiff_path, mode="rb") as tiff_file:
-        current_offset = -1
-        cache_ct = 0
-
-        if debug and logger is not None:
-            logger.info(
-                f"Debug mode active: clipping timeseries to "
-                f"{DEBUG_N_FRAMES} frames per plane."
-            )
-        for page in tiff_file.pages:
-            if debug and page_ct >= (max_offset + 1) * DEBUG_N_FRAMES:
-                break
-            page_ct += 1
-            arr = page.asarray()
-
-            # Initialize caches on first page
-            if fov_shape is None:
-                fov_shape = arr.shape
-                video_dtype = arr.dtype
-                offset_to_cache = _initialize_caches(
-                    offset_to_path, fov_shape, video_dtype, dump_every
-                )
-
-            # Process the current page
-            current_offset += 1
-            if current_offset > max_offset:
-                current_offset = 0
-                cache_ct += 1
-
-                # Check if we need to dump cache immediately after incrementing
-                if cache_ct == dump_every:
-                    _dump_timeseries_caches(
-                        offset_to_cache=offset_to_cache,
-                        offset_to_valid_cache=offset_to_valid_cache,
-                        offset_to_tmp_files=offset_to_tmp_files,
-                        offset_to_tmp_dir=offset_to_tmp_dir,
-                    )
-                    cache_ct = 0
-                    _log_progress(logger, "Iterated through", t0, page_ct)
-
-            # Now safely store the data
-            offset_to_cache[current_offset][cache_ct, :, :] = arr
-            offset_to_valid_cache[current_offset] = cache_ct + 1
-
-    # Final cache dump
-    _dump_timeseries_caches(
-        offset_to_cache=offset_to_cache,
-        offset_to_valid_cache=offset_to_valid_cache,
-        offset_to_tmp_files=offset_to_tmp_files,
-        offset_to_tmp_dir=offset_to_tmp_dir,
-    )
-
-    _log_progress(logger, "Iterated through all", t0, page_ct)
-
-    # Write final output files
-    _finalize_output_files(
-        offset_to_tmp_files, offset_to_path, metadata, logger, t0
-    )
-
-    if logger is not None:
-        duration = time.time() - t0
-        msg = f"Split {tiff_path} in {duration:.2e} seconds"
-        logger.info(msg)
-
-
-def _gather_timeseries_caches(
-    file_path_list: List[Path],
-    final_output_path: Path,
-    metadata: Optional[dict] = None,
-) -> None:
-    """
-    Take a list of HDF5 files containing an array 'data' and
-    join them into a single HDF5 file with an array 'data' that
-    is the result of calling np.stack() on the smaller arrays.
-
-    Parameters
-    ----------
-    file_path_list: List[Path]
-        List of paths to files to be joined
-
-    final_output_path: Path
-        Path to the HDF5 file that is produced by joining
-        file_path_list
-
-    metadata: Optional[dict]
-        The metadata read by tifffile.read_scanimage_metadata.
-        If not None, will be serialized and stored as a bytestring
-        in the HDF5 file.
-
-    Return
-    ------
-    None
-        Contents of files in file_path_list are joined into
-        final_output_path
-
-    Notes
-    -----
-    Files in file_path_list are deleted with os.unlink
-    after they are joined.
-    """
-    n_frames = 0
-    fov_shape = None
-    video_dtype = None
-    one_frame = None  # for calculating frame size in memory
-
-    for file_path in file_path_list:
-        with h5.File(file_path, "r") as in_file:
-            n_frames += in_file["data"].shape[0]
-            this_fov_shape = in_file["data"].shape[1:]
-
-            if one_frame is None:
-                one_frame = in_file["data"][0, :, :]
-
-            if fov_shape is None:
-                fov_shape = this_fov_shape
-                video_dtype = in_file["data"].dtype
-            else:
-                if fov_shape != this_fov_shape:
-                    raise RuntimeError(
-                        "Inconsistent FOV shape\n"
-                        f"{fov_shape}\n{this_fov_shape}"
-                    )
-
-    # apparently, HDF5 chunks sizes must be less than 4 GB;
-    # figure out how many frames fit in 3GB (just in case)
-    # and set that as the maximum chunk size for the final
-    # HDF5 file.
-    three_gb = 3 * 1024**3
-    bytes_per_frame = len(one_frame.tobytes())
-    max_chunk_size = np.floor(three_gb / bytes_per_frame).astype(int)
-
-    chunk_size = n_frames // 100
-
-    if chunk_size < n_frames:
-        chunk_size = n_frames
-
-    if chunk_size > max_chunk_size:
-        chunk_size = max_chunk_size
-    with h5.File(final_output_path, "w") as out_file:
-        if metadata is not None:
-            serialized_metadata = json.dumps(metadata).encode("utf-8")
-            out_file.create_dataset(
-                "scanimage_metadata", data=serialized_metadata
-            )
-
-        out_file.create_dataset(
-            "data",
-            shape=(n_frames, fov_shape[0], fov_shape[1]),
-            dtype=video_dtype,
-            chunks=(chunk_size, fov_shape[0], fov_shape[1]),
-        )
-
-        i0 = 0
-        for file_path in file_path_list:
-            with h5.File(file_path, "r") as in_file:
-                chunk = in_file["data"][()]
-                out_file["data"][i0: i0 + chunk.shape[0], :, :] = chunk
-                i0 += chunk.shape[0]
-            os.unlink(file_path)
-
-
-def _dump_timeseries_caches(
-    offset_to_cache: Dict,
-    offset_to_valid_cache: Dict,
-    offset_to_tmp_files: Dict,
-    offset_to_tmp_dir: Dict,
-) -> None:
-    """
-    Write cached arrays to temporary files.
-
-    Parameters
-    ----------
-    offset_to_cache: Dict
-        Maps offset (see split_timeseries_tiff) to numpy
-        arrays that are being dumped to temporary files.
-
-    offset_to_valid_cache: Dict
-        Maps offset to the index in offset_to_cache[offset] that
-        is the last valid row (in case the cache was incompletely
-        populated), i.e.
-        offset_to_cache[offset][:offset_to_valid_cache[offset], :, :]
-        is written to the temporary files.
-
-        After this method is run, all entries in offset_to_cache
-        are set to -1.
-
-    offset_to_tmp_files: Dict
-        Maps offset to list of temporary files that are being written.
-        This dict starts out mapping to empty lists. This method
-        creates temporary files and populates this dict with paths
-        to them.
-
-    offset_to_tmp_dir: Dict
-       Maps offset to directory where temporary files will be written
-
-    Returns
-    -------
-    None
-        This metod writes the data input through offset_to_cache
-        to temporary files (that this method creates and logs in
-        offset_to_tmp_files)
-    """
-
-    for offset in offset_to_cache:
-        tmp_dir = offset_to_tmp_dir[offset]
-        valid = offset_to_valid_cache[offset]
-        if valid < 0:
-            continue
-        cache = offset_to_cache[offset][:valid, :, :]
-
-        tmp_path = mkstemp_clean(dir=tmp_dir, suffix=".h5")
-
-        tmp_path = Path(tmp_path)
-
-        # append path first so the code knows to clean up
-        # the file in case file-creation gets interrupted
-        offset_to_tmp_files[offset].append(tmp_path)
-
-        with h5.File(tmp_path, "w") as out_file:
-            out_file.create_dataset("data", data=cache)
-        offset_to_valid_cache[offset] = -1
-
-
-class IntFromZMapperMixin(object):
-    """
-    This mixin defines methods to construct a mapping from
-    floats to unique integer identifiers where floats are
-    considered identical within some tolerance. The TIFF
-    splitting classes use the methods provided to convert
-    z-values which are floats into integers suitable for
-    use as keys in dicts.
-    """
-
-    def _int_from_z(self, z_value: float, atol: float = 1.0e-6) -> int:
-        """
-        Convert a z_value into a unique integer, recording
-        the mapping for reuse later, if necessary
-
-        Parameters
-        ----------
-        z_value: float
-
-        atol: float
-           The absolute tolerance within which two floats
-           are considered identical for the purposes of this
-           method (if abs(f0-f1) <= atol, then it is considered
-           that f0==f1)
-
-           Note: if two recorded values are within atol of
-           z_value, then the closest one is chosen.
-
-        Returns
-        -------
-        int
-           The unique integer associated with this z-value.
-        """
-        if not hasattr(self, "_int_from_z_lookup"):
-            self._int_from_z_lookup = dict()
-            self._z_from_int_lookup = dict()
-
-        best_delta = None
-        result = None
-        max_value = -1
-        for z_test, int_val in self._int_from_z_lookup.items():
-            delta = np.abs(z_value - z_test)
-            if int_val > max_value:
-                max_value = int_val
-            if delta <= atol:
-                if best_delta is not None and delta > best_delta:
-                    continue
-                result = int_val
-                best_delta = delta
-
-        if result is None:
-            new_val = max_value + 1
-            self._int_from_z_lookup[z_value] = new_val
-            result = new_val
-            self._z_from_int_lookup[new_val] = z_value
-
-        return result
-
-    def _z_from_int(self, ii: int) -> float:
-        """
-        Return the float associated with a given integer
-        in this lookup
-        """
-        return self._z_from_int_lookup[ii]
-
-
-class TiffSplitterBase(IntFromZMapperMixin):
-    """
-    A class to naively split up a tiff file by just looping over
-    the scanfields in its ROIs
-
-    **this will not work for z-stacks**
-
-    Parameters
-    ----------
-    tiff_path: Path
-        Path to the TIFF file whose metadata we are parsing
-    """
-
-    def __init__(self, tiff_path: Path):
-        """Initialize the TiffSplitterBase with a path to a TIFF file."""
-        self._file_path = tiff_path
-        self._metadata = ScanImageMetadata(tiff_path=tiff_path)
-
-        self._validate_z_stack()
-        self._get_z_manifest()
-        self._frame_shape = dict()
-
-    @property
-    def raw_metadata(self):
-        """
-        The ScanImage metadata as a dict
-        """
-        return self._metadata.raw_metadata
-
-    def _validate_channel_save(self):
-        """Validate that channelSave is in expected format."""
-        if self._metadata.channelSave not in (1, [1, 2]):
-            raise RuntimeError(
-                "Expect channelSave == 1 or [1, 2]; got "
-                f"{self._metadata.channelSave}\n{self._file_path}"
-            )
-
-    def _process_z_value_array(self):
-        """Process and validate the z value array."""
-        z_value_array = self._metadata.all_zs()
-
-        # check that z_value_array is a list of lists
-        if not isinstance(z_value_array, list):
-            msg = "Unclear how to split this TIFF\n"
-            msg += f"{self._file_path.resolve().absolute()}\n"
-            msg += f"metadata.all_zs {self._metadata.all_zs()}"
-            raise RuntimeError(msg)
-
-        if isinstance(z_value_array[0], list):
-            z_value_array = np.concatenate(z_value_array)
-
-        return z_value_array
-
-    def _filter_z_values_for_single_channel(self, z_value_array):
-        """Filter z values for single channel case."""
-        if isinstance(self._metadata.channelSave, int):
-            if self._metadata.channelSave != 1:
-                raise RuntimeError(
-                    "Expect channelSave == 1 or [1, 2]; got "
-                    f"{self._metadata.channelSave}\n{self._file_path}"
-                )
-            for ii in range(1, len(z_value_array), 2):
-                if z_value_array[ii] != 0:
-                    raise RuntimeError(
-                        "channelSave==1 but z values are "
-                        f"{z_value_array}; "
-                        "expect every other value to be zero\n"
-                        f"{self._file_path}"
-                    )
-            return z_value_array[::2]
-        else:
-            self._validate_dual_channel()
-            return z_value_array
-
-    def _validate_dual_channel(self):
-        """Validate dual channel configuration."""
-        valid_channel = isinstance(self._metadata.channelSave, list)
-        if valid_channel:
-            valid_channel = self._metadata.channelSave == [1, 2]
-
-        if not valid_channel:
-            raise RuntimeError(
-                "Do not know how to handle channelSave=="
-                f"{self._metadata.channelSave}\n{self._file_path}"
-            )
-
-    def _validate_roi_z_duplicates(self, defined_rois):
-        """Check for duplicate z values within ROIs."""
-        z_int_per_roi = []
-        msg = ""
-
-        for i_roi, roi in enumerate(defined_rois):
-            if isinstance(roi["zs"], list):
-                roi_zs = roi["zs"]
-            else:
-                roi_zs = [roi["zs"]]
-
-            roi_z_ints = [self._int_from_z(z_value=zz) for zz in roi_zs]
-            z_int_set = set(roi_z_ints)
-
-            if len(z_int_set) != len(roi_zs):
-                msg += f"roi {i_roi} has duplicate zs: {roi['zs']}\n"
-            z_int_per_roi.append(z_int_set)
-
-        return z_int_per_roi, msg
-
-    def _validate_roi_z_order(self, z_value_array, z_int_per_roi):
-        """Validate that z values occur in ROI order."""
-        msg = ""
-        n_roi = len(z_int_per_roi)
-        n_z_per_roi = len(z_value_array) // n_roi
-
-        # check that every ROI has the same number of zs
-        if len(z_value_array) % n_roi != 0:
-            msg += "There do not appear to be an "
-            msg += "equal number of zs per ROI\n"
-            msg += f"n_z: {len(z_value_array)} "
-            msg += f"n_roi: {len(z_int_per_roi)}\n"
-            return msg
-
-        offset = 0
-        for roi_z_ints in z_int_per_roi:
-            these_z_ints = set(
-                [
-                    self._int_from_z(z_value=zz)
-                    for zz in z_value_array[offset: offset + n_z_per_roi]
-                ]
-            )
-            if these_z_ints != roi_z_ints:
-                msg += "z_values from sub array "
-                msg += "not in correct order for ROIs; "
-                break
-            offset += n_z_per_roi
-
-        return msg
-
-    def _raise_validation_error(self, msg):
-        """Raise a detailed validation error."""
-        full_msg = "Unclear how to split this TIFF\n"
-        full_msg += f"{self._file_path.resolve().absolute()}\n"
-        full_msg += f"{msg}"
-        full_msg += f"all_zs {self._metadata.all_zs()}\nfrom rois:\n"
-        for roi in self._metadata.defined_rois:
-            full_msg += f"zs: {roi['zs']}\n"
-        raise RuntimeError(full_msg)
-
-    def _validate_z_stack(self):
-        """
-        Make sure that the zsAllActuators are arranged the
-        way we expect, i.e.
-        [[roi0_z0, roi0_z1, roi0_z2..., roi0_zM],
-         [roi0_zM+1, roi0_zM+2, ...],
-         [roi1_z0, roi1_z1, roi1_z2..., roi1_zM],
-         [roi1_zM+1, roi1_zM+2, ...],
-         ...
-         [roiN_z0, roiN_z1, roiN_z2...]]
-
-        or, in the case of one ROI
-
-        [z0, z1, z2....]
-        """
-        # Validate channel configuration
-        self._validate_channel_save()
-
-        # Process z value array
-        z_value_array = self._process_z_value_array()
-        z_value_array = self._filter_z_values_for_single_channel(z_value_array)
-
-        # Validate ROIs
-        defined_rois = self._metadata.defined_rois
-        z_int_per_roi, msg = self._validate_roi_z_duplicates(defined_rois)
-
-        # Validate z order
-        order_msg = self._validate_roi_z_order(z_value_array, z_int_per_roi)
-        msg += order_msg
-
-        # Raise error if any validation failed
-        if len(msg) > 0:
-            self._raise_validation_error(msg)
-
-    def _get_z_manifest(self):
-        """
-        Populate various member objects that help us keep
-        track of what z values go with what ROIs in this TIFF
-        """
-        local_z_value_list = np.array(self._metadata.all_zs()).flatten()
-        defined_rois = self._metadata.defined_rois
-
-        # create a list of sets indicating which z values were actually
-        # scanned in the ROI (this will help us parse the placeholder
-        # zeros that sometimes get dropped into
-        # SI.hStackManager.zsAllActuators
-
-        valid_z_int_per_roi = []
-        valid_z_per_roi = []
-        for roi in defined_rois:
-            this_z_value = roi["zs"]
-            if isinstance(this_z_value, int):
-                this_z_value = [
-                    this_z_value,
-                ]
-            z_as_int = [self._int_from_z(z_value=zz) for zz in this_z_value]
-            valid_z_int_per_roi.append(set(z_as_int))
-            valid_z_per_roi.append(this_z_value)
-
-        self._valid_z_int_per_roi = valid_z_int_per_roi
-        self._valid_z_per_roi = valid_z_per_roi
-        self._n_valid_zs = 0
-        self._roi_z_int_manifest = []
-        ct = 0
-        i_roi = 0
-        local_z_index_list = [
-            self._int_from_z(zz) for zz in local_z_value_list
-        ]
-        for zz in local_z_index_list:
-            if i_roi >= len(valid_z_int_per_roi):
-                break
-            if zz in valid_z_int_per_roi[i_roi]:
-                roi_z = (i_roi, zz)
-                self._roi_z_int_manifest.append(roi_z)
-                self._n_valid_zs += 1
-                ct += 1
-                if ct == len(valid_z_int_per_roi[i_roi]):
-                    i_roi += 1
-                    ct = 0
-
-    @property
-    def input_path(self) -> Path:
-        """
-        The file this splitter is trying to split
-        """
-        return self._file_path
-
-    def is_z_valid_for_roi(self, i_roi: int, z_value: float) -> bool:
-        """
-        Is specified z-value valid for the specified ROI
-        """
-        z_as_int = self._int_from_z(z_value=z_value)
-        return z_as_int in self._valid_z_int_per_roi[i_roi]
-
-    @property
-    def roi_z_int_manifest(self) -> List[Tuple[int, int]]:
-        """
-        A list of tuples. Each tuple is a valid
-        (roi_index, z_as_int) pair.
-        """
-        return self._roi_z_int_manifest
-
-    @property
-    def n_valid_zs(self) -> int:
-        """
-        The total number of valid z values associated with this TIFF.
-        """
-        return self._n_valid_zs
-
-    @property
-    def n_rois(self) -> int:
-        """
-        The number of ROIs in this TIFF
-        """
-        return self._metadata.n_rois
-
-    def roi_center(self, i_roi: int) -> Tuple[float, float]:
-        """
-        The (X, Y) center coordinates of roi_index=i_roi
-        """
-        return self._metadata.roi_center(i_roi=i_roi)
-
-    def roi_size(self, i_roi: int) -> Tuple[float, float]:
-        """
-        The physical space size (x, y) of the i_roith ROI
-        """
-        return self._metadata.roi_size(i_roi=i_roi)
-
-    def roi_resolution(self, i_roi: int) -> Tuple[int, int]:
-        """
-        The pixel resolution of the i_roith ROI
-        """
-        return self._metadata.roi_resolution(i_roi=i_roi)
-
-    def _get_offset(self, i_roi: int, z_value: float) -> int:
-        """
-        Get the first page associated with the specified
-        i_roi, z_value pair.
-        """
-        found_it = False
-        n_step_over = 0
-        this_roi_z = (i_roi, self._int_from_z(z_value=z_value))
-        for roi_z_pair in self.roi_z_int_manifest:
-            if roi_z_pair == this_roi_z:
-                found_it = True
-                break
-            n_step_over += 1
-        if not found_it:
-            msg = f"Could not find stride for {i_roi}, {z_value}\n"
-            msg += f"TIFF file {self._file_path.resolve().absolute()}"
-            raise ValueError(msg)
-        return n_step_over
-
-    def frame_shape(
-        self, i_roi: int, z_value: Optional[float]
-    ) -> Tuple[int, int]:
-        """
-        Get the shape of the image for a specified ROI at a specified
-        z value
-
-        Parameters
-        ----------
-        i_roi: int
-            index of the ROI
-
-        z_value: Optional[float]
-            value of z. If None, z_value will be detected automaticall
-            (assuming there is no ambiguity)
-
-        Returns
-        -------
-        frame_shape: Tuple[int, int]
-            (nrows, ncolumns)
-        """
-        if z_value is None:
-            z_value = self._get_z_value(i_roi=i_roi)
-
-        key_pair = (i_roi, self._int_from_z(z_value))
-
-        if key_pair not in self._frame_shape:
-            offset = self._get_offset(i_roi=i_roi, z_value=z_value)
-            with tifffile.TiffFile(self._file_path, mode="rb") as tiff_file:
-                page = tiff_file.pages[offset].asarray()
-                self._frame_shape[key_pair] = page.shape
-        return self._frame_shape[key_pair]
-
-
-class AvgImageTiffSplitter(TiffSplitterBase):
-    """A class to split a timeseries TIFF file into"""
-
-    @property
-    def n_pages(self):
-        """
-        The number of pages in this TIFF
-        """
-        if not hasattr(self, "_n_pages"):
-            with tifffile.TiffFile(self._file_path, mode="rb") as tiff_file:
-                self._n_pages = len(tiff_file.pages)
-        return self._n_pages
-
-    def _get_pages(self, i_roi: int, z_value: float) -> List[np.ndarray]:
-        """
-        Get a list of np.ndarrays representing the pages of image data
-        for ROI i_roi at the specified z_value
-        """
-
-        if i_roi >= self.n_rois:
-            msg = f"You asked for ROI {i_roi}; "
-            msg += f"there are only {self.n_rois} ROIs "
-            msg += f"in {self._file_path.resolve().absolute()}"
-            raise ValueError(msg)
-
-        if not self.is_z_valid_for_roi(i_roi=i_roi, z_value=z_value):
-            msg = f"{z_value} is not a valid z value for ROI {i_roi};"
-            msg += f"valid z values are {self._valid_z_per_roi[i_roi]}\n"
-            msg += f"TIFF file {self._file_path.resolve().absolute()}"
-            raise ValueError(msg)
-
-        offset = self._get_offset(i_roi=i_roi, z_value=z_value)
-
-        with tifffile.TiffFile(self._file_path, mode="rb") as tiff_file:
-            tiff_data = [
-                tiff_file.pages[i_page].asarray()
-                for i_page in range(offset, self.n_pages, self.n_valid_zs)
-            ]
-
-        key_pair = (i_roi, z_value)
-
-        for arr in tiff_data:
-            if key_pair in self._frame_shape:
-                if arr.shape != self._frame_shape[key_pair]:
-                    msg = f"ROI {i_roi} z_value {z_value}\n"
-                    msg += "yields inconsistent frame shape"
-                    raise RuntimeError(msg)
-            else:
-                self._frame_shape[key_pair] = arr.shape
-
-        return tiff_data
-
-    def _get_z_value(self, i_roi: int) -> float:
-        """
-        Return the z_value associated with i_roi, assuming
-        there is only one. Raises a RuntimeError if there
-        is more than one.
-        """
-        # When splitting surface TIFFs, there's no sensible
-        # way to know the z-value ahead of time (whatever the
-        # operator enters is just a placeholder). The block
-        # of code below will scan for z-values than align with
-        # the specified ROI ID and select the correct z value
-        # (assuming there is only one)
-        possible_z_values = []
-        for pair in self.roi_z_int_manifest:
-            if pair[0] == i_roi:
-                possible_z_values.append(pair[1])
-        if len(possible_z_values) > 1:
-            msg = f"{len(possible_z_values)} possible z values "
-            msg += f"for ROI {i_roi}; must specify one of\n"
-            msg += f"{possible_z_values}"
-            raise RuntimeError(msg)
-        z_value = possible_z_values[0]
-        return self._z_from_int(ii=z_value)
-
-    def get_avg_img(self, i_roi: int, z_value: Optional[float]) -> np.ndarray:
-        """
-        Get the image created by averaging all of the TIFF
-        pages associated with an (i_roi, z_value) pair
-
-        Parameters
-        ----------
-        i_roi: int
-
-        z_value: Optional[int]
-            If None, will be detected automatically (assuming there
-            is only one)
-
-        Returns
-        -------
-        np.ndarray
-            of floats
-        """
-
-        if not hasattr(self, "_avg_img_cache"):
-            self._avg_img_cache = dict()
-
-        if z_value is None:
-            z_value = self._get_z_value(i_roi=i_roi)
-
-        z_int = self._int_from_z(z_value=z_value)
-        pair = (i_roi, z_int)
-        if pair not in self._avg_img_cache:
-            data = np.array(self._get_pages(i_roi=i_roi, z_value=z_value))
-            avg_img = np.mean(data, axis=0)
-            self._avg_img_cache[pair] = avg_img
-
-        return np.copy(self._avg_img_cache[pair])
-
-    def write_output_file(
-        self, i_roi: int, z_value: Optional[float], output_path: Path
-    ) -> None:
-        """
-        Write the image created by averaging all of the TIFF
-        pages associated with an (i_roi, z_value) pair to a TIFF
-        file.
-
-        Parameters
-        ----------
-        i_roi: int
-
-        z_value: Optional[int]
-            If None, will be detected automatically (assuming there
-            is only one)
-
-        output_path: Path
-            Path to file to be written
-
-        Returns
-        -------
-        None
-            Output is written to output_path
-        """
-
-        if output_path.suffix not in (".tif", ".tiff"):
-            msg = "expected .tiff output path; "
-            msg += f"you specified {output_path.resolve().absolute()}"
-
-        avg_img = self.get_avg_img(i_roi=i_roi, z_value=z_value)
-
-        avg_img = normalize_array(
-            array=avg_img, lower_cutoff=None, upper_cutoff=None
-        )
-
-        metadata = {"scanimage_metadata": self.raw_metadata}
-
-        tifffile.imwrite(output_path, avg_img, metadata=metadata)
-        return None
-
-
-class TimeSeriesSplitter(TiffSplitterBase):
-    """
-    A class specifically for splitting timeseries TIFFs
-
-    Parameters
-    ----------
-    tiff_path: Path
-        Path to the TIFF file whose metadata we are parsing
-    """
-
-    def _validate_output_path_map(
-        self, output_path_map: Dict[Tuple[int, float], Path]
-    ) -> None:
-        """Validate the output path map for correctness."""
-        for key_pair in output_path_map:
-            output_path = output_path_map[key_pair]
-            if output_path.suffix != ".h5":
-                msg = "expected HDF5 output path; "
-                msg += f"you gave {output_path.resolve().absolute()}"
-                raise ValueError(msg)
-
-            i_roi = key_pair[0]
-            z_value = key_pair[1]
-
-            if i_roi < 0:
-                msg = f"You asked for ROI {i_roi}; "
-                msg += "i_roi must be >= 0"
-                raise ValueError(msg)
-
-            if i_roi >= self.n_rois:
-                msg = f"You asked for ROI {i_roi}; "
-                msg += f"there are only {self.n_rois} ROIs "
-                msg += f"in {self._file_path.resolve().absolute()}"
-                raise ValueError(msg)
-
-            if not self.is_z_valid_for_roi(i_roi=i_roi, z_value=z_value):
-                msg = f"{z_value} is not a valid z value for ROI {i_roi};"
-                msg += f"valid z values are {self._valid_z_per_roi[i_roi]}\n"
-                msg += f"TIFF file {self._file_path.resolve().absolute()}"
-                raise ValueError(msg)
-
-    def _validate_complete_coverage(
-        self, output_path_map: Dict[Tuple[int, float], Path]
-    ) -> None:
-        """Validate that output path map covers all timeseries in the TIFF."""
-        if len(output_path_map) != len(self.roi_z_int_manifest):
-            msg = f"you specified paths for {len(output_path_map)} "
-            msg += "timeseries files, but the metadata for this "
-            msg += "TIFF says it contains "
-            msg += f"{len(self.roi_z_int_manifest)}; "
-            msg += "we cannot split this file "
-            msg += f"({self._file_path})"
-            raise ValueError(msg)
-
-        all_roi_z_int = set()
-        for key_pair in output_path_map:
-            i_roi = key_pair[0]
-            z_value = key_pair[1]
-            this_pair = (i_roi, self._int_from_z(z_value=z_value))
-            all_roi_z_int.add(this_pair)
-
-        for roi_z_pair in self.roi_z_int_manifest:
-            if roi_z_pair not in all_roi_z_int:
-                raise ValueError(
-                    "You did not specify output paths for all "
-                    "of the timeseries in "
-                    f"{self._file_path}"
-                )
-
-    def _create_offset_to_path_map(
-        self, output_path_map: Dict[Tuple[int, float], Path]
-    ) -> Dict:
-        """Create offset to path mapping with validation
-        for duplicate offsets.
-        """
-        offset_to_path = dict()
-        for key_pair in output_path_map:
-            i_roi = key_pair[0]
-            z_value = key_pair[1]
-            offset = self._get_offset(i_roi=i_roi, z_value=z_value)
-            if offset in offset_to_path:
-                raise RuntimeError(
-                    "Same offset occurs twice when splitting "
-                    f"{self._file_path}"
-                )
-            offset_to_path[offset] = output_path_map[key_pair]
-        return offset_to_path
-
-    def write_output_files(
-        self,
-        output_path_map: Dict[Tuple[int, float], Path],
-        tmp_dir: Optional[Path] = None,
-        dump_every: int = 1000,
-        logger: Optional[callable] = None,
-        debug: Optional[bool] = False,
-    ) -> None:
-        """
-        Write all of the pages associated with an
-        (i_roi, z_value) pair to an HDF5 file.
-
-        Parameters
-        ----------
-        output_path_map: Dict[Tuple[int, float], Path]
-            Dict mapping (i_roi, z_value) pairs to output paths
-            where the data for those ROIs should go.
-
-        tmp_dir: Optional[Path]
-            Directory where temporary files will be written.
-
-        dump_every: int
-            Number of frames to store in each temprorary file
-            (see Notes)
-
-        logger: Optional[callable]
-            Logger which will be invoked with logger.INFO
-            by worker methods
-
-        Returns
-        -------
-        None
-            Timeseries for the ROIs are written to the paths
-            specified in output_path_map.
-
-            If not specified, will write temporary files into
-            the directory where the final files are meant to
-            be written.
-
-        Notes
-        -----
-        Because the only way to get n_pages from a BigTIFF is to
-        iterate over its pages, counting, this module works by iterating
-        over the pages, splitting the timeseries data into small temp files
-        as it goes and keeping track of how many total pages are being written
-        for each ROI. After the temp files are written, the temp files are
-        gathered together into the final files specified in output_path_map
-        and the temporary files are deleted.
-        """
-        self._validate_output_path_map(output_path_map)
-        self._validate_complete_coverage(output_path_map)
-        offset_to_path = self._create_offset_to_path_map(output_path_map)
-
-        split_timeseries_tiff(
-            tiff_path=self._file_path,
-            tmp_dir=tmp_dir,
-            offset_to_path=offset_to_path,
-            dump_every=dump_every,
-            logger=logger,
-            metadata=self.raw_metadata,
-            debug=debug,
-        )
-
-        return None
-
-
-class ZStackSplitter(IntFromZMapperMixin):
-    """
-    Class to handle splitting all of the _local_z_stack.tiff files
-    associated with an OPhys session.
-
-    Parameters
-    ----------
-    tiff_path_list: List[Path]
-        List of paths to the _local_z_stack.tiff files
-        associated with this OPhys session.
-    """
-
-    def __init__(self, tiff_path_list: List[Path]):
-        """
-        Initialize the ZStackSplitter with a list of paths to
-        _local_z_stack.tiff files.
-        """
-        self._path_to_metadata = dict()
-        self._frame_shape = dict()
-        self._roi_z_int_to_path = dict()
-        self._path_z_int_to_index = dict()
-        self._path_to_pages = dict()
-
-        self._initialize_metadata_and_validate_channels(tiff_path_list)
-        self._build_lookup_tables()
-        self._validate_roi_coverage()
-        self._initialize_page_counts()
-
-    def _initialize_metadata_and_validate_channels(
-        self, tiff_path_list: List[Path]
-    ) -> None:
-        """Initialize metadata for each TIFF path and
-        validate channel settings.
-        """
-        for tiff_path in tiff_path_list:
-            str_path = str(tiff_path.resolve().absolute())
-            self._path_to_metadata[str_path] = ScanImageMetadata(
-                tiff_path=tiff_path
-            )
-
-            if self._path_to_metadata[str_path].channelSave != [1, 2]:
-                raise RuntimeError(
-                    f"metadata for {str_path} has channelSave="
-                    f"{self._path_to_metadata[str_path].channelSave}\n"
-                    "can only handle channelSave==[1, 2]"
-                )
-
-    def _build_lookup_tables(self) -> None:
-        """Build lookup tables to map ROI index and z-value to
-        TIFF paths and indices.
-        """
-        roi_to_path = dict()
-
-        for tiff_path in self._path_to_metadata.keys():
-            metadata = self._path_to_metadata[tiff_path]
-            this_roi = self._find_discrete_plane_roi(metadata, tiff_path)
-
-            if this_roi not in roi_to_path:
-                roi_to_path[this_roi] = []
-            roi_to_path[this_roi].append(tiff_path)
-
-            self._process_z_values_for_path(tiff_path, metadata, this_roi)
-
-        self._roi_to_path = roi_to_path  # Store for validation
-
-    def _find_discrete_plane_roi(
-        self, metadata: "ScanImageMetadata", tiff_path: str
-    ) -> int:
-        """Find the ROI with discretePlaneMode==0."""
-        this_roi = None
-        for i_roi, roi in enumerate(metadata.defined_rois):
-            if roi["discretePlaneMode"] == 0:
-                if this_roi is not None:
-                    raise RuntimeError(
-                        "More than one ROI has "
-                        "discretePlaneMode==0 for "
-                        f"{tiff_path}"
-                    )
-                this_roi = i_roi
-
-        if this_roi is None:
-            raise RuntimeError(
-                f"Could not find discretePlaneMode==0 for {tiff_path}"
-            )
-        return this_roi
-
-    def _process_z_values_for_path(
-        self, tiff_path: str, metadata: "ScanImageMetadata", this_roi: int
-    ) -> None:
-        """Process z-values for a given TIFF path and ROI."""
-        z_array = np.array(metadata.all_zs())
-        if z_array.shape[1] != 2:
-            raise RuntimeError(
-                f"z_array for {tiff_path} has odd shape\n{z_array}"
-            )
-
-        z_mean = z_array.mean(axis=0)
-        for ii, z_value in enumerate(z_mean):
-            roi_z = (this_roi, self._int_from_z(z_value=z_value))
-            self._roi_z_int_to_path[roi_z] = tiff_path
-            path_z = (tiff_path, self._int_from_z(z_value=z_value))
-            self._path_z_int_to_index[path_z] = ii
-
-    def _validate_roi_coverage(self) -> None:
-        """Validate that every ROI has a z-stack file."""
-        for tiff_path in self._path_to_metadata:
-            metadata = self._path_to_metadata[tiff_path]
-            n_rois = len(metadata.defined_rois)
-            if len(self._roi_to_path) != n_rois:
-                msg = (
-                    f"There are {n_rois} ROIs; however, only "
-                    f"{len(self._roi_to_path)} of them are represented in the "  # noqa: E501
-                    "local z-stack TIFFS. Here is a mapping from i_roi to "
-                    "TIFF paths\n"
-                    f"{json.dumps(self._roi_to_path, indent=2, sort_keys=True)}"  # noqa: E501
-                    "\n\nThis was determined by scanning the z-stack TIFFs "  # noqa: E501
-                    "and noting which ROIs were marked with "
-                    "discretePlaneMode==0"
-                )
-                raise RuntimeError(msg)
-
-    def _initialize_page_counts(self) -> None:
-        """Initialize page counts for each TIFF file."""
-        for tiff_path in self._path_to_metadata.keys():
-            with tifffile.TiffFile(tiff_path, mode="rb") as tiff_file:
-                self._path_to_pages[tiff_path] = len(tiff_file.pages)
-
-    @property
-    def input_path(self) -> List[str]:
-        """
-        The list of files this splitter is trying to split
-        """
-        output = list(self._path_to_metadata.keys())
-        output.sort()
-        return output
-
-    def roi_center(self, i_roi: int) -> Tuple[float, float]:
-        """
-        Return the (X, Y) center coordinates for the ROI specified
-        by i_roi.
-        """
-        center_tol = 1.0e-5
-        possible_center = []
-        for pair in self._roi_z_int_to_path:
-            if pair[0] != i_roi:
-                continue
-            tiff_path = self._roi_z_int_to_path[pair]
-            metadata = self._path_to_metadata[tiff_path]
-            possible_center.append(metadata.roi_center(i_roi=i_roi))
-
-        baseline_center = possible_center[0]
-        for ii in range(1, len(possible_center)):
-            center = possible_center[ii]
-            dsq = (center[0] - baseline_center[0]) ** 2 + (
-                center[1] - baseline_center[1]
-            ) ** 2
-            if dsq > center_tol:
-                msg = "Cannot find consistent center for ROI "
-                msg += f"{i_roi}"
-        return baseline_center
-
-    def frame_shape(self, i_roi: int, z_value: float) -> Tuple[int, int]:
-        """
-        Return the (nrows, ncolumns) shape of the first page associated
-        with the specified (i_roi, z_value) pair
-        """
-        roi_z = (i_roi, self._int_from_z(z_value=z_value))
-        tiff_path = self._roi_z_int_to_path[roi_z]
-
-        path_z = (tiff_path, self._int_from_z(z_value=z_value))
-        z_index = self._path_z_int_to_index[path_z]
-
-        with tifffile.TiffFile(tiff_path, mode="rb") as tiff_file:
-            page = tiff_file.pages[z_index].asarray()
-        return page.shape
-
-    def _get_tiff_path(self, i_roi: int, z_value: float) -> Path:
-        """
-        Return the tiff path corresponding to the (i_roi, z_value) pair
-        """
-        roi_z = (i_roi, self._int_from_z(z_value=z_value))
-        tiff_path = self._roi_z_int_to_path[roi_z]
-        return tiff_path
-
-    def _get_pages(self, i_roi: int, z_value: float) -> np.ndarray:
-        """
-        Get all of the TIFF pages associated in this z-stack set with
-        an (i_roi, z_value) pair. Return as a numpy array shaped like
-        (n_pages, nrows, ncolumns)
-        """
-        tiff_path = self._get_tiff_path(i_roi=i_roi, z_value=z_value)
-
-        path_z = (tiff_path, self._int_from_z(z_value=z_value))
-        z_index = self._path_z_int_to_index[path_z]
-
-        data = []
-        n_pages = self._path_to_pages[tiff_path]
-        baseline_shape = self.frame_shape(i_roi=i_roi, z_value=z_value)
-        with tifffile.TiffFile(tiff_path, mode="rb") as tiff_file:
-            data = [
-                tiff_file.pages[i_page].asarray()
-                for i_page in range(z_index, n_pages, 2)
-            ]
-
-        for this_page in data:
-            if this_page.shape != baseline_shape:
-                msg = f"ROI {i_roi} z_value {z_value} "
-                msg += "give inconsistent page shape"
-                raise RuntimeError(msg)
-
-        return np.stack(data)
-
-    def write_output_file(
-        self, i_roi: int, z_value: float, output_path: Path
-    ) -> None:
-        """
-        Write the z-stack for a specific ROI, z pair to an
-        HDF5 file
-
-        Parameters
-        ----------
-        i_roi: int
-            index of the ROI
-
-        z_value: int
-            depth of the plane whose z-stack we are writing
-
-        output_path: Path
-            path to the HDF5 file to be written
-
-        Returns
-        -------
-        None
-            output is written to the HDF5 file.
-        """
-
-        if output_path.suffix != ".h5":
-            msg = "expected HDF5 output path; "
-            msg += f"you gave {output_path.resolve().absolute()}"
-            raise ValueError(msg)
-
-        data = self._get_pages(i_roi=i_roi, z_value=z_value)
-
-        metadata = self._path_to_metadata[
-            self._get_tiff_path(i_roi=i_roi, z_value=z_value)
-        ].raw_metadata
-
-        with h5.File(output_path, "w") as out_file:
-            out_file.create_dataset(
-                "scanimage_metadata", data=json.dumps(metadata).encode("utf-8")
-            )
-
-            out_file.create_dataset(
-                "data", data=data, chunks=(1, data.shape[1], data.shape[2])
-            )
-
-
-def get_valid_roi_centers(
-    timeseries_splitter: TimeSeriesSplitter,
-) -> List[Tuple[float, float]]:
-    """
-    Return a list of all of the valid ROI centers taken from a
-    TimeSeriesSplitter
-    """
-    eps = 0.01  # ROIs farther apart than this are different
-    valid_roi_centers = []
-    for roi_z_tuple in timeseries_splitter.roi_z_int_manifest:
-        roi_center = timeseries_splitter.roi_center(i_roi=roi_z_tuple[0])
-        dmin = None
-        for other_roi_center in valid_roi_centers:
-            distance = np.sqrt(
-                (roi_center[0] - other_roi_center[0]) ** 2
-                + (roi_center[1] - other_roi_center[1]) ** 2
-            )
-            if dmin is None or distance < dmin:
-                dmin = distance
-        if dmin is None or dmin > eps:
-            valid_roi_centers.append(roi_center)
-    return valid_roi_centers
-
-
-def get_nearest_roi_center(
-    this_roi_center: Tuple[float, float],
-    valid_roi_centers: List[Tuple[float, float]],
-) -> int:
-    """
-    Take a specified ROI center and a list of valid ROI centers,
-    return the index in valid_roi_centers that is closest to
-    this_roi_center
-    """
-    dmin = None
-    ans = None
-    for i_roi, roi in enumerate(valid_roi_centers):
-        dist = (this_roi_center[0] - roi[0]) ** 2 + (
-            this_roi_center[1] - roi[1]
-        ) ** 2
-        if dmin is None or dist < dmin:
-            ans = i_roi
-            dmin = dist
-
-    if ans is None:
-        msg = "Could not find nearest ROI center for\n"
-        msg += f"{this_roi_center}\n"
-        msg += f"{valid_roi_centers}\n"
-        raise RuntimeError(msg)
-
-    return ans
-
-
-def validate_roi_pairing(
-    depth_splitter,
-    surface_splitter,
-    tolerance: float = 1.0,
-) -> None:
-    """Verify depth and surface splitters have the same ROI centers
-    (in any order) within tolerance. Raises if not a 1:1 match."""
-    depth_centers = [
-        depth_splitter.roi_center(i) for i in range(depth_splitter.n_rois)
-    ]
-    surface_centers = [
-        surface_splitter.roi_center(i)
-        for i in range(surface_splitter.n_rois)
-    ]
-
-    if len(depth_centers) != len(surface_centers):
-        raise RuntimeError(
-            f"ROI count mismatch: depth has {len(depth_centers)}, "
-            f"surface has {len(surface_centers)}"
-        )
-
-    used = set()
-    for d_idx, d_center in enumerate(depth_centers):
-        best_s_idx = None
-        best_dist = None
-        for s_idx, s_center in enumerate(surface_centers):
-            if s_idx in used:
-                continue
-            dist = np.sqrt(
-                (d_center[0] - s_center[0]) ** 2
-                + (d_center[1] - s_center[1]) ** 2
-            )
-            if best_dist is None or dist < best_dist:
-                best_s_idx = s_idx
-                best_dist = dist
-        if best_dist > tolerance:
-            raise RuntimeError(
-                f"Depth roi {d_idx} at {d_center} has no surface match "
-                f"within tolerance={tolerance} (nearest: surface roi "
-                f"{best_s_idx} at {surface_centers[best_s_idx]}, "
-                f"dist={best_dist:.4f})"
-            )
-        used.add(best_s_idx)
-
-    logging.info(
-        "validate_roi_pairing: depth and surface ROI centers "
-        "are a 1:1 match within tolerance=%.1f", tolerance
-    )
-
-
-def build_roi_remap(
-    splitter,
-    valid_roi_centers: List[Tuple[float, float]],
-    tolerance: float = 1.0,
-    roi_indices: list = None,
-) -> dict:
-    """Map each valid center index to the splitter roi_index nearest to it.
-
-    Returns a dict: {valid_center_index: splitter_roi_index}.
-    Raises if the mapping is not 1:1 or any match exceeds tolerance.
-
-    Parameters
-    ----------
-    roi_indices : list, optional
-        Explicit list of roi indices to consider. If None, uses
-        range(splitter.n_rois).
-    """
-    if roi_indices is None:
-        roi_indices = list(range(splitter.n_rois))
-    remap = {}
-    used_rois = set()
-    for valid_idx, valid_center in enumerate(valid_roi_centers):
-        best_roi = None
-        best_dist = None
-        for i in roi_indices:
-            if i in used_rois:
-                continue
-            center = splitter.roi_center(i_roi=i)
-            dist = np.sqrt(
-                (center[0] - valid_center[0]) ** 2
-                + (center[1] - valid_center[1]) ** 2
-            )
-            if best_dist is None or dist < best_dist:
-                best_roi = i
-                best_dist = dist
-        if best_roi is None:
-            raise RuntimeError(
-                f"No unmatched ROI in splitter for valid center "
-                f"{valid_idx}: {valid_center}"
-            )
-        if best_dist > tolerance:
-            raise RuntimeError(
-                f"Splitter roi {best_roi} is {best_dist:.4f} from valid "
-                f"center {valid_idx} {valid_center}, exceeds "
-                f"tolerance={tolerance}"
-            )
-        remap[valid_idx] = best_roi
-        used_rois.add(best_roi)
-    return remap
-
-
-class JobSettings(BaseModel):
-    """Job settings values."""
-
-    input_dir: Union[Path, str] = Field(
-        description="directory where tiff files are found"
-    )
-    temp_dir: Optional[Path]
-    output_dir: Union[Path, str] = Field(description="where to save fovs")
-    debug: Optional[bool] = Field(
-        default=False, description="clip movie - run in debug"
-    )
-
-
 class TiffSplitterCLI:
     """A command line interface for splitting TIFF files"""
 
     @staticmethod
-    def str2bool(v):
+    def str2bool(v: str) -> bool:
         """Convert a string to a boolean value."""
         if v.lower() in ("yes", "true", "t", "y", "1"):
             return True
         else:
             return False
 
-    def __init__(self, job_settings: JobSettings):
-        """Initialize the TiffSplitterCLI with job settings."""
+    def __init__(
+        self,
+        job_settings: JobSettings,
+        metadata: ConverterMetadata,
+    ) -> None:
+        """Initialize the TiffSplitterCLI with job settings and metadata.
+
+        Parameters
+        ----------
+        job_settings : JobSettings
+            CLI-driven settings (input/output/temp dirs, debug flag).
+        metadata : ConverterMetadata
+            Schema-agnostic metadata loaded by ``load_converter_metadata``.
+        """
         self.input_dir = job_settings.input_dir
         if isinstance(self.input_dir, str):
             self.input_dir = Path(self.input_dir)
         self.output_dir = job_settings.output_dir
         if isinstance(self.output_dir, str):
             self.output_dir = Path(self.output_dir)
-        session_json = next(self.input_dir.parent.glob("*session.json"), None)
-        if not session_json:
-            raise ValueError("No session.json file found")
-        with open(session_json, "r") as f:
-            self.session_data = json.load(f)
-        self.timeseries_tif = next(
-            self.input_dir.glob("*timeseries.tiff"), None
+        self.metadata = metadata
+        # recursive=False throughout: the splitter's inputs sit directly in
+        # input_dir, and rglob does not follow the symlink it can be.
+        self.timeseries_tif = find_one(
+            self.input_dir, "*timeseries.tiff", recursive=False
         )
-        if not self.timeseries_tif:
-            raise ValueError("No timeseries.tiff file found")
-        self.depths_tif = next(
-            self.input_dir.glob("*averaged_depth.tiff"), None
+        self.depths_tif = find_one(
+            self.input_dir, "*averaged_depth.tiff", recursive=False
         )
-        if not self.depths_tif:
-            raise ValueError("No averaged_depth.tiff file found")
-        self.surface_tif = next(
-            self.input_dir.glob("*averaged_surface.tiff"), None
+        self.surface_tif = find_one(
+            self.input_dir, "*averaged_surface.tiff", recursive=False
         )
-        if not self.surface_tif:
-            raise ValueError("No averaged_surface.tiff file found")
         self.temp_dir = job_settings.temp_dir
+        if self.temp_dir is not None:
+            # Ensure temp directory exists before mkdtemp is called downstream
+            Path(self.temp_dir).mkdir(parents=True, exist_ok=True)
         self.debug = job_settings.debug
 
-    def _initialize_splitters(self) -> Tuple:
+    def _initialize_splitters(
+        self,
+    ) -> Tuple[
+        "TimeSeriesSplitter",
+        "AvgImageTiffSplitter",
+        "AvgImageTiffSplitter",
+        "ZStackSplitter",
+        List[Path],
+        List[Path],
+    ]:
         """Initialize all the splitters needed for processing."""
         files_to_record = []
 
@@ -1767,23 +162,31 @@ class TiffSplitterCLI:
 
     def _check_deprecated_files(self) -> None:
         """Check for deprecated file types and warn accordingly."""
-        if next(self.input_dir.glob("*cortical_z_stack*.tiff"), None):
+        if find_one(
+            self.input_dir,
+            "*cortical_z_stack*.tiff",
+            recursive=False,
+            required=False,
+        ):
             msg = "'column_z_stack_tif' detected in 'plane_groups'; "
             msg += "the TIFF splitting code no longer handles that file."
             logging.warning(msg)
 
-    def _create_experiment_metadata(self, fov: dict) -> (dict, str):
-        """Create experiment metadata structure for a given FOV."""
-        if isinstance(fov["targeted_structure"], dict):
-            targeted_structure = fov["targeted_structure"]["acronym"]
-        elif isinstance(fov["targeted_structure"], str):
-            targeted_structure = fov["targeted_structure"]
-        else:
-            raise ValueError(
-                "expected fov['targeted_structure'] to be "
-                "a dict or a str"
-            )
-        fov_id = targeted_structure + "_" + str(fov["index"])
+    def _create_experiment_metadata(self, fov_id: str) -> dict:
+        """Create the experiment metadata structure for one imaging plane.
+
+        Parameters
+        ----------
+        fov_id : str
+            Canonical FOV id for the plane (from
+            ``self.metadata.fov_ids``).
+
+        Returns
+        -------
+        dict
+            Experiment metadata keyed by ``"fov"`` plus empty per-file-type
+            sub-dicts to be populated by the splitters.
+        """
         this_exp_metadata = {"fov": fov_id}
 
         for file_key in (
@@ -1792,53 +195,379 @@ class TiffSplitterCLI:
             "surface_2p",
             "local_z_stack",
         ):
-            this_metadata = {}
-            for data_key in (
-                "fov_coordinate_ml",
-                "fov_coordinate_ap",
-                "fov_reference",
-                "fov_scale_factor",
-            ):
-                this_metadata[data_key] = fov[data_key]
-            this_exp_metadata[file_key] = this_metadata
+            this_exp_metadata[file_key] = {}
 
-        return this_exp_metadata, fov_id
+        return this_exp_metadata
+
+    def _get_imaging_planes(self) -> Tuple[str, ...]:
+        """Return the FOV ids for this acquisition (one per plane).
+
+        Returns
+        -------
+        tuple of str
+            ``self.metadata.fov_ids``, ordered by the metadata's declared
+            plane index. Enumerate to recover each plane's index.
+
+        Raises
+        ------
+        ValueError
+            If no imaging planes were parsed from the input metadata.
+            Splitting with zero planes would silently produce no output,
+            so fail loudly instead (fail-fast).
+        """
+        if not self.metadata.fov_ids:
+            raise ValueError(
+                f"No imaging planes found in {self.input_dir}; cannot "
+                "split TIFFs. Check that the acquisition/session metadata "
+                "defines imaging FOVs/planes."
+            )
+        return self.metadata.fov_ids
+
+    def _roi_z_per_plane(
+        self, timeseries_splitter: "TimeSeriesSplitter"
+    ) -> List[Tuple[int, float]]:
+        """Return the ``(roi_index, z_value)`` locating each imaging plane.
+
+        Planes are located by imaging channel (``_roi_z_from_channels``) when
+        the metadata names a ``CHANNEL_SLOTS`` channel for every plane, and
+        otherwise by the ScanImage position platform.json records for each
+        (``_roi_z_from_platform``).
+
+        Parameters
+        ----------
+        timeseries_splitter : TimeSeriesSplitter
+            Splitter for the timeseries TIFF, the canonical ROI/z manifest.
+
+        Returns
+        -------
+        list of (int, float)
+            One pair per plane, indexable by plane index. ``z_value`` is the
+            float actuator coordinate, not the manifest's int form.
+
+        Raises
+        ------
+        ValueError
+            If the metadata and the TIFF disagree on plane count, or the
+            source that applies cannot locate every plane.
+        """
+        fov_ids = self._get_imaging_planes()
+        manifest = timeseries_splitter.roi_z_int_manifest
+        if len(manifest) != len(fov_ids):
+            raise ValueError(
+                f"Plane count mismatch: metadata in {self.input_dir} "
+                f"declares {len(fov_ids)} plane(s) {list(fov_ids)}, but "
+                f"{timeseries_splitter.input_path} contains "
+                f"{len(manifest)}. Cannot pair planes to TIFF pages."
+            )
+        if self._names_every_channel():
+            logging.info("Locating planes by their acquisition channels")
+            return self._roi_z_from_channels(timeseries_splitter)
+        logging.info(
+            "Locating planes by platform.json positions; the metadata does "
+            "not name a known channel for every plane"
+        )
+        return self._roi_z_from_platform(timeseries_splitter)
+
+    def _names_every_channel(self) -> bool:
+        """Return whether the metadata names a known channel for every plane.
+
+        Returns
+        -------
+        bool
+            True when each plane has a recorded channel in ``CHANNEL_SLOTS``.
+        """
+        planes = self.metadata.plane_channels
+        return len(planes) == len(self.metadata.fov_ids) and all(
+            plane.channel_name in CHANNEL_SLOTS for plane in planes
+        )
+
+    def _roi_z_from_channels(
+        self, timeseries_splitter: "TimeSeriesSplitter"
+    ) -> List[Tuple[int, float]]:
+        """Locate each plane by its imaging channel within its coupled pair.
+
+        Coupled pairs (by ``coupled_plane_index``) are matched to the TIFF's
+        slices in plane-index order, and each plane takes the page of its
+        imaging channel within its pair's slice (``CHANNEL_SLOTS``).
+
+        Parameters
+        ----------
+        timeseries_splitter : TimeSeriesSplitter
+            Splitter for the timeseries TIFF, the canonical ROI/z manifest.
+
+        Returns
+        -------
+        list of (int, float)
+            One pair per plane, indexable by plane index.
+
+        Raises
+        ------
+        ValueError
+            If coupled partners do not name each other, or a pair's slice
+            spans two ROIs or has no page for one of its channels.
+        """
+        fov_ids = self._get_imaging_planes()
+        manifest = timeseries_splitter.roi_z_int_manifest
+        planes = self.metadata.plane_channels
+        slots = [CHANNEL_SLOTS[plane.channel_name] for plane in planes]
+        roi_z: List[Tuple[int, float]] = [None] * len(fov_ids)
+        offset = 0
+        for pair in self._coupled_pairs(fov_ids, planes):
+            pages = manifest[offset : offset + len(pair)]
+            offset += len(pair)
+            self._check_pair_pages(fov_ids, pair, slots, pages)
+            for position in pair:
+                roi_index, z_int = pages[slots[position]]
+                roi_z[position] = (
+                    roi_index,
+                    timeseries_splitter._z_from_int(z_int),
+                )
+        return roi_z
+
+    @staticmethod
+    def _coupled_pairs(
+        fov_ids: Tuple[str, ...], planes: Tuple[PlaneChannel, ...]
+    ) -> List[List[int]]:
+        """Group plane positions into coupled pairs, in plane-index order.
+
+        Parameters
+        ----------
+        fov_ids : tuple of str
+            Canonical plane ids, for error messages.
+        planes : tuple of PlaneChannel
+            Recorded channel and partner of each plane, in ``fov_ids`` order.
+
+        Returns
+        -------
+        list of list of int
+            Positions in ``fov_ids`` of each pair's planes; an uncoupled
+            plane forms a pair of one.
+
+        Raises
+        ------
+        ValueError
+            If a plane's coupled partner is missing or does not name it back.
+        """
+        position_of = {plane.plane_index: i for i, plane in enumerate(planes)}
+        pairs: List[List[int]] = []
+        paired = set()
+        for i, plane in enumerate(planes):
+            if i in paired:
+                continue
+            pair = [i]
+            if plane.coupled_plane_index is not None:
+                j = position_of.get(plane.coupled_plane_index)
+                if (
+                    j is None
+                    or j == i
+                    or planes[j].coupled_plane_index != plane.plane_index
+                ):
+                    raise ValueError(
+                        f"Plane {fov_ids[i]}: coupled_plane_index "
+                        f"{plane.coupled_plane_index} does not name a plane "
+                        "that is coupled back to it."
+                    )
+                pair.append(j)
+            paired.update(pair)
+            pairs.append(pair)
+        return pairs
+
+    @staticmethod
+    def _check_pair_pages(
+        fov_ids: Tuple[str, ...],
+        pair: List[int],
+        slots: List[int],
+        pages: List[Tuple[int, int]],
+    ) -> None:
+        """Raise unless a pair's slice covers each of its planes' channels.
+
+        Parameters
+        ----------
+        fov_ids : tuple of str
+            Canonical plane ids, for error messages.
+        pair : list of int
+            Positions of the pair's planes in ``fov_ids``.
+        slots : list of int
+            Page slot of every plane, in ``fov_ids`` order.
+        pages : list of (int, int)
+            The pair's slice of the TIFF manifest, ``(roi_index, z_int)``.
+
+        Raises
+        ------
+        ValueError
+            If the slice spans two ROIs, or two planes share a slot or a slot
+            has no page.
+        """
+        names = [fov_ids[position] for position in pair]
+        pair_slots = [slots[position] for position in pair]
+        if len({roi for roi, _ in pages}) != 1:
+            raise ValueError(
+                f"Planes {names}: their TIFF slice spans ROIs "
+                f"{sorted({roi for roi, _ in pages})}."
+            )
+        if len(set(pair_slots)) != len(pair_slots) or any(
+            slot >= len(pages) for slot in pair_slots
+        ):
+            raise ValueError(
+                f"Planes {names}: channel slots {pair_slots} do not match "
+                f"their TIFF slice of {len(pages)} page(s)."
+            )
+
+    def _roi_z_from_platform(
+        self, timeseries_splitter: "TimeSeriesSplitter"
+    ) -> List[Tuple[int, float]]:
+        """Locate each plane by its platform.json ScanImage position.
+
+        Each plane is located by its platform.json entry
+        (``scanimage_roi_index``, ``scanimage_scanfield_z``), which names the
+        ROI and z value ScanImage records for its TIFF pages. platform.json
+        lists planes in plane-index order; each plane's metadata depth is
+        checked against its entry's ``targeted_depth``.
+
+        Parameters
+        ----------
+        timeseries_splitter : TimeSeriesSplitter
+            Splitter for the timeseries TIFF, the canonical ROI/z manifest.
+
+        Returns
+        -------
+        list of (int, float)
+            One pair per plane, indexable by plane index.
+
+        Raises
+        ------
+        ValueError
+            If the input directory has no platform.json, if the metadata and
+            platform.json disagree on plane count, if a plane's metadata
+            depth differs from its platform.json depth, or if a plane's
+            position is not in the TIFF or is shared with another plane.
+        """
+        fov_ids = self._get_imaging_planes()
+        platform_fp = find_one(
+            self.input_dir, "*platform.json", recursive=False, required=False
+        )
+        if platform_fp is None:
+            raise ValueError(
+                "Cannot pair planes to TIFF pages: the metadata does not "
+                f"name a {' or '.join(sorted(CHANNEL_SLOTS))} imaging "
+                f"channel for every plane, and {self.input_dir} has no "
+                "*platform.json."
+            )
+        positions = load_platform_plane_positions(platform_fp)
+        if len(positions) != len(fov_ids):
+            raise ValueError(
+                f"Plane count mismatch: metadata in {self.input_dir} "
+                f"declares {len(fov_ids)} plane(s), but {platform_fp} "
+                f"lists {len(positions)}."
+            )
+        roi_z = []
+        for plane_index, fov_id in enumerate(fov_ids):
+            roi_index, z_value, platform_depth = positions[plane_index]
+            self._check_plane_depth(
+                plane_index, fov_id, platform_depth, platform_fp
+            )
+            if not (
+                0 <= roi_index < timeseries_splitter.n_rois
+                and timeseries_splitter.is_z_valid_for_roi(
+                    i_roi=roi_index, z_value=z_value
+                )
+            ):
+                raise ValueError(
+                    f"Plane {fov_id}: {platform_fp} places it at ROI "
+                    f"{roi_index}, z {z_value}, which "
+                    f"{timeseries_splitter.input_path} does not contain."
+                )
+            z_value = timeseries_splitter._z_from_int(
+                timeseries_splitter._int_from_z(z_value)
+            )
+            if (roi_index, z_value) in roi_z:
+                raise ValueError(
+                    f"Plane {fov_id}: {platform_fp} places it at ROI "
+                    f"{roi_index}, z {z_value}, already used by another "
+                    "plane."
+                )
+            roi_z.append((roi_index, z_value))
+        return roi_z
+
+    def _check_plane_depth(
+        self,
+        plane_index: int,
+        fov_id: str,
+        platform_depth: Optional[float],
+        platform_fp: Path,
+    ) -> None:
+        """Raise when a plane's metadata depth differs from platform.json.
+
+        Skipped when either side records no depth.
+
+        Parameters
+        ----------
+        plane_index : int
+            Index of the plane in ``fov_ids``.
+        fov_id : str
+            Canonical id of the plane, for the error message.
+        platform_depth : float or None
+            The plane's ``targeted_depth`` in platform.json.
+        platform_fp : Path
+            The platform.json file, for the error message.
+
+        Raises
+        ------
+        ValueError
+            If both depths are recorded and differ.
+        """
+        depths = self.metadata.plane_depths
+        if not depths or depths[plane_index] is None or platform_depth is None:
+            return
+        if not math.isclose(
+            depths[plane_index], platform_depth, abs_tol=DEPTH_TOLERANCE_UM
+        ):
+            raise ValueError(
+                f"Plane {fov_id} (index {plane_index}): metadata depth "
+                f"{depths[plane_index]} does not match {platform_fp} "
+                f"targeted_depth {platform_depth}, so platform.json is not "
+                "in plane-index order."
+            )
 
     def _process_single_fov(
         self,
-        fov: dict,
-        timeseries_splitter,
-        depth_splitter,
-        surface_splitter,
-        zstack_splitter,
-        valid_roi_centers: List,
-        depth_remap: dict,
-        surface_remap: dict,
-        zstack_remap: dict,
+        fov_id: str,
+        roi_index: int,
+        z_value: float,
+        timeseries_splitter: "TimeSeriesSplitter",
+        depth_splitter: "AvgImageTiffSplitter",
+        surface_splitter: "AvgImageTiffSplitter",
+        zstack_splitter: "ZStackSplitter",
+        valid_roi_centers: List[Tuple[float, float]],
+        depth_remap: Dict[int, int],
+        surface_remap: Dict[int, int],
+        zstack_remap: Dict[int, int],
         t0: float,
     ) -> dict:
-        """Process a single FOV and return its metadata."""
-        this_exp_metadata, fov_id = self._create_experiment_metadata(fov)
-        roi_index = fov["scanimage_roi_index"]
-        scanfield_z = fov["scanfield_z"]
+        """Process a single imaging plane and return its metadata.
 
-        # Determine which valid center this FOV corresponds to
-        # using the timeseries splitter (the anchor from which
-        # valid_roi_centers was derived)
+        Uses the timeseries splitter as the canonical source of ROI
+        indexing; per-splitter remap dicts translate from the
+        timeseries-anchored valid-center index to each splitter's own
+        roi_index so depth/surface/zstack TIFFs that index ROIs in a
+        different order are still addressed correctly.
+        """
+        this_exp_metadata = self._create_experiment_metadata(fov_id)
+        scanfield_z = z_value
+
         ts_center = timeseries_splitter.roi_center(i_roi=roi_index)
         baseline_center = get_nearest_roi_center(
             this_roi_center=ts_center,
             valid_roi_centers=valid_roi_centers,
         )
 
-        # Map from valid center index to correct roi_index per splitter
         splitter_roi_remaps = {
             id(depth_splitter): depth_remap,
             id(surface_splitter): surface_remap,
             id(zstack_splitter): zstack_remap,
         }
 
-        for splitter, z_value, output_name, metadata_tag in zip(
+        for splitter, output_z, output_name, metadata_tag in zip(
             (depth_splitter, surface_splitter, zstack_splitter),
             (scanfield_z, None, scanfield_z),
             (
@@ -1864,7 +593,7 @@ class TiffSplitterCLI:
 
             splitter.write_output_file(
                 i_roi=splitter_roi_index,
-                z_value=z_value,
+                z_value=output_z,
                 output_path=output_path,
             )
 
@@ -1874,7 +603,7 @@ class TiffSplitterCLI:
                 output_path,
                 splitter,
                 splitter_roi_index,
-                z_value,
+                output_z,
             )
 
             elapsed_time = time.time() - t0
@@ -1890,7 +619,7 @@ class TiffSplitterCLI:
         metadata: dict,
         metadata_tag: str,
         output_path: Path,
-        splitter,
+        splitter: Union[TiffSplitterBase, ZStackSplitter],
         roi_index: int,
         z_value: float,
     ) -> None:
@@ -1903,38 +632,42 @@ class TiffSplitterCLI:
         metadata[metadata_tag]["width"] = frame_shape[1]
 
     def _process_timeseries_data(
-        self, timeseries_splitter, experiment_metadata: List[dict]
-    ) -> Dict:
+        self,
+        timeseries_splitter: "TimeSeriesSplitter",
+        experiment_metadata: List[dict],
+    ) -> Dict[Tuple[int, float], Path]:
         """Process timeseries data and return output path lookup."""
         output_path_lookup = {}
+        roi_z_per_plane = self._roi_z_per_plane(timeseries_splitter)
 
-        for data_stream in self.session_data["data_streams"]:
-            if data_stream.get("ophys_fovs"):
-                for fov in data_stream["ophys_fovs"]:
-                    _, fov_id = self._create_experiment_metadata(fov)
-                    scanfield_z = fov["scanfield_z"]
-                    roi_index = fov["scanimage_roi_index"]
-                    fname = f"{fov_id}.h5"
-                    output_path = self.output_dir / fov_id / fname
-                    output_path_lookup[(roi_index, scanfield_z)] = output_path
+        for plane_index, fov_id in enumerate(self._get_imaging_planes()):
+            roi_index, z_value = roi_z_per_plane[plane_index]
+            fname = f"{fov_id}.h5"
+            output_path = self.output_dir / fov_id / fname
+            output_path_lookup[(roi_index, z_value)] = output_path
 
-                    frame_shape = timeseries_splitter.frame_shape(
-                        i_roi=roi_index, z_value=scanfield_z
-                    )
+            frame_shape = timeseries_splitter.frame_shape(
+                i_roi=roi_index, z_value=z_value
+            )
 
-                    str_path = str(output_path.resolve().absolute())
+            str_path = str(output_path.resolve().absolute())
 
-                    for metadata in experiment_metadata:
-                        if metadata["fov"] == fov_id:
-                            metadata["timeseries"]["height"] = frame_shape[0]
-                            metadata["timeseries"]["width"] = frame_shape[1]
-                            metadata["timeseries"]["filename"] = str_path
+            for metadata in experiment_metadata:
+                if metadata["fov"] == fov_id:
+                    metadata["timeseries"]["height"] = frame_shape[0]
+                    metadata["timeseries"]["width"] = frame_shape[1]
+                    metadata["timeseries"]["filename"] = str_path
 
         return output_path_lookup
 
     def _process_full_field_image(self) -> None:
         """Process full field image if it exists."""
-        full_field_path = next(self.input_dir.glob("*fullfield*.tiff"), None)
+        full_field_path = find_one(
+            self.input_dir,
+            "*fullfield*.tiff",
+            recursive=False,
+            required=False,
+        )
 
         if full_field_path is not None:
             avg_path = self.surface_tif
@@ -1967,104 +700,117 @@ class TiffSplitterCLI:
             file_metadata.append(this_metadata)
         return file_metadata
 
-    def run_job(self):
+    def run_job(self) -> None:
         """Run the job to split TIFF files."""
         t0 = time.time()
         output = {"column_stacks": []}
+        try:
+            # Initialize splitters and get file paths
+            (
+                timeseries_splitter,
+                depth_splitter,
+                surface_splitter,
+                zstack_splitter,
+                zstack_path_list,
+                files_to_record,
+            ) = self._initialize_splitters()
 
-        # Initialize splitters and get file paths
-        (
-            timeseries_splitter,
-            depth_splitter,
-            surface_splitter,
-            zstack_splitter,
-            zstack_path_list,
-            files_to_record,
-        ) = self._initialize_splitters()
+            # Check for deprecated file types
+            self._check_deprecated_files()
 
-        # Check for deprecated file types
-        self._check_deprecated_files()
+            # Get valid ROI centers from the timeseries (canonical anchor)
+            valid_roi_centers = get_valid_roi_centers(
+                timeseries_splitter=timeseries_splitter
+            )
 
-        # Get valid ROI centers for validation
-        valid_roi_centers = get_valid_roi_centers(
-            timeseries_splitter=timeseries_splitter
-        )
+            # Validate depth and surface have the same FOVs (1:1 centers)
+            validate_roi_pairing(depth_splitter, surface_splitter)
 
-        # Validate depth and surface have the same FOVs
-        validate_roi_pairing(depth_splitter, surface_splitter)
+            # Build per-splitter roi_index remaps so each TIFF is addressed
+            # by its own indexing (depth, surface, and zstack TIFFs can
+            # index ROIs in a different order than the timeseries).
+            depth_remap = build_roi_remap(depth_splitter, valid_roi_centers)
+            surface_remap = build_roi_remap(
+                surface_splitter, valid_roi_centers
+            )
+            zstack_remap = build_roi_remap(
+                zstack_splitter,
+                valid_roi_centers,
+                roi_indices=list(zstack_splitter._roi_to_path.keys()),
+            )
 
-        # Build roi index remaps for splitters whose roi ordering
-        # may differ from the timeseries-derived valid centers
-        depth_remap = build_roi_remap(depth_splitter, valid_roi_centers)
-        surface_remap = build_roi_remap(surface_splitter, valid_roi_centers)
-        zstack_remap = build_roi_remap(
-            zstack_splitter,
-            valid_roi_centers,
-            roi_indices=list(zstack_splitter._roi_to_path.keys()),
-        )
+            # Process experiment metadata for each imaging plane
+            experiment_metadata = []
+            roi_z_per_plane = self._roi_z_per_plane(timeseries_splitter)
+            for plane_index, fov_id in enumerate(self._get_imaging_planes()):
+                roi_index, z_value = roi_z_per_plane[plane_index]
+                this_exp_metadata = self._process_single_fov(
+                    fov_id,
+                    roi_index,
+                    z_value,
+                    timeseries_splitter,
+                    depth_splitter,
+                    surface_splitter,
+                    zstack_splitter,
+                    valid_roi_centers,
+                    depth_remap,
+                    surface_remap,
+                    zstack_remap,
+                    t0,
+                )
+                experiment_metadata.append(this_exp_metadata)
 
-        # Process experiment metadata for each FOV
-        experiment_metadata = []
-        for data_stream in self.session_data["data_streams"]:
-            if data_stream.get("ophys_fovs"):
-                for fov in data_stream["ophys_fovs"]:
-                    this_exp_metadata = self._process_single_fov(
-                        fov,
-                        timeseries_splitter,
-                        depth_splitter,
-                        surface_splitter,
-                        zstack_splitter,
-                        valid_roi_centers,
-                        depth_remap,
-                        surface_remap,
-                        zstack_remap,
-                        t0,
-                    )
-                    experiment_metadata.append(this_exp_metadata)
+            # Process timeseries data separately for efficiency
+            output_path_lookup = self._process_timeseries_data(
+                timeseries_splitter, experiment_metadata
+            )
 
-        # Process timeseries data separately for efficiency
-        output_path_lookup = self._process_timeseries_data(
-            timeseries_splitter, experiment_metadata
-        )
+            # dump_every (buffer-flush cadence to temp files) uses default 1000
+            timeseries_splitter.write_output_files(
+                output_path_map=output_path_lookup,
+                tmp_dir=self.temp_dir,
+                debug=self.debug,
+            )
 
-        timeseries_splitter.write_output_files(
-            output_path_map=output_path_lookup,
-            tmp_dir=self.temp_dir,
-            dump_every=self.session_data.get("dump_every", 1000),
-            logger=logging,
-            debug=self.debug,
-        )
+            # Set up output structure
+            output["experiment_output"] = experiment_metadata
 
-        # Set up output structure
-        output["experiment_output"] = experiment_metadata
+            ready_to_archive = {
+                str(self.surface_tif),
+                str(self.depths_tif),
+                str(self.timeseries_tif),
+            }
+            ready_to_archive.update(
+                str(zstack_path.resolve().absolute())
+                for zstack_path in zstack_path_list
+            )
+            output["ready_to_archive"] = list(ready_to_archive)
 
-        ready_to_archive = {
-            str(self.surface_tif),
-            str(self.depths_tif),
-            str(self.timeseries_tif),
-        }
-        ready_to_archive.update(
-            str(zstack_path.resolve().absolute())
-            for zstack_path in zstack_path_list
-        )
-        output["ready_to_archive"] = list(ready_to_archive)
+            # Process full field image if available
+            self._process_full_field_image()
 
-        # Process full field image if available
-        self._process_full_field_image()
+            # Create file metadata
+            output["file_metadata"] = self._create_file_metadata(
+                files_to_record
+            )
 
-        # Create file metadata
-        output["file_metadata"] = self._create_file_metadata(files_to_record)
-
-        duration = time.time() - t0
-        logging.info(f"that took {duration:.2e} seconds")
+            duration = time.time() - t0
+            logging.info(
+                f"Mesoscope TIFF splitting complete in {duration:.2e} seconds"
+            )
+        except Exception:
+            logging.exception(
+                "Unhandled exception in mesoscope TIFF splitting"
+            )
+            raise
 
 
-def from_args(args: list):
+def from_args(args: List[str]) -> JobSettings:
     """
     Adds ability to construct settings from a list of arguments.
     Parameters
     ----------
-    args : list
+    args : List[str]
     A list of command line arguments to parse.
     """
 
@@ -2074,11 +820,9 @@ def from_args(args: list):
         "--input-dir",
         required=True,
         type=str,
-        help=(
-            """
+        help=("""
             data-directory for job settings
-            """
-        ),
+            """),
     )
     parser.add_argument(
         "-t",
@@ -2086,11 +830,9 @@ def from_args(args: list):
         required=False,
         default=None,
         type=str,
-        help=(
-            """
+        help=("""
             temp-directory for job settings
-            """
-        ),
+            """),
     )
     parser.add_argument(
         "-o",
@@ -2098,11 +840,9 @@ def from_args(args: list):
         required=False,
         default=None,
         type=str,
-        help=(
-            """
+        help=("""
             output-directory for job settings
-            """
-        ),
+            """),
     )
     parser.add_argument(
         "-d",
@@ -2125,13 +865,17 @@ def from_args(args: list):
 
 if __name__ == "__main__":
     sys_args = sys.argv[1:]
-    runner = from_args(sys_args)
-    split_directories = find_split_directories(Path(runner.input_dir))
+    job_settings = from_args(sys_args)
+    input_dir_path = Path(job_settings.input_dir)
+    split_directories = find_split_directories(input_dir_path)
     if len(split_directories) == 0:
-        runner = TiffSplitterCLI(runner)
+        # Metadata lives one level up from the pophys/ tiff directory
+        # when invoked standalone (matches the capsule layout).
+        metadata = load_converter_metadata(input_dir_path.parent)
+        runner = TiffSplitterCLI(job_settings, metadata=metadata)
         runner.run_job()
     else:
-        output_dir = Path(runner.output_dir)
+        output_dir = Path(job_settings.output_dir)
         for split_dir in split_directories:
             new_directory = output_dir / split_dir
             new_directory.mkdir(parents=True, exist_ok=True)

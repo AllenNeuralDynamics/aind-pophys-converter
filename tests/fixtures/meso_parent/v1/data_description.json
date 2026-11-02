@@ -1,0 +1,83 @@
+{
+   "creation_time": "2026-05-20T12:10:09.287508-07:00",
+   "data_level": "raw",
+   "data_summary": "LearningmFISHTask1A",
+   "describedBy": "https://raw.githubusercontent.com/AllenNeuralDynamics/aind-data-schema/main/src/aind_data_schema/core/data_description.py",
+   "funding_source": [
+      {
+         "fundee": null,
+         "funder": {
+            "abbreviation": "AI",
+            "name": "Allen Institute",
+            "registry": {
+               "abbreviation": "ROR",
+               "name": "Research Organization Registry"
+            },
+            "registry_identifier": "03cpe7c52"
+         },
+         "grant_number": null
+      }
+   ],
+   "group": null,
+   "institution": {
+      "abbreviation": "AIND",
+      "name": "Allen Institute for Neural Dynamics",
+      "registry": {
+         "abbreviation": "ROR",
+         "name": "Research Organization Registry"
+      },
+      "registry_identifier": "04szwah67"
+   },
+   "investigators": [
+      {
+         "abbreviation": null,
+         "name": "Marina Garrett",
+         "registry": null,
+         "registry_identifier": null
+      },
+      {
+         "abbreviation": null,
+         "name": "Peter Groblewski",
+         "registry": null,
+         "registry_identifier": null
+      },
+      {
+         "abbreviation": null,
+         "name": "Anton Arkhipov",
+         "registry": null,
+         "registry_identifier": null
+      },
+      {
+         "abbreviation": null,
+         "name": "Omid Zobeiri",
+         "registry": null,
+         "registry_identifier": null
+      }
+   ],
+   "label": null,
+   "license": "CC-BY-4.0",
+   "modality": [
+      {
+         "abbreviation": "pophys",
+         "name": "Planar optical physiology"
+      },
+      {
+         "abbreviation": "behavior-videos",
+         "name": "Behavior videos"
+      },
+      {
+         "abbreviation": "behavior",
+         "name": "Behavior"
+      }
+   ],
+   "name": "multiplane-ophys_849375_2026-05-20_12-10-09",
+   "platform": {
+      "abbreviation": "multiplane-ophys",
+      "name": "Multiplane optical physiology platform"
+   },
+   "project_name": "Learning mFISH-V1omFISH",
+   "related_data": [],
+   "restrictions": null,
+   "schema_version": "1.0.3",
+   "subject_id": "849375"
+}

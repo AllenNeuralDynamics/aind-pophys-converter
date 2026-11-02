@@ -2,10 +2,11 @@
 
 import json
 import os
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import h5py
 import numpy as np
@@ -14,208 +15,321 @@ from aind_pophys_converter.bergamo_stitcher import (
     BergamoSettings,
     BergamoTiffStitcher,
 )
+from aind_pophys_converter.utils.metadata_utils import (
+    ConverterMetadata,
+)
+
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def _make_settings(
+    input_dir: Path, output_dir: Path, debug: bool = False
+) -> BergamoSettings:
+    """Return a BergamoSettings with sensible defaults for testing."""
+    return BergamoSettings(
+        input_dir=input_dir,
+        output_dir=output_dir,
+        debug=debug,
+    )
+
+
+def _make_metadata(
+    instrument_id: str = "Bergamo",
+    epoch_stems: tuple = (),
+) -> ConverterMetadata:
+    """Build a ConverterMetadata stub for stitcher tests (single plane)."""
+    return ConverterMetadata(
+        instrument_id=instrument_id,
+        fov_ids=("plane_0",),
+        dataset_name="bergamo-test",
+        subject_id="000000",
+        epoch_stems=epoch_stems,
+    )
 
 
 class TestBergamoTiffStitcher(unittest.TestCase):
     """Test cases for BergamoTiffStitcher class."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test environment."""
-        # Create temporary directories for input and output
         self.temp_dir = tempfile.TemporaryDirectory()
         self.input_dir = Path(self.temp_dir.name) / "input"
         self.output_dir = Path(self.temp_dir.name) / "output"
         self.input_dir.mkdir(exist_ok=True)
         self.output_dir.mkdir(exist_ok=True)
 
-        # Create a temporary session file
-        self.session_file = self.input_dir / "session.json"
-        self.unique_id = "test_data"
-
-        # Create mock session data
-        self.create_mock_session_file()
-
-        # Create mock TIFF files
-        self.create_mock_tiff_files()
-
-        # Create BergamoSettings instance
-        self.settings = BergamoSettings(
-            input_dir=self.input_dir,
-            output_dir=self.output_dir,
-            unique_id=self.unique_id,
-            session_fp=self.session_file,
+        self.acquisition_file = self.input_dir / "acquisition.json"
+        self.acquisition_file.write_text(
+            json.dumps(
+                {
+                    "schema_version": "2.4.0",
+                    "subject_id": "000000",
+                    "acquisition_start_time": "2025-05-17T10:00:00-07:00",
+                    "acquisition_end_time": "2025-05-17T12:00:00-07:00",
+                    "instrument_id": "Bergamo",
+                    "acquisition_type": "Other",
+                    "data_streams": [],
+                    "stimulus_epochs": [],
+                }
+            )
         )
+        self.dd_file = self.input_dir / "data_description.json"
+        self.dd_file.write_text(json.dumps({"name": "bergamo-test"}))
 
-    def tearDown(self):
+        self.tiff_files = ["test_tiff_00001.tif", "test_tiff_00002.tif"]
+        self.settings = _make_settings(self.input_dir, self.output_dir)
+        self.metadata = _make_metadata()
+
+    def test_run_converter_empty_planes_raises(self) -> None:
+        """run_converter fails fast when metadata has no planes."""
+        from dataclasses import replace
+
+        stitcher = BergamoTiffStitcher(
+            self.settings,
+            metadata=replace(self.metadata, fov_ids=()),
+        )
+        with self.assertRaises(ValueError) as cm:
+            stitcher.run_converter()
+        self.assertIn("No imaging planes", str(cm.exception))
+
+    def tearDown(self) -> None:
         """Clean up after tests."""
         self.temp_dir.cleanup()
 
-    def create_mock_session_file(self):
-        """Create a mock session file for testing."""
-        # Create a simplified session file
-        tiff_stem = "test_stem"
-        tiff_files = ["test_tiff_1.tif", "test_tiff_2.tif"]
-
-        session_data = {
-            "stimulus_epochs": [
-                {
-                    "stimulus_start_time": "2025-05-17T10:00:00",
-                    "stimulus_name": "test_stimulus",
-                    "output_parameters": {
-                        "tiff_stem": tiff_stem,
-                        "tiff_files": tiff_files,
-                    },
-                }
-            ]
-        }
-
-        # Write session data to file
-        with open(self.session_file, "w") as f:
-            json.dump(session_data, f)
-
-    def create_mock_tiff_files(self):
-        """Create mock TIFF files for testing."""
-        pass
-
     @patch("aind_pophys_converter.bergamo_stitcher.ScanImageTiffReader")
-    def test_run_converter_creates_hdf5(self, mock_reader):
+    def test_run_converter_creates_hdf5(self, mock_reader: MagicMock) -> None:
         """Test that run_converter creates an HDF5 file with the
         expected structure.
         """
-        # Mock ScanImageTiffReader behavior
         mock_instance = Mock()
         mock_reader.return_value = mock_instance
         mock_instance.__enter__ = Mock(return_value=mock_instance)
         mock_instance.__exit__ = Mock(return_value=None)
-
-        # Mock data() method to return a small image stack
         mock_instance.data.return_value = np.zeros((5, 10, 10), dtype=np.int16)
-
-        # Mock metadata() method
         mock_instance.metadata.return_value = "Test metadata"
-
-        # Mock shape() method to return image dimensions
         mock_instance.shape.return_value = (5, 10, 10)
 
-        # Create mock TIFF files
-        tiff_file_1 = self.input_dir / "test_tiff_1.tif"
-        tiff_file_2 = self.input_dir / "test_tiff_2.tif"
+        for fname in self.tiff_files:
+            (self.input_dir / fname).touch()
 
-        # Create empty files to be found by glob
-        tiff_file_1.touch()
-        tiff_file_2.touch()
-
-        # Initialize the stitcher
-        stitcher = BergamoTiffStitcher(self.settings)
-
-        # Run the converter
+        stitcher = BergamoTiffStitcher(
+            self.settings,
+            metadata=_make_metadata(epoch_stems=("test_tiff",)),
+        )
         output_path = stitcher.run_converter()
 
-        # Check if the output file exists
         self.assertTrue(os.path.exists(output_path[0]))
-
-        # Check if it's a valid HDF5 file
         with h5py.File(output_path[0], "r") as f:
-            # Check if the expected datasets exist
             self.assertIn("data", f)
             self.assertIn("trial_locations", f)
             self.assertIn("epoch_locations", f)
             self.assertIn("epoch_filenames", f)
             self.assertIn("metadata", f)
-
-            # Check data dimensions
             self.assertEqual(f["data"].shape[1:], (10, 10))
 
-    def test_from_args_creates_stitcher(self):
-        """Test that from_args creates a BergamoTiffStitcher from
-        command line arguments.
-        """
-        # Test with minimal required arguments
-        args = [
-            "--input-dir",
-            str(self.input_dir),
-            "--session-file",
-            str(self.session_file),
-        ]
+    def test_write_bergamo_no_frames_raises(self) -> None:
+        """write_bergamo fails fast when no frames were written."""
+        stitcher = BergamoTiffStitcher(self.settings, metadata=self.metadata)
+        with self.assertRaises(ValueError) as cm:
+            stitcher.write_bergamo(
+                epochs={},
+                unique_id="empty",
+                image_width=10,
+                image_height=10,
+            )
+        self.assertIn("No tiff files were processed", str(cm.exception))
 
-        stitcher = BergamoTiffStitcher.from_args(args)
-        self.assertIsInstance(stitcher, BergamoTiffStitcher)
-        self.assertEqual(stitcher.input_dir, self.input_dir)
+    def test_from_args_creates_stitcher(self) -> None:
+        """from_args builds a stitcher; metadata-dir defaults to parent."""
+        # Stage a fixture layout under <tmp>/parent/{metadata files, pophys/}
+        # so that from_args can locate the metadata.
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            parent = tmp_path / "parent"
+            parent.mkdir()
+            shutil.copy(
+                FIXTURES / "synthetic" / "v2" / "acquisition.json", parent
+            )
+            shutil.copy(
+                FIXTURES / "synthetic" / "v2" / "data_description.json", parent
+            )
+            pophys = parent / "pophys"
+            pophys.mkdir()
+            args = ["--input-dir", str(pophys)]
+            stitcher = BergamoTiffStitcher.from_args(args)
+            self.assertIsInstance(stitcher, BergamoTiffStitcher)
+            self.assertEqual(stitcher.input_dir, pophys)
+            self.assertEqual(stitcher.metadata.subject_id, "000000")
 
-    def test_from_args_with_all_arguments(self):
-        """Test from_args with all optional arguments."""
-        args = [
-            "--input-dir",
-            str(self.input_dir),
-            "--output-dir",
-            str(self.output_dir),
-            "--unique-id",
-            "test_unique_id",
-            "--session-file",
-            str(self.session_file),
-        ]
-
-        stitcher = BergamoTiffStitcher.from_args(args)
-        self.assertEqual(stitcher.input_dir, self.input_dir)
-        self.assertEqual(stitcher.output_dir, self.output_dir)
-        self.assertEqual(stitcher.unique_id, "test_unique_id")
-
-    def test_no_stimulus_epochs_raises_error(self):
-        """Test that missing stimulus epochs raises ValueError."""
-        # Create a session file without stimulus_epochs
-        session_data = {"no_stimulus_epochs": []}
-
-        with open(self.session_file, "w") as f:
-            json.dump(session_data, f)
-
-        stitcher = BergamoTiffStitcher(self.settings)
-
-        with self.assertRaises(ValueError) as context:
-            stitcher.run_converter()
-
-        self.assertIn("No stimulus epochs found", str(context.exception))
-
-    def test_epoch_without_output_parameters_skipped(self):
-        """Test that epochs without output_parameters are skipped."""
-        # Create session data with an epoch missing output_parameters
-        session_data = {
-            "stimulus_epochs": [
-                {
-                    "stimulus_start_time": "2025-05-17T10:00:00",
-                    "stimulus_name": "test_stimulus_no_params",
-                    # No output_parameters
-                },
-                {
-                    "stimulus_start_time": "2025-05-17T10:00:00",
-                    "stimulus_name": "test_stimulus_with_params",
-                    "output_parameters": {
-                        "tiff_stem": "test_stem",
-                        "tiff_files": ["test_tiff_1.tif", "test_tiff_2.tif"],
-                    },
-                },
+    def test_from_args_with_metadata_dir(self) -> None:
+        """from_args honors an explicit --metadata-dir override."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            meta_dir = tmp_path / "meta"
+            meta_dir.mkdir()
+            shutil.copy(
+                FIXTURES / "synthetic" / "v1" / "session.json", meta_dir
+            )
+            shutil.copy(
+                FIXTURES / "synthetic" / "v1" / "data_description.json",
+                meta_dir,
+            )
+            tiffs = tmp_path / "tiffs"
+            tiffs.mkdir()
+            args = [
+                "--input-dir",
+                str(tiffs),
+                "--output-dir",
+                str(tmp_path / "out"),
+                "--metadata-dir",
+                str(meta_dir),
             ]
-        }
+            stitcher = BergamoTiffStitcher.from_args(args)
+            # v1 fixture instrument_id is MESO.1 (not actually a Bergamo
+            # rig — this test only confirms the wiring works)
+            self.assertEqual(stitcher.metadata.instrument_id, "MESO.1")
 
-        with open(self.session_file, "w") as f:
-            json.dump(session_data, f)
+    def test_discover_tiff_epochs_groups_by_stem(self) -> None:
+        """Test that tiff files are grouped by stem and sorted numerically."""
+        files = [
+            "spont_00003.tif",
+            "spont_00001.tif",
+            "spont_00002.tif",
+            "spontpost_00001.tif",
+        ]
+        for fname in files:
+            (self.input_dir / fname).touch()
 
-        # Create mock TIFF files
-        tiff_file_1 = self.input_dir / "test_tiff_1.tif"
-        tiff_file_2 = self.input_dir / "test_tiff_2.tif"
-        tiff_file_1.touch()
-        tiff_file_2.touch()
+        stitcher = BergamoTiffStitcher(
+            self.settings,
+            metadata=_make_metadata(epoch_stems=("spont", "spontpost")),
+        )
+        result = stitcher._discover_tiff_epochs()
 
-        stitcher = BergamoTiffStitcher(self.settings)
+        self.assertIn("spont", result)
+        self.assertIn("spontpost", result)
+        self.assertEqual(len(result["spont"]["tiff_files"]), 3)
+        self.assertEqual(len(result["spontpost"]["tiff_files"]), 1)
+        # Sorted by numeric suffix
+        basenames = [
+            os.path.basename(f) for f in result["spont"]["tiff_files"]
+        ]
+        self.assertEqual(
+            basenames,
+            ["spont_00001.tif", "spont_00002.tif", "spont_00003.tif"],
+        )
 
-        # This should work and only process the epoch with output_parameters
-        with patch(
-            "aind_pophys_converter.bergamo_stitcher.ScanImageTiffReader"
-        ):
-            session_data = stitcher._load_session()
-            epochs = stitcher._extract_tiff_from_session(session_data)
-            # Should only contain the epoch with output_parameters
-            self.assertEqual(len(epochs), 1)
-            self.assertIn("test_stem", epochs)
+    def test_discover_tiff_epochs_orders_by_metadata_start_time(self) -> None:
+        """Epochs concatenate in metadata (start-time) order, not alphabet.
+
+        ``spontpost`` is acquired before ``spont`` (metadata order), but
+        sorts after it alphabetically. The returned dict must follow the
+        metadata order; a filename sort would reverse the two.
+        """
+        for stem in ("spont", "spontpost"):
+            (self.input_dir / f"{stem}_00001.tif").touch()
+
+        stitcher = BergamoTiffStitcher(
+            self.settings,
+            metadata=_make_metadata(epoch_stems=("spontpost", "spont")),
+        )
+        result = stitcher._discover_tiff_epochs()
+
+        self.assertEqual(list(result.keys()), ["spontpost", "spont"])
+
+    def test_discover_tiff_epochs_ignores_stems_absent_from_metadata(
+        self,
+    ) -> None:
+        """Disk stems no epoch names are ignored, not stitched."""
+        for stem in ("spont", "extra"):
+            (self.input_dir / f"{stem}_00001.tif").touch()
+
+        stitcher = BergamoTiffStitcher(
+            self.settings,
+            metadata=_make_metadata(epoch_stems=("spont",)),
+        )
+        result = stitcher._discover_tiff_epochs()
+
+        self.assertEqual(list(result.keys()), ["spont"])
+
+    def test_discover_tiff_epochs_no_epoch_stems_raises(self) -> None:
+        """No stimulus epochs in the metadata fails fast."""
+        for stem in ("spont", "spontpost"):
+            (self.input_dir / f"{stem}_00001.tif").touch()
+
+        stitcher = BergamoTiffStitcher(self.settings, metadata=self.metadata)
+        with self.assertRaises(ValueError) as cm:
+            stitcher._discover_tiff_epochs()
+        self.assertIn("No stimulus epochs", str(cm.exception))
+
+    def test_discover_tiff_epochs_missing_epoch_files_raises(self) -> None:
+        """An epoch whose tiff files are absent on disk fails fast."""
+        (self.input_dir / "spont_00001.tif").touch()
+
+        stitcher = BergamoTiffStitcher(
+            self.settings,
+            metadata=_make_metadata(epoch_stems=("spont", "spontpost")),
+        )
+        with self.assertRaises(ValueError) as cm:
+            stitcher._discover_tiff_epochs()
+        self.assertIn("spontpost", str(cm.exception))
+
+    def test_discover_tiff_epochs_excludes_stack(self) -> None:
+        """Files no epoch names ('stack') are excluded from the result."""
+        (self.input_dir / "spont_00001.tif").touch()
+        (self.input_dir / "stack_00001.tif").touch()
+        (self.input_dir / "stack_00002.tif").touch()
+
+        stitcher = BergamoTiffStitcher(
+            self.settings,
+            metadata=_make_metadata(epoch_stems=("spont",)),
+        )
+        result = stitcher._discover_tiff_epochs()
+
+        self.assertIn("spont", result)
+        self.assertNotIn("stack", result)
+
+    def test_discover_tiff_epochs_no_tiffs_raises(self) -> None:
+        """An epoch with an empty input directory raises ValueError."""
+        stitcher = BergamoTiffStitcher(
+            self.settings,
+            metadata=_make_metadata(epoch_stems=("spont",)),
+        )
+        with self.assertRaises(ValueError):
+            stitcher._discover_tiff_epochs()
+
+    def test_discover_tiff_epochs_only_stack_raises(self) -> None:
+        """An epoch present only as 'stack' files raises ValueError."""
+        (self.input_dir / "stack_00001.tif").touch()
+        stitcher = BergamoTiffStitcher(
+            self.settings,
+            metadata=_make_metadata(epoch_stems=("spont",)),
+        )
+        with self.assertRaises(ValueError):
+            stitcher._discover_tiff_epochs()
+
+    def test_discover_tiff_epochs_debug_limits_to_one_file(self) -> None:
+        """Test that debug=True clips each epoch to its first tiff file."""
+        for stem in ("spont", "spontpost"):
+            for i in range(1, 4):
+                (self.input_dir / f"{stem}_0000{i}.tif").touch()
+
+        debug_settings = _make_settings(
+            self.input_dir, self.output_dir, debug=True
+        )
+        stitcher = BergamoTiffStitcher(
+            debug_settings,
+            metadata=_make_metadata(epoch_stems=("spont", "spontpost")),
+        )
+        result = stitcher._discover_tiff_epochs()
+
+        self.assertEqual(len(result["spont"]["tiff_files"]), 1)
+        self.assertEqual(len(result["spontpost"]["tiff_files"]), 1)
+        # First file of each epoch is kept
+        self.assertIn("spont_00001.tif", result["spont"]["tiff_files"][0])
+        self.assertIn(
+            "spontpost_00001.tif", result["spontpost"]["tiff_files"][0]
+        )
 
 
 if __name__ == "__main__":

@@ -1,0 +1,71 @@
+{
+  "creation_time": "2025-04-11T17:41:16-07:00",
+  "data_level": "raw",
+  "data_summary": null,
+  "describedBy": "https://raw.githubusercontent.com/AllenNeuralDynamics/aind-data-schema/main/src/aind_data_schema/core/data_description.py",
+  "funding_source": [
+    {
+      "fundee": null,
+      "funder": {
+        "abbreviation": "AI",
+        "name": "Allen Institute",
+        "registry": {
+          "abbreviation": "ROR",
+          "name": "Research Organization Registry"
+        },
+        "registry_identifier": "03cpe7c52"
+      },
+      "grant_number": null
+    }
+  ],
+  "group": null,
+  "institution": {
+    "abbreviation": "AIND",
+    "name": "Allen Institute for Neural Dynamics",
+    "registry": {
+      "abbreviation": "ROR",
+      "name": "Research Organization Registry"
+    },
+    "registry_identifier": "04szwah67"
+  },
+  "investigators": [
+    {
+      "abbreviation": null,
+      "name": "Kayvon Daie",
+      "registry": null,
+      "registry_identifier": null
+    },
+    {
+      "abbreviation": null,
+      "name": "Marton Rozsa",
+      "registry": null,
+      "registry_identifier": null
+    }
+  ],
+  "label": null,
+  "license": "CC-BY-4.0",
+  "modality": [
+    {
+      "abbreviation": "pophys",
+      "name": "Planar optical physiology"
+    },
+    {
+      "abbreviation": "behavior",
+      "name": "Behavior"
+    },
+    {
+      "abbreviation": "behavior-videos",
+      "name": "Behavior videos"
+    }
+  ],
+  "name": "single-plane-ophys_772414_2025-04-11_17-41-16",
+  "platform": {
+    "abbreviation": "single-plane-ophys",
+    "name": "Single-plane optical physiology platform"
+  },
+  "project_name": "Brain Computer Interface",
+  "related_data": [],
+  "restrictions": null,
+  "schema_version": "1.0.3",
+  "subject_id": "772414"
+}

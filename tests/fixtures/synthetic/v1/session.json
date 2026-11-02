@@ -1,0 +1,53 @@
+{
+    "schema_version": "1.1.2",
+    "subject_id": "000000",
+    "session_start_time": "2025-05-17T10:00:00-07:00",
+    "session_end_time": "2025-05-17T12:00:00-07:00",
+    "rig_id": "MESO.1",
+    "experimenter_full_name": ["Test User"],
+    "session_type": "Mesoscope",
+    "data_streams": [
+        {
+            "stream_start_time": "2025-05-17T10:00:00-07:00",
+            "stream_end_time": "2025-05-17T12:00:00-07:00",
+            "stream_modalities": [{"abbreviation": "pophys", "name": "Planar optical physiology"}],
+            "ophys_fovs": [
+                {
+                    "index": 1,
+                    "imaging_depth": 150,
+                    "targeted_structure": {
+                        "atlas": "CCFv3",
+                        "name": "Primary visual area",
+                        "acronym": "VISp",
+                        "id": "385"
+                    },
+                    "fov_coordinate_ml": "2.5",
+                    "fov_coordinate_ap": "-3.0",
+                    "fov_reference": "Bregma",
+                    "fov_width": 512,
+                    "fov_height": 512,
+                    "magnification": "16x",
+                    "fov_scale_factor": "0.78"
+                },
+                {
+                    "index": 0,
+                    "imaging_depth": 200,
+                    "targeted_structure": {
+                        "atlas": "CCFv3",
+                        "name": "Primary motor area",
+                        "acronym": "MOp",
+                        "id": "985"
+                    },
+                    "fov_coordinate_ml": "2.5",
+                    "fov_coordinate_ap": "-3.0",
+                    "fov_reference": "Bregma",
+                    "fov_width": 512,
+                    "fov_height": 512,
+                    "magnification": "16x",
+                    "fov_scale_factor": "0.78"
+                }
+            ]
+        }
+    ],
+    "stimulus_epochs": []
+}

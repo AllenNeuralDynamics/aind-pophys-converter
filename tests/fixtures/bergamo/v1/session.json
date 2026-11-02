@@ -1,0 +1,706 @@
+{
+  "active_mouse_platform": false,
+  "anaesthesia": null,
+  "animal_weight_post": null,
+  "animal_weight_prior": null,
+  "calibrations": [],
+  "data_streams": [
+    {
+      "camera_names": [],
+      "daq_names": [
+        "PXI",
+        "PXI"
+      ],
+      "detectors": [
+        {
+          "exposure_time": null,
+          "exposure_time_unit": "millisecond",
+          "name": "Green PMT",
+          "trigger_type": "Internal"
+        },
+        {
+          "exposure_time": null,
+          "exposure_time_unit": "millisecond",
+          "name": "Red PMT",
+          "trigger_type": "Internal"
+        }
+      ],
+      "ephys_modules": [],
+      "fiber_connections": [],
+      "fiber_modules": [],
+      "light_sources": [
+        {
+          "device_type": "Laser",
+          "excitation_power": "10.0",
+          "excitation_power_unit": "percent",
+          "name": "Chameleon Laser",
+          "wavelength": 920,
+          "wavelength_unit": "nanometer"
+        }
+      ],
+      "manipulator_modules": [],
+      "mri_scans": [],
+      "notes": "tiff_stem:stack",
+      "ophys_fovs": [],
+      "slap_fovs": [],
+      "software": [],
+      "stack_parameters": {
+        "channels": [
+          {
+            "additional_device_names": [],
+            "channel_name": "Ch1",
+            "depth_unit": "micrometer",
+            "description": null,
+            "detector_name": "Green PMT",
+            "dilation": null,
+            "dilation_unit": "pixel",
+            "end_depth": 130,
+            "excitation_power": 10,
+            "excitation_power_unit": "percent",
+            "excitation_wavelength": 920,
+            "excitation_wavelength_unit": "nanometer",
+            "filter_names": [
+              "Green emission filter",
+              "Emission dichroic"
+            ],
+            "filter_wheel_index": 0,
+            "light_source_name": "Chameleon Laser",
+            "start_depth": 90
+          },
+          {
+            "additional_device_names": [],
+            "channel_name": "Ch2",
+            "depth_unit": "micrometer",
+            "description": null,
+            "detector_name": "Red PMT",
+            "dilation": null,
+            "dilation_unit": "pixel",
+            "end_depth": 130,
+            "excitation_power": 10,
+            "excitation_power_unit": "percent",
+            "excitation_wavelength": 920,
+            "excitation_wavelength_unit": "nanometer",
+            "filter_names": [
+              "Red emission filter",
+              "Emission dichroic"
+            ],
+            "filter_wheel_index": 0,
+            "light_source_name": "Chameleon Laser",
+            "start_depth": 90
+          }
+        ],
+        "fov_coordinate_ap": 1.5,
+        "fov_coordinate_ml": 1.5,
+        "fov_coordinate_unit": "micrometer",
+        "fov_height": 512,
+        "fov_reference": "there is no reference",
+        "fov_scale_factor": 1.6276041666666667,
+        "fov_scale_factor_unit": "um/pixel",
+        "fov_size_unit": "pixel",
+        "fov_width": 512,
+        "frame_rate": "30.0145",
+        "frame_rate_unit": "hertz",
+        "magnification": "1.2",
+        "number_of_plane_repeats_per_volume": 100,
+        "number_of_planes": 21,
+        "number_of_volume_repeats": 1,
+        "step_size": 2,
+        "step_size_unit": "micrometer",
+        "targeted_structure": "Primary Motor Cortex"
+      },
+      "stick_microscopes": [],
+      "stream_end_time": "2025-04-11T17:42:30.895163-07:00",
+      "stream_modalities": [
+        {
+          "abbreviation": "pophys",
+          "name": "Planar optical physiology"
+        }
+      ],
+      "stream_start_time": "2025-04-11T17:41:16.971000-07:00"
+    },
+    {
+      "camera_names": [],
+      "daq_names": [
+        "PXI"
+      ],
+      "detectors": [
+        {
+          "exposure_time": null,
+          "exposure_time_unit": "millisecond",
+          "name": "Green PMT",
+          "trigger_type": "Internal"
+        }
+      ],
+      "ephys_modules": [],
+      "fiber_connections": [],
+      "fiber_modules": [],
+      "light_sources": [
+        {
+          "device_type": "Laser",
+          "excitation_power": "12.0",
+          "excitation_power_unit": "percent",
+          "name": "Chameleon Laser",
+          "wavelength": 920,
+          "wavelength_unit": "nanometer"
+        }
+      ],
+      "manipulator_modules": [],
+      "mri_scans": [],
+      "notes": "tiff_stem:spont",
+      "ophys_fovs": [
+        {
+          "coupled_fov_index": null,
+          "fov_coordinate_ap": "1.5",
+          "fov_coordinate_ml": "1.5",
+          "fov_coordinate_unit": "micrometer",
+          "fov_height": 512,
+          "fov_reference": "there is no reference",
+          "fov_scale_factor": "1.6276041666666667",
+          "fov_scale_factor_unit": "um/pixel",
+          "fov_size_unit": "pixel",
+          "fov_width": 512,
+          "frame_rate": "28.2994",
+          "frame_rate_unit": "hertz",
+          "imaging_depth": 110,
+          "imaging_depth_unit": "micrometer",
+          "index": 0,
+          "magnification": "1.2",
+          "notes": null,
+          "power": null,
+          "power_ratio": null,
+          "power_unit": "percent",
+          "scanfield_z": null,
+          "scanfield_z_unit": "micrometer",
+          "scanimage_roi_index": null,
+          "targeted_structure": "Primary Motor Cortex"
+        }
+      ],
+      "slap_fovs": [],
+      "software": [],
+      "stack_parameters": null,
+      "stick_microscopes": [],
+      "stream_end_time": "2025-04-11T18:00:18.835554-07:00",
+      "stream_modalities": [
+        {
+          "abbreviation": "pophys",
+          "name": "Planar optical physiology"
+        }
+      ],
+      "stream_start_time": "2025-04-11T17:49:59.719999-07:00"
+    },
+    {
+      "camera_names": [],
+      "daq_names": [
+        "PXI"
+      ],
+      "detectors": [
+        {
+          "exposure_time": null,
+          "exposure_time_unit": "millisecond",
+          "name": "Green PMT",
+          "trigger_type": "Internal"
+        }
+      ],
+      "ephys_modules": [],
+      "fiber_connections": [],
+      "fiber_modules": [],
+      "light_sources": [
+        {
+          "device_type": "Laser",
+          "excitation_power": "12.0",
+          "excitation_power_unit": "percent",
+          "name": "Chameleon Laser",
+          "wavelength": 920,
+          "wavelength_unit": "nanometer"
+        }
+      ],
+      "manipulator_modules": [],
+      "mri_scans": [],
+      "notes": "tiff_stem:spontpost",
+      "ophys_fovs": [
+        {
+          "coupled_fov_index": null,
+          "fov_coordinate_ap": "1.5",
+          "fov_coordinate_ml": "1.5",
+          "fov_coordinate_unit": "micrometer",
+          "fov_height": 512,
+          "fov_reference": "there is no reference",
+          "fov_scale_factor": "1.6276041666666667",
+          "fov_scale_factor_unit": "um/pixel",
+          "fov_size_unit": "pixel",
+          "fov_width": 512,
+          "frame_rate": "28.2994",
+          "frame_rate_unit": "hertz",
+          "imaging_depth": 110,
+          "imaging_depth_unit": "micrometer",
+          "index": 0,
+          "magnification": "1.2",
+          "notes": null,
+          "power": null,
+          "power_ratio": null,
+          "power_unit": "percent",
+          "scanfield_z": null,
+          "scanfield_z_unit": "micrometer",
+          "scanimage_roi_index": null,
+          "targeted_structure": "Primary Motor Cortex"
+        }
+      ],
+      "slap_fovs": [],
+      "software": [],
+      "stack_parameters": null,
+      "stick_microscopes": [],
+      "stream_end_time": "2025-04-11T18:42:03.293412-07:00",
+      "stream_modalities": [
+        {
+          "abbreviation": "pophys",
+          "name": "Planar optical physiology"
+        }
+      ],
+      "stream_start_time": "2025-04-11T18:37:07.105999-07:00"
+    },
+    {
+      "camera_names": [
+        "Side Face Camera",
+        "Bottom Face Camera"
+      ],
+      "daq_names": [
+        "PXI"
+      ],
+      "detectors": [
+        {
+          "exposure_time": null,
+          "exposure_time_unit": "millisecond",
+          "name": "Green PMT",
+          "trigger_type": "Internal"
+        }
+      ],
+      "ephys_modules": [],
+      "fiber_connections": [],
+      "fiber_modules": [],
+      "light_sources": [
+        {
+          "device_type": "Laser",
+          "excitation_power": "12.0",
+          "excitation_power_unit": "percent",
+          "name": "Chameleon Laser",
+          "wavelength": 920,
+          "wavelength_unit": "nanometer"
+        }
+      ],
+      "manipulator_modules": [],
+      "mri_scans": [],
+      "notes": "tiff_stem:neuron8_to_17_again_again",
+      "ophys_fovs": [
+        {
+          "coupled_fov_index": null,
+          "fov_coordinate_ap": "1.5",
+          "fov_coordinate_ml": "1.5",
+          "fov_coordinate_unit": "micrometer",
+          "fov_height": 512,
+          "fov_reference": "there is no reference",
+          "fov_scale_factor": "1.6276041666666667",
+          "fov_scale_factor_unit": "um/pixel",
+          "fov_size_unit": "pixel",
+          "fov_width": 512,
+          "frame_rate": "28.2994",
+          "frame_rate_unit": "hertz",
+          "imaging_depth": 110,
+          "imaging_depth_unit": "micrometer",
+          "index": 0,
+          "magnification": "1.2",
+          "notes": null,
+          "power": null,
+          "power_ratio": null,
+          "power_unit": "percent",
+          "scanfield_z": null,
+          "scanfield_z_unit": "micrometer",
+          "scanimage_roi_index": null,
+          "targeted_structure": "Primary Motor Cortex"
+        }
+      ],
+      "slap_fovs": [],
+      "software": [],
+      "stack_parameters": null,
+      "stick_microscopes": [],
+      "stream_end_time": "2025-04-11T18:35:34.284264-07:00",
+      "stream_modalities": [
+        {
+          "abbreviation": "pophys",
+          "name": "Planar optical physiology"
+        },
+        {
+          "abbreviation": "behavior",
+          "name": "Behavior"
+        },
+        {
+          "abbreviation": "behavior-videos",
+          "name": "Behavior videos"
+        }
+      ],
+      "stream_start_time": "2025-04-11T18:17:12.762999-07:00"
+    }
+  ],
+  "describedBy": "https://raw.githubusercontent.com/AllenNeuralDynamics/aind-data-schema/main/src/aind_data_schema/core/session.py",
+  "experimenter_full_name": [
+    "Marton Rozsa"
+  ],
+  "headframe_registration": null,
+  "iacuc_protocol": "2109",
+  "maintenance": [],
+  "mouse_platform_name": "Standard Mouse Tube",
+  "notes": "photostiming a neuron when the CN is bursting - new code, fooling around",
+  "protocol_id": [],
+  "reward_consumed_total": null,
+  "reward_consumed_unit": "milliliter",
+  "reward_delivery": {
+    "notes": null,
+    "reward_solution": "Water",
+    "reward_spouts": [
+      {
+        "side": "Center",
+        "starting_position": {
+          "device_axes": [
+            {
+              "direction": "lateral motion",
+              "name": "X"
+            },
+            {
+              "direction": "rostro-caudal motion positive is towards mouse, negative is away",
+              "name": "Y"
+            },
+            {
+              "direction": "up/down",
+              "name": "Z"
+            }
+          ],
+          "device_origin": "tip of the lickspout",
+          "device_position_transformations": [
+            {
+              "translation": [
+                "0.0",
+                "-6.0",
+                "0.0"
+              ],
+              "type": "translation"
+            },
+            {
+              "rotation": [
+                "0",
+                "0",
+                "0",
+                "0",
+                "0",
+                "0",
+                "0",
+                "0",
+                "0"
+              ],
+              "type": "rotation"
+            }
+          ],
+          "notes": null
+        },
+        "variable_position": true
+      }
+    ]
+  },
+  "rig_id": "442_Bergamo_2p_photostim",
+  "schema_version": "1.0.1",
+  "session_end_time": "2025-04-11T18:42:03.293412-07:00",
+  "session_start_time": "2025-04-11T17:41:16.971000-07:00",
+  "session_type": "BCI",
+  "stimulus_epochs": [
+    {
+      "light_source_config": [],
+      "notes": "absence of any kind of stimulus",
+      "output_parameters": {
+        "tiff_files": [
+          "spont_00001.tif",
+          "spont_00002.tif",
+          "spont_00003.tif",
+          "spont_00004.tif",
+          "spont_00005.tif",
+          "spont_00006.tif",
+          "spont_00007.tif",
+          "spont_00008.tif",
+          "spont_00009.tif",
+          "spont_00010.tif",
+          "spont_00011.tif",
+          "spont_00012.tif",
+          "spont_00013.tif",
+          "spont_00014.tif",
+          "spont_00015.tif",
+          "spont_00016.tif",
+          "spont_00017.tif",
+          "spont_00018.tif",
+          "spont_00019.tif",
+          "spont_00020.tif",
+          "spont_00021.tif",
+          "spont_00022.tif",
+          "spont_00023.tif",
+          "spont_00024.tif",
+          "spont_00025.tif",
+          "spont_00026.tif",
+          "spont_00027.tif",
+          "spont_00028.tif",
+          "spont_00029.tif",
+          "spont_00030.tif",
+          "spont_00031.tif",
+          "spont_00032.tif",
+          "spont_00033.tif",
+          "spont_00034.tif",
+          "spont_00035.tif",
+          "spont_00036.tif",
+          "spont_00037.tif",
+          "spont_00038.tif",
+          "spont_00039.tif",
+          "spont_00040.tif",
+          "spont_00041.tif",
+          "spont_00042.tif",
+          "spont_00043.tif",
+          "spont_00044.tif",
+          "spont_00045.tif",
+          "spont_00046.tif",
+          "spont_00047.tif",
+          "spont_00048.tif",
+          "spont_00049.tif",
+          "spont_00050.tif",
+          "spont_00051.tif",
+          "spont_00052.tif",
+          "spont_00053.tif",
+          "spont_00054.tif",
+          "spont_00055.tif",
+          "spont_00056.tif"
+        ],
+        "tiff_stem": "spont"
+      },
+      "reward_consumed_during_epoch": null,
+      "reward_consumed_unit": "microliter",
+      "script": null,
+      "session_number": null,
+      "software": [],
+      "speaker_config": null,
+      "stimulus_device_names": [],
+      "stimulus_end_time": "2025-04-11T18:00:18.835554-07:00",
+      "stimulus_modalities": [
+        "None"
+      ],
+      "stimulus_name": "spontaneous activity",
+      "stimulus_parameters": null,
+      "stimulus_start_time": "2025-04-11T17:49:59.719999-07:00",
+      "trials_finished": null,
+      "trials_rewarded": null,
+      "trials_total": null
+    },
+    {
+      "light_source_config": [],
+      "notes": "absence of any kind of stimulus",
+      "output_parameters": {
+        "tiff_files": [
+          "spontpost_00001.tif",
+          "spontpost_00002.tif",
+          "spontpost_00003.tif",
+          "spontpost_00004.tif",
+          "spontpost_00005.tif",
+          "spontpost_00006.tif",
+          "spontpost_00007.tif",
+          "spontpost_00008.tif",
+          "spontpost_00009.tif",
+          "spontpost_00010.tif",
+          "spontpost_00011.tif",
+          "spontpost_00012.tif",
+          "spontpost_00013.tif",
+          "spontpost_00014.tif",
+          "spontpost_00015.tif",
+          "spontpost_00016.tif",
+          "spontpost_00017.tif",
+          "spontpost_00018.tif",
+          "spontpost_00019.tif",
+          "spontpost_00020.tif",
+          "spontpost_00021.tif",
+          "spontpost_00022.tif",
+          "spontpost_00023.tif",
+          "spontpost_00024.tif",
+          "spontpost_00025.tif",
+          "spontpost_00026.tif",
+          "spontpost_00027.tif"
+        ],
+        "tiff_stem": "spontpost"
+      },
+      "reward_consumed_during_epoch": null,
+      "reward_consumed_unit": "microliter",
+      "script": null,
+      "session_number": null,
+      "software": [],
+      "speaker_config": null,
+      "stimulus_device_names": [],
+      "stimulus_end_time": "2025-04-11T18:42:03.293412-07:00",
+      "stimulus_modalities": [
+        "None"
+      ],
+      "stimulus_name": "spontaneous activity",
+      "stimulus_parameters": null,
+      "stimulus_start_time": "2025-04-11T18:37:07.105999-07:00",
+      "trials_finished": null,
+      "trials_rewarded": null,
+      "trials_total": null
+    },
+    {
+      "light_source_config": [],
+      "notes": null,
+      "output_parameters": {
+        "average_hit_rate": 0.9272727272727272,
+        "hit_rate_trials_0_10": 0.9,
+        "hit_rate_trials_20_40": 1,
+        "tiff_files": [
+          "neuron8_to_17_again_again_00001.tif",
+          "neuron8_to_17_again_again_00002.tif",
+          "neuron8_to_17_again_again_00003.tif",
+          "neuron8_to_17_again_again_00004.tif",
+          "neuron8_to_17_again_again_00005.tif",
+          "neuron8_to_17_again_again_00006.tif",
+          "neuron8_to_17_again_again_00007.tif",
+          "neuron8_to_17_again_again_00008.tif",
+          "neuron8_to_17_again_again_00009.tif",
+          "neuron8_to_17_again_again_00010.tif",
+          "neuron8_to_17_again_again_00011.tif",
+          "neuron8_to_17_again_again_00012.tif",
+          "neuron8_to_17_again_again_00013.tif",
+          "neuron8_to_17_again_again_00014.tif",
+          "neuron8_to_17_again_again_00015.tif",
+          "neuron8_to_17_again_again_00016.tif",
+          "neuron8_to_17_again_again_00017.tif",
+          "neuron8_to_17_again_again_00018.tif",
+          "neuron8_to_17_again_again_00019.tif",
+          "neuron8_to_17_again_again_00020.tif",
+          "neuron8_to_17_again_again_00021.tif",
+          "neuron8_to_17_again_again_00022.tif",
+          "neuron8_to_17_again_again_00023.tif",
+          "neuron8_to_17_again_again_00024.tif",
+          "neuron8_to_17_again_again_00025.tif",
+          "neuron8_to_17_again_again_00026.tif",
+          "neuron8_to_17_again_again_00027.tif",
+          "neuron8_to_17_again_again_00028.tif",
+          "neuron8_to_17_again_again_00029.tif",
+          "neuron8_to_17_again_again_00030.tif",
+          "neuron8_to_17_again_again_00031.tif",
+          "neuron8_to_17_again_again_00032.tif",
+          "neuron8_to_17_again_again_00033.tif",
+          "neuron8_to_17_again_again_00034.tif",
+          "neuron8_to_17_again_again_00035.tif",
+          "neuron8_to_17_again_again_00036.tif",
+          "neuron8_to_17_again_again_00037.tif",
+          "neuron8_to_17_again_again_00038.tif",
+          "neuron8_to_17_again_again_00039.tif",
+          "neuron8_to_17_again_again_00040.tif",
+          "neuron8_to_17_again_again_00041.tif",
+          "neuron8_to_17_again_again_00042.tif",
+          "neuron8_to_17_again_again_00043.tif",
+          "neuron8_to_17_again_again_00044.tif",
+          "neuron8_to_17_again_again_00045.tif",
+          "neuron8_to_17_again_again_00046.tif",
+          "neuron8_to_17_again_again_00047.tif",
+          "neuron8_to_17_again_again_00048.tif",
+          "neuron8_to_17_again_again_00049.tif",
+          "neuron8_to_17_again_again_00050.tif",
+          "neuron8_to_17_again_again_00051.tif",
+          "neuron8_to_17_again_again_00052.tif",
+          "neuron8_to_17_again_again_00053.tif",
+          "neuron8_to_17_again_again_00054.tif",
+          "neuron8_to_17_again_again_00055.tif",
+          "neuron8_to_17_again_again_00056.tif",
+          "neuron8_to_17_again_again_00057.tif",
+          "neuron8_to_17_again_again_00058.tif",
+          "neuron8_to_17_again_again_00059.tif",
+          "neuron8_to_17_again_again_00060.tif",
+          "neuron8_to_17_again_again_00061.tif",
+          "neuron8_to_17_again_again_00062.tif",
+          "neuron8_to_17_again_again_00063.tif",
+          "neuron8_to_17_again_again_00064.tif",
+          "neuron8_to_17_again_again_00065.tif",
+          "neuron8_to_17_again_again_00066.tif",
+          "neuron8_to_17_again_again_00067.tif",
+          "neuron8_to_17_again_again_00068.tif",
+          "neuron8_to_17_again_again_00069.tif",
+          "neuron8_to_17_again_again_00070.tif",
+          "neuron8_to_17_again_again_00071.tif",
+          "neuron8_to_17_again_again_00072.tif",
+          "neuron8_to_17_again_again_00073.tif",
+          "neuron8_to_17_again_again_00074.tif",
+          "neuron8_to_17_again_again_00075.tif",
+          "neuron8_to_17_again_again_00076.tif",
+          "neuron8_to_17_again_again_00077.tif",
+          "neuron8_to_17_again_again_00078.tif",
+          "neuron8_to_17_again_again_00079.tif",
+          "neuron8_to_17_again_again_00080.tif",
+          "neuron8_to_17_again_again_00081.tif",
+          "neuron8_to_17_again_again_00082.tif",
+          "neuron8_to_17_again_again_00083.tif",
+          "neuron8_to_17_again_again_00084.tif",
+          "neuron8_to_17_again_again_00085.tif",
+          "neuron8_to_17_again_again_00086.tif",
+          "neuron8_to_17_again_again_00087.tif",
+          "neuron8_to_17_again_again_00088.tif",
+          "neuron8_to_17_again_again_00089.tif",
+          "neuron8_to_17_again_again_00090.tif",
+          "neuron8_to_17_again_again_00091.tif",
+          "neuron8_to_17_again_again_00092.tif",
+          "neuron8_to_17_again_again_00093.tif",
+          "neuron8_to_17_again_again_00094.tif",
+          "neuron8_to_17_again_again_00095.tif",
+          "neuron8_to_17_again_again_00096.tif",
+          "neuron8_to_17_again_again_00097.tif",
+          "neuron8_to_17_again_again_00098.tif",
+          "neuron8_to_17_again_again_00099.tif",
+          "neuron8_to_17_again_again_00100.tif",
+          "neuron8_to_17_again_again_00101.tif",
+          "neuron8_to_17_again_again_00102.tif",
+          "neuron8_to_17_again_again_00103.tif",
+          "neuron8_to_17_again_again_00104.tif",
+          "neuron8_to_17_again_again_00105.tif",
+          "neuron8_to_17_again_again_00106.tif",
+          "neuron8_to_17_again_again_00107.tif",
+          "neuron8_to_17_again_again_00108.tif",
+          "neuron8_to_17_again_again_00109.tif",
+          "neuron8_to_17_again_again_00110.tif"
+        ],
+        "tiff_stem": "neuron8_to_17_again_again",
+        "total_hits": 102
+      },
+      "reward_consumed_during_epoch": null,
+      "reward_consumed_unit": "microliter",
+      "script": {
+        "name": "pybpod_basic.py",
+        "parameters": {},
+        "url": "https://github.com/rozmar/BCI-motor-control/blob/main/BCI-pybpod-protocols/bci_basic.py",
+        "version": "2d77d15"
+      },
+      "session_number": null,
+      "software": [
+        {
+          "name": "pyBpod",
+          "parameters": {},
+          "url": "https://github.com/pybpod/pybpod",
+          "version": "1.8.2"
+        }
+      ],
+      "speaker_config": null,
+      "stimulus_device_names": [
+        "speaker",
+        "lickport"
+      ],
+      "stimulus_end_time": "2025-04-11T18:35:34.284264-07:00",
+      "stimulus_modalities": [
+        "Auditory"
+      ],
+      "stimulus_name": "single neuron BCI conditioning",
+      "stimulus_parameters": [],
+      "stimulus_start_time": "2025-04-11T18:17:12.762999-07:00",
+      "trials_finished": null,
+      "trials_rewarded": null,
+      "trials_total": 110
+    }
+  ],
+  "subject_id": "772414",
+  "weight_unit": "gram"
+}

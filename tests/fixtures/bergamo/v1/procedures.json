@@ -1,0 +1,85 @@
+{
+  "describedBy": "https://raw.githubusercontent.com/AllenNeuralDynamics/aind-data-schema/main/src/aind_data_schema/core/procedures.py",
+  "notes": null,
+  "schema_version": "1.1.3",
+  "specimen_procedures": [],
+  "subject_id": "772414",
+  "subject_procedures": [
+    {
+      "anaesthesia": {
+        "duration": "135.00",
+        "duration_unit": "minute",
+        "level": "1.75",
+        "type": "isoflurane"
+      },
+      "animal_weight_post": "21.1",
+      "animal_weight_prior": "19.0",
+      "experimenter_full_name": "NSB",
+      "iacuc_protocol": "2415",
+      "notes": null,
+      "procedure_type": "Surgery",
+      "procedures": [
+        {
+          "bregma_to_lambda_distance": null,
+          "bregma_to_lambda_unit": "millimeter",
+          "craniotomy_hemisphere": null,
+          "craniotomy_type": "3 mm",
+          "dura_removed": null,
+          "implant_part_number": null,
+          "procedure_type": "Craniotomy",
+          "protective_material": null,
+          "recovery_time": "15.0",
+          "recovery_time_unit": "minute"
+        },
+        {
+          "headframe_material": null,
+          "headframe_part_number": "0160-100-51",
+          "headframe_type": "Motor Ctx",
+          "procedure_type": "Headframe",
+          "well_part_number": null,
+          "well_type": "Motor Ctx SLAP2 well"
+        },
+        {
+          "bregma_to_lambda_distance": null,
+          "bregma_to_lambda_unit": "millimeter",
+          "injection_angle": null,
+          "injection_angle_unit": "degrees",
+          "injection_coordinate_ap": null,
+          "injection_coordinate_depth": [
+            "0.4"
+          ],
+          "injection_coordinate_ml": null,
+          "injection_coordinate_reference": "Bregma",
+          "injection_coordinate_unit": "millimeter",
+          "injection_duration": null,
+          "injection_duration_unit": "minute",
+          "injection_hemisphere": "Left",
+          "injection_materials": [
+            {
+              "addgene_id": null,
+              "material_type": "Virus",
+              "name": "pAAV-CaMKIIa-ChRmine-oScarlet-Kv2.1-WPRE - 7413",
+              "tars_identifiers": null,
+              "titer": 14600000000000,
+              "titer_unit": "gc/mL"
+            }
+          ],
+          "injection_volume": [
+            "50.0"
+          ],
+          "injection_volume_unit": "nanoliter",
+          "instrument_id": null,
+          "procedure_type": "Nanoject injection",
+          "protocol_id": "dx.doi.org/10.17504/protocols.io.bp2l6nr7kgqe/v4",
+          "recovery_time": "15.0",
+          "recovery_time_unit": "minute",
+          "targeted_structure": null
+        }
+      ],
+      "protocol_id": "dx.doi.org/10.17504/protocols.io.kqdg392o7g25/v2",
+      "start_date": "2024-12-10",
+      "weight_unit": "gram",
+      "workstation_id": "SWS 6"
+    }
+  ]
+}
