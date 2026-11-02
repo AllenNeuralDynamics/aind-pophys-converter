@@ -24,8 +24,8 @@ from aind_pophys_converter.qc import (
 )
 
 FOV_DESCRIPTION = (
-    "Parent session depth image beside this session's averaged image at the "
-    "nearest z-plane. Pass if the two fields of view match."
+    "Parent session depth image beside this session's averaged image of the "
+    "same structure and intended depth. Pass if the two fields of view match."
 )
 VASCULATURE_DESCRIPTION = (
     "Vasculature image for judging brain surface health and window clarity."
@@ -42,7 +42,6 @@ class TestBuildQcMetrics(unittest.TestCase):
             raw_tif_path=Path("/fake/parent.tif"),
             intended_depth=200,
             targeted_structure_id="VISp",
-            closest_z=-200.0,
             merged_path=Path("/fake/merged.png"),
         )
         self.assertEqual(metric.stage, Stage.RAW)
@@ -54,7 +53,6 @@ class TestBuildQcMetrics(unittest.TestCase):
             raw_tif_path=Path("/fake/parent.tif"),
             intended_depth=200,
             targeted_structure_id="VISp",
-            closest_z=-200.0,
             merged_path=Path("/fake/merged.png"),
         )
         self.assertEqual(metric.modality, Modality.POPHYS)
@@ -66,7 +64,6 @@ class TestBuildQcMetrics(unittest.TestCase):
             raw_tif_path=Path("/fake/parent.tif"),
             intended_depth=100,
             targeted_structure_id="MOp",
-            closest_z=-100.0,
             merged_path=Path("/fake/merged.png"),
         )
         self.assertEqual(metric.name, "MOp_100um Parent-Child FOV")
@@ -78,7 +75,6 @@ class TestBuildQcMetrics(unittest.TestCase):
             raw_tif_path=Path("/fake/parent.tif"),
             intended_depth=200,
             targeted_structure_id="VISp",
-            closest_z=-200.0,
             merged_path=Path("/fake/merged.png"),
         )
         self.assertEqual(
@@ -93,7 +89,6 @@ class TestBuildQcMetrics(unittest.TestCase):
             raw_tif_path=Path("/fake/1781731432_160_VISp_depth.tif"),
             intended_depth=160,
             targeted_structure_id="VISp",
-            closest_z=345.0,
             merged_path=Path("/fake/merged.png"),
         )
         second = build_fov_qc_metric(
@@ -101,7 +96,6 @@ class TestBuildQcMetrics(unittest.TestCase):
             raw_tif_path=Path("/fake/1781731433_100_MOp_depth.tif"),
             intended_depth=100,
             targeted_structure_id="MOp",
-            closest_z=100.0,
             merged_path=Path("/fake/merged.png"),
         )
         self.assertEqual(first.description, FOV_DESCRIPTION)
@@ -164,7 +158,6 @@ def _sample_metrics() -> list:
         raw_tif_path=Path("/fake/parent.tif"),
         intended_depth=200,
         targeted_structure_id="VISp",
-        closest_z=-276.0,
         merged_path=Path("/fake/merged.png"),
     )
     vasc = build_vasculature_qc_metric(Path("/fake/vasculature.png"))

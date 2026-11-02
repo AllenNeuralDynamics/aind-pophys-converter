@@ -208,9 +208,9 @@ class TestPairDepthTifsWithAvgDepthPngs(unittest.TestCase):
 
         tifffile.imwrite(self.pophys_dir / "ts_200_VISp_depth.tif", parent_arr)
 
-        # Child averaged TIF in avg_dir named by abs(z)
+        # Child averaged TIF in avg_dir named by structure and depth
         child_arr = np.random.uniform(4, 32, (64, 64)).astype(np.float32)
-        tifffile.imwrite(self.avg_dir / "276.0.tif", child_arr)
+        tifffile.imwrite(self.avg_dir / "VISp_200.tif", child_arr)
 
         metrics = self.fn(
             self.pophys_dir, self.avg_dir, fp, self.output_dir, self.tmp_path
@@ -231,7 +231,37 @@ class TestPairDepthTifsWithAvgDepthPngs(unittest.TestCase):
         pngs = list(self.output_dir.glob("*_merged.png"))
         self.assertEqual(len(pngs), 1)
         # Child TIF deleted
-        self.assertFalse((self.avg_dir / "276.0.tif").exists())
+        self.assertFalse((self.avg_dir / "VISp_200.tif").exists())
+
+    def test_skips_plane_without_child_tif(self) -> None:
+        """A plane with a parent but no child TIF is skipped with a
+        warning."""
+        import tifffile
+
+        planes = [
+            {
+                "intended_depth": 200,
+                "targeted_structure_id": "VISp",
+                "scanimage_scanfield_z": -276.0,
+            }
+        ]
+        fp = self._write_platform(planes)
+        tifffile.imwrite(
+            self.pophys_dir / "ts_200_VISp_depth.tif", np.ones((4, 4))
+        )
+        tifffile.imwrite(self.avg_dir / "VISl_200.tif", np.ones((4, 4)))
+
+        with self.assertLogs(level="WARNING") as logged:
+            metrics = self.fn(
+                self.pophys_dir,
+                self.avg_dir,
+                fp,
+                self.output_dir,
+                self.tmp_path,
+            )
+
+        self.assertEqual(metrics, [])
+        self.assertTrue(any("VISp_200.tif" in m for m in logged.output))
 
 
 class TestWriteAvgDepthSlices(unittest.TestCase):
@@ -243,32 +273,133 @@ class TestWriteAvgDepthSlices(unittest.TestCase):
 
         self.fn = write_avg_depth_slices
         self.tmpdir = tempfile.TemporaryDirectory()
-        self.output_dir = Path(self.tmpdir.name) / "output"
+        self.tmp_path = Path(self.tmpdir.name)
+        self.output_dir = self.tmp_path / "output"
 
     def tearDown(self) -> None:
         """Clean up."""
         self.tmpdir.cleanup()
 
-    def test_creates_tif_per_plane(self) -> None:
-        """Creates one TIF file per ROI/z entry in the manifest."""
+    def _write_platform(self, planes: List[dict]) -> Path:
+        """Write a platform.json with imaging planes."""
+        fp = self.tmp_path / "platform.json"
+        with open(fp, "w") as f:
+            data = {"imaging_plane_groups": [{"imaging_planes": planes}]}
+            json.dump(data, f)
+        return fp
+
+    def _splitter(self, z_values: List[float]) -> MagicMock:
+        """Return a splitter stub with one ROI per z value, each slice
+        filled with its ROI index."""
         import tifffile
 
         mock_splitter = MagicMock()
-        mock_splitter.roi_z_int_manifest = [(0, 0), (1, 1)]
-        mock_splitter._z_from_int.side_effect = lambda i: float(i * -100)
-
-        fake_arr = np.zeros((64, 64), dtype=np.float32)
+        mock_splitter.roi_z_int_manifest = [
+            (i_roi, i_roi) for i_roi in range(len(z_values))
+        ]
+        mock_splitter._z_from_int.side_effect = lambda i: z_values[i]
 
         def fake_write(i_roi: int, z_value: float, output_path: Path) -> None:
-            """Stub that writes a blank TIFF."""
-            tifffile.imwrite(output_path, fake_arr)
+            """Stub that writes a TIFF filled with the ROI index."""
+            tifffile.imwrite(
+                output_path, np.full((4, 4), i_roi, dtype=np.float32)
+            )
 
         mock_splitter.write_output_file.side_effect = fake_write
+        return mock_splitter
 
-        self.fn(mock_splitter, self.output_dir)
+    def test_names_tif_by_structure_and_depth(self) -> None:
+        """Names each slice for the platform.json plane at its z value."""
+        import tifffile
 
-        tifs = list(self.output_dir.glob("*.tif"))
-        self.assertEqual(len(tifs), 2)
+        fp = self._write_platform(
+            [
+                {
+                    "intended_depth": 100,
+                    "targeted_structure_id": "VISp",
+                    "scanimage_scanfield_z": -100.0,
+                },
+                {
+                    "intended_depth": 200,
+                    "targeted_structure_id": "VISl",
+                    "scanimage_scanfield_z": -200.005,
+                },
+            ]
+        )
+
+        self.fn(self._splitter([-100.0, -200.0]), self.output_dir, fp)
+
+        self.assertEqual(
+            sorted(p.name for p in self.output_dir.glob("*.tif")),
+            ["VISl_200.tif", "VISp_100.tif"],
+        )
+        self.assertEqual(
+            tifffile.imread(self.output_dir / "VISl_200.tif")[0, 0], 1
+        )
+
+    def test_raises_when_z_matches_no_plane(self) -> None:
+        """A slice z value outside the tolerance of every plane fails."""
+        fp = self._write_platform(
+            [
+                {
+                    "intended_depth": 100,
+                    "targeted_structure_id": "VISp",
+                    "scanimage_scanfield_z": -100.0,
+                }
+            ]
+        )
+
+        with self.assertRaises(ValueError) as cm:
+            self.fn(self._splitter([-100.5]), self.output_dir, fp)
+        self.assertIn("z=-100.5", str(cm.exception))
+
+    def test_skips_when_no_imaging_planes(self) -> None:
+        """Writes nothing when platform.json has no imaging planes."""
+        fp = self._write_platform([])
+
+        self.fn(self._splitter([-100.0]), self.output_dir, fp)
+
+        self.assertFalse(self.output_dir.exists())
+
+    def test_pairs_each_plane_with_its_own_slice(self) -> None:
+        """Planes whose z values share a magnitude each pair with their own
+        slice."""
+        import tifffile
+
+        from aind_pophys_converter.qc import (
+            pair_depth_tifs_with_avg_depth_pngs,
+        )
+
+        fp = self._write_platform(
+            [
+                {
+                    "intended_depth": 100,
+                    "targeted_structure_id": "VISp",
+                    "scanimage_scanfield_z": -10.0,
+                },
+                {
+                    "intended_depth": 200,
+                    "targeted_structure_id": "VISl",
+                    "scanimage_scanfield_z": 10.0,
+                },
+            ]
+        )
+        pophys_dir = self.tmp_path / "pophys"
+        pophys_dir.mkdir()
+        for name in ("ts_100_VISp_depth.tif", "ts_200_VISl_depth.tif"):
+            tifffile.imwrite(pophys_dir / name, np.ones((4, 4)))
+        avg_dir = self.tmp_path / "avg"
+
+        self.fn(self._splitter([-10.0, 10.0]), avg_dir, fp)
+        metrics = pair_depth_tifs_with_avg_depth_pngs(
+            pophys_dir, avg_dir, fp, self.output_dir, self.tmp_path
+        )
+
+        self.assertEqual(
+            [m.name for m in metrics],
+            ["VISp_100um Parent-Child FOV", "VISl_200um Parent-Child FOV"],
+        )
+        self.assertEqual(list(avg_dir.glob("*.tif")), [])
 
 
 class TestIsMesoscope(unittest.TestCase):
