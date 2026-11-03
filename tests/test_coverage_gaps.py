@@ -203,7 +203,7 @@ class TestQualityControlCoverage(unittest.TestCase):
                     },
                 ],
             )
-            tifffile.imwrite(avg / "10.0.tif", np.zeros((4, 4)))
+            tifffile.imwrite(avg / "MOp_200.tif", np.zeros((4, 4)))
             for name in (
                 "first_200_MOp_depth.tif",
                 "second_200_MOp_depth.tif",
@@ -219,8 +219,9 @@ class TestQualityControlCoverage(unittest.TestCase):
                 any("Multiple parent" in m for m in logged.output)
             )
 
-    def test_pairing_raises_on_missing_parent(self) -> None:
-        """A child plane with no parent snapshot fails loudly."""
+    def test_pairing_skips_missing_parent(self) -> None:
+        """A child plane with no parent snapshot is skipped with a
+        warning."""
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             pophys = root / "pophys"
@@ -239,12 +240,15 @@ class TestQualityControlCoverage(unittest.TestCase):
                     },
                 ],
             )
-            tifffile.imwrite(avg / "10.0.tif", np.zeros((4, 4)))
-            with self.assertRaises(ValueError) as cm:
-                qc.pair_depth_tifs_with_avg_depth_pngs(
+            tifffile.imwrite(avg / "VISp_100.tif", np.zeros((4, 4)))
+            with self.assertLogs(level="WARNING") as logged:
+                result = qc.pair_depth_tifs_with_avg_depth_pngs(
                     pophys, avg, platform, output, root
                 )
-            self.assertIn("No parent depth TIF", str(cm.exception))
+            self.assertEqual(result, [])
+            self.assertTrue(
+                any("No parent depth TIF" in m for m in logged.output)
+            )
 
     def test_pairing_handles_constant_images_and_unlink_failure(self) -> None:
         """Use zero normalization and keep a child file when unlink fails."""
@@ -267,7 +271,7 @@ class TestQualityControlCoverage(unittest.TestCase):
                 ],
             )
             parent = pophys / "one_100_VISp_depth.tif"
-            child = avg / "10.0.tif"
+            child = avg / "VISp_100.tif"
             tifffile.imwrite(parent, np.ones((4, 4)))
             tifffile.imwrite(child, np.ones((4, 4)))
             with patch.object(Path, "unlink", side_effect=OSError("locked")):

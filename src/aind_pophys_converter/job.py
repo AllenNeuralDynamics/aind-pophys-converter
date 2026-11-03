@@ -208,7 +208,9 @@ def run() -> None:
                         if job_settings.temp_dir
                         else output_dir
                     )
-                    write_avg_depth_slices(splitter, avg_slice_dir)
+                    write_avg_depth_slices(
+                        splitter, avg_slice_dir, platform_fp
+                    )
                     qc_metrics.extend(
                         pair_depth_tifs_with_avg_depth_pngs(
                             pophys_dir,
