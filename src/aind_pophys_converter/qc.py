@@ -34,6 +34,9 @@ if TYPE_CHECKING:
 
 # Evaluator label recorded on every pending status this capsule emits.
 _EVALUATOR = "Automated"
+# Largest difference, in microns, between a TIFF z value and a platform.json
+# scanimage_scanfield_z that still names the same plane.
+_SCANFIELD_Z_TOLERANCE = 0.01
 
 
 def pending_qc_status() -> QCStatus:
@@ -52,7 +55,6 @@ def build_fov_qc_metric(
     raw_tif_path: Path,
     intended_depth: int,
     targeted_structure_id: str,
-    closest_z: float,
     merged_path: Path,
 ) -> QCMetric:
     """Construct the FOV parent-child matching QCMetric object.
@@ -67,8 +69,6 @@ def build_fov_qc_metric(
         Intended imaging depth in microns.
     targeted_structure_id : str
         CCF structure acronym.
-    closest_z : float
-        Closest child z-plane in microns.
     merged_path : Path
         Saved merged PNG, relative to the results root.
 
@@ -88,8 +88,8 @@ def build_fov_qc_metric(
         reference=str(merged_path),
         description=(
             "Parent session depth image beside this session's averaged "
-            "image at the nearest z-plane. Pass if the two fields of view "
-            "match."
+            "image of the same structure and intended depth. Pass if the "
+            "two fields of view match."
         ),
         stage=Stage.RAW,
         evaluator=_EVALUATOR,
@@ -193,22 +193,155 @@ def write_quality_control_json(
     return shared_qc.write_quality_control_json(quality_control, output_dir)
 
 
+def _imaging_planes(platform_fp: Path) -> List[dict]:
+    """Return every imaging plane in platform.json, group by group.
+
+    Parameters
+    ----------
+    platform_fp : Path
+        Path to the session platform.json.
+
+    Returns
+    -------
+    list of dict
+        The ``imaging_planes`` entries of every ``imaging_plane_groups``
+        entry.
+    """
+    with open(platform_fp) as f:
+        platform_json = json.load(f)
+    return [
+        plane
+        for group in platform_json.get("imaging_plane_groups", [])
+        for plane in group.get("imaging_planes", [])
+    ]
+
+
+def _child_tif_name(targeted_structure_id: str, intended_depth: int) -> str:
+    """Return the averaged-depth slice filename for one imaging plane.
+
+    Parameters
+    ----------
+    targeted_structure_id : str
+        CCF structure acronym.
+    intended_depth : int
+        Intended imaging depth in microns.
+
+    Returns
+    -------
+    str
+        ``<targeted_structure_id>_<intended_depth>.tif``.
+    """
+    return f"{targeted_structure_id}_{intended_depth}.tif"
+
+
+def _plane_at_z(imaging_planes: List[dict], z_value: float) -> dict:
+    """Return the platform.json imaging plane recorded at a TIFF z value.
+
+    Parameters
+    ----------
+    imaging_planes : list of dict
+        platform.json imaging planes, each with ``scanimage_scanfield_z``.
+    z_value : float
+        z value of one averaged-depth TIFF slice.
+
+    Returns
+    -------
+    dict
+        The plane whose ``scanimage_scanfield_z`` is nearest ``z_value``.
+
+    Raises
+    ------
+    ValueError
+        If no plane lies within ``_SCANFIELD_Z_TOLERANCE`` of ``z_value``.
+    """
+    plane = min(
+        imaging_planes,
+        key=lambda p: abs(p["scanimage_scanfield_z"] - z_value),
+    )
+    diff = abs(plane["scanimage_scanfield_z"] - z_value)
+    if diff > _SCANFIELD_Z_TOLERANCE:
+        known = sorted(p["scanimage_scanfield_z"] for p in imaging_planes)
+        raise ValueError(
+            f"Averaged-depth slice z={z_value} matches no "
+            f"scanimage_scanfield_z in platform.json (nearest "
+            f"{plane['scanimage_scanfield_z']}, diff {diff:.6f}). "
+            f"Known values: {known}"
+        )
+    return plane
+
+
+def _find_parent_tif(
+    pophys_dir: Path, intended_depth: int, targeted_structure_id: str
+) -> Optional[Path]:
+    """Return the parent depth snapshot TIFF for one imaging plane.
+
+    Parameters
+    ----------
+    pophys_dir : Path
+        Directory containing parent depth TIFFs named
+        <timestamp>_<intended_depth>_<targeted_structure_id>_depth.tif.
+    intended_depth : int
+        Intended imaging depth in microns.
+    targeted_structure_id : str
+        CCF structure acronym.
+
+    Returns
+    -------
+    Path or None
+        The first matching TIFF, with a warning when several match, or None
+        when none does.
+    """
+    pattern = f"*_{intended_depth}_{targeted_structure_id}_depth.tif"
+    parent_tifs = list(pophys_dir.glob(pattern))
+    if not parent_tifs:
+        return None
+    if len(parent_tifs) > 1:
+        logging.warning(
+            f"Multiple parent TIFs found for "
+            f"intended_depth={intended_depth}, "
+            f"targeted_structure_id={targeted_structure_id}; "
+            f"using first: {parent_tifs[0].name}"
+        )
+    return parent_tifs[0]
+
+
 def write_avg_depth_slices(
-    splitter: "AvgImageTiffSplitter", output_dir: Path
+    splitter: "AvgImageTiffSplitter", output_dir: Path, platform_fp: Path
 ) -> None:
     """Write per-ROI averaged-depth slices as float32 TIF files.
+
+    Each slice is named for the platform.json imaging plane at its z value,
+    ``<targeted_structure_id>_<intended_depth>.tif``, so that it pairs with
+    that plane's parent snapshot.
 
     Parameters
     ----------
     splitter : AvgImageTiffSplitter
         Initialized splitter with a loaded averaged-depth TIFF.
     output_dir : Path
-        Directory to write the per-z-value TIF files.
+        Directory to write the per-plane TIF files.
+    platform_fp : Path
+        Path to the session platform.json.
+
+    Raises
+    ------
+    ValueError
+        If a slice's z value matches no imaging plane in platform.json.
     """
+    imaging_planes = _imaging_planes(platform_fp)
+    if not imaging_planes:
+        logging.info(
+            "No imaging planes found in platform.json;"
+            " skipping averaged-depth slices."
+        )
+        return
     output_dir.mkdir(exist_ok=True, parents=True)
     for roi_idx, z_int in splitter.roi_z_int_manifest:
         z_value = splitter._z_from_int(z_int)
-        tif_path = output_dir / f"{z_value:.1f}.tif"
+        plane = _plane_at_z(imaging_planes, z_value)
+        tif_path = output_dir / _child_tif_name(
+            plane["targeted_structure_id"], plane["intended_depth"]
+        )
         with tempfile.NamedTemporaryFile(suffix=".tif") as tmp_tif:
             tmp_path = Path(tmp_tif.name)
             splitter.write_output_file(
@@ -229,11 +362,12 @@ def pair_depth_tifs_with_avg_depth_pngs(
     """Pair parent depth TIFs with child averaged-depth PNGs; return QC.
 
     For each imaging plane defined in platform.json, locate the parent depth
-    TIFF by intended_depth and targeted_structure_id, find the closest child
-    averaged-depth TIF by abs(scanimage_scanfield_z), merge them side-by-side
-    with borders and labels, and save the result. Builds a per-plane
-    ``QCMetric`` and returns the collected metrics (does not write per-metric
-    JSON files — the caller assembles a single ``quality_control.json``).
+    TIFF and the child averaged-depth TIF by intended_depth and
+    targeted_structure_id, merge them side-by-side with borders and labels,
+    and save the result. A plane missing either TIF is skipped with a
+    warning. Builds a per-plane ``QCMetric`` and returns the collected
+    metrics (does not write per-metric JSON files — the caller assembles a
+    single ``quality_control.json``).
 
     Parameters
     ----------
@@ -241,8 +375,9 @@ def pair_depth_tifs_with_avg_depth_pngs(
         Directory containing parent depth TIFFs named
         <timestamp>_<intended_depth>_<targeted_structure_id>_depth.tif.
     avg_slice_dir : Path
-        Directory containing child averaged-depth float32 TIF files named by
-        z-value (e.g. -276.0.tif), written by write_avg_depth_slices.
+        Directory containing child averaged-depth float32 TIF files named
+        <targeted_structure_id>_<intended_depth>.tif (e.g. VISp_200.tif),
+        written by write_avg_depth_slices.
     platform_fp : Path
         Path to the session platform.json.
     output_dir : Path
@@ -259,15 +394,7 @@ def pair_depth_tifs_with_avg_depth_pngs(
     output_dir.mkdir(exist_ok=True, parents=True)
     metrics: List[QCMetric] = []
 
-    with open(platform_fp) as f:
-        platform_json = json.load(f)
-
-    imaging_planes = [
-        plane
-        for group in platform_json.get("imaging_plane_groups", [])
-        for plane in group.get("imaging_planes", [])
-    ]
-
+    imaging_planes = _imaging_planes(platform_fp)
     if not imaging_planes:
         logging.info(
             "No imaging planes found in platform.json;"
@@ -275,45 +402,35 @@ def pair_depth_tifs_with_avg_depth_pngs(
         )
         return metrics
 
-    child_tifs = list(avg_slice_dir.glob("*.tif"))
-    z_to_tif = {abs(float(p.stem)): p for p in child_tifs}
-
-    if not z_to_tif:
+    if not any(avg_slice_dir.glob("*.tif")):
         logging.info("No averaged-depth TIFs found; skipping depth pairing.")
         return metrics
 
     for plane in imaging_planes:
         intended_depth = plane["intended_depth"]
         targeted_structure_id = plane["targeted_structure_id"]
-        scanfield_z = plane["scanimage_scanfield_z"]
 
-        parent_tifs = list(
-            pophys_dir.glob(
-                f"*_{intended_depth}_{targeted_structure_id}_depth.tif"
-            )
+        raw_tif_path = _find_parent_tif(
+            pophys_dir, intended_depth, targeted_structure_id
         )
-        if len(parent_tifs) == 0:
-            raise ValueError(
-                f"No parent depth TIF in {pophys_dir} for child plane "
-                f"intended_depth={intended_depth}, "
-                f"targeted_structure_id={targeted_structure_id}. Every child "
-                "imaging plane must pair with a parent snapshot; a missing "
-                "one means this session does not re-image the parent's "
-                "planes at the same intended depths."
-            )
-        if len(parent_tifs) > 1:
+        if raw_tif_path is None:
             logging.warning(
-                f"Multiple parent TIFs found for "
+                f"No parent depth TIF in {pophys_dir} for "
                 f"intended_depth={intended_depth}, "
-                f"targeted_structure_id={targeted_structure_id}; "
-                f"using first: {parent_tifs[0].name}"
+                f"targeted_structure_id={targeted_structure_id}; skipping."
             )
-        raw_tif_path = parent_tifs[0]
+            continue
 
-        closest_z = min(
-            z_to_tif.keys(), key=lambda z: abs(z - abs(scanfield_z))
+        child_tif_path = avg_slice_dir / _child_tif_name(
+            targeted_structure_id, intended_depth
         )
-        child_tif_path = z_to_tif[closest_z]
+        if not child_tif_path.exists():
+            logging.warning(
+                f"No averaged-depth TIF {child_tif_path.name} in "
+                f"{avg_slice_dir} for intended_depth={intended_depth}, "
+                f"targeted_structure_id={targeted_structure_id}; skipping."
+            )
+            continue
 
         with tifffile.TiffFile(raw_tif_path) as tif:
             parent_array = tif.asarray().astype(np.float64)
@@ -372,7 +489,6 @@ def pair_depth_tifs_with_avg_depth_pngs(
                 raw_tif_path=raw_tif_path,
                 intended_depth=intended_depth,
                 targeted_structure_id=targeted_structure_id,
-                closest_z=closest_z,
                 merged_path=Path(relative_to_root(results_root, merged_path)),
             )
         )
