@@ -133,6 +133,7 @@ def _planes(
 def _make_metadata() -> ConverterMetadata:
     """Build a minimal ConverterMetadata for splitter tests."""
     return ConverterMetadata(
+        raw_format="mesoscope_aind",
         instrument_id="MESO.1",
         fov_ids=("plane_0",),
         dataset_name="multiplane-test",

@@ -39,6 +39,7 @@ def _make_metadata(
 ) -> ConverterMetadata:
     """Build a ConverterMetadata stub for stitcher tests (single plane)."""
     return ConverterMetadata(
+        raw_format="tiff_stack",
         instrument_id=instrument_id,
         fov_ids=("plane_0",),
         dataset_name="bergamo-test",

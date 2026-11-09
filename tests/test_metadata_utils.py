@@ -125,26 +125,32 @@ class TestLoaderContracts(unittest.TestCase):
         """Remove scratch directory."""
         self.tmp.cleanup()
 
-    def test_missing_instrument_id_raises_for_a_v1_input(self) -> None:
-        """A v1 input naming no instrument raises, naming the field."""
+    def test_missing_instrument_id_leaves_the_raw_format_unknown(
+        self,
+    ) -> None:
+        """No instrument id is not fatal: run converts nothing."""
+        cases = (
+            ("session.json", {"data_streams": [{"ophys_fovs": [{}]}]}),
+            ("acquisition.json", {"data_streams": []}),
+        )
+        for name, document in cases:
+            with self.subTest(name=name):
+                with tempfile.TemporaryDirectory() as tmp:
+                    _write_input(Path(tmp), name, document)
+                    meta = load_converter_metadata(Path(tmp))
+                self.assertIsNone(meta.instrument_id)
+                self.assertIsNone(meta.raw_format)
+
+    def test_minimal_document_states_its_raw_format(self) -> None:
+        """An external metadata.json routes without an AIND rig id."""
         _write_input(
             self.root,
-            "session.json",
-            {"data_streams": [{"ophys_fovs": [{"index": 0}]}]},
+            "metadata.json",
+            {"instrument_id": "unknown", "raw_format": "tiff_stack"},
         )
-        with self.assertRaises(ValueError) as cm:
-            load_converter_metadata(self.root)
-        # v1 spells the instrument id "rig_id".
-        self.assertIn("rig_id", str(cm.exception))
-        self.assertIn("session.json", str(cm.exception))
-
-    def test_missing_instrument_id_raises_for_a_v2_input(self) -> None:
-        """A v2 input naming no instrument raises, naming the field."""
-        _write_input(self.root, "acquisition.json", {"data_streams": []})
-        with self.assertRaises(ValueError) as cm:
-            load_converter_metadata(self.root)
-        self.assertIn("instrument_id", str(cm.exception))
-        self.assertIn("acquisition.json", str(cm.exception))
+        meta = load_converter_metadata(self.root)
+        self.assertEqual(meta.raw_format, "tiff_stack")
+        self.assertEqual(meta.instrument_id, "unknown")
 
     def test_subject_id_optional(self) -> None:
         """subject_id is optional -> None when the core file omits it."""
@@ -200,6 +206,7 @@ class TestAssetFixtures(unittest.TestCase):
         """Check core and platform metadata from a real Meso asset."""
         root, metadata = self._load_v1_and_v2(fixture_name)
         self.assertEqual(metadata.instrument_id, instrument_id)
+        self.assertEqual(metadata.raw_format, "mesoscope_aind")
         self.assertEqual(metadata.dataset_name, dataset_name)
         self.assertEqual(len(metadata.fov_ids), 8)
         self.assertEqual(metadata.fov_ids[0], "VISp_0")
@@ -276,6 +283,7 @@ class TestAssetFixtures(unittest.TestCase):
         """Both views preserve fields recovered from the DocDB record."""
         _, metadata = self._load_v1_and_v2("bergamo")
         self.assertEqual(metadata.instrument_id, "442_Bergamo_2p_photostim")
+        self.assertEqual(metadata.raw_format, "tiff_stack")
         self.assertEqual(
             metadata.dataset_name,
             "single-plane-ophys_772414_2025-04-11_17-41-16",
@@ -335,12 +343,14 @@ class TestConverterMetadataEquality(unittest.TestCase):
     def test_equal_when_fields_match(self) -> None:
         """Two identically-populated ConverterMetadata compare equal."""
         a = ConverterMetadata(
+            raw_format=None,
             instrument_id="x",
             fov_ids=("VISp_0",),
             dataset_name="y",
             subject_id="z",
         )
         b = ConverterMetadata(
+            raw_format=None,
             instrument_id="x",
             fov_ids=("VISp_0",),
             dataset_name="y",

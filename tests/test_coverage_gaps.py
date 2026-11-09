@@ -3,6 +3,7 @@
 import json
 import tempfile
 import unittest
+from typing import Optional
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
@@ -461,10 +462,11 @@ class TestJobCoverage(unittest.TestCase):
         settings.input_dir.mkdir()
         return settings
 
-    def _metadata(self, instrument_id: str) -> SimpleNamespace:
+    def _metadata(self, raw_format: Optional[str]) -> SimpleNamespace:
         """Build minimal metadata for routing tests."""
         return SimpleNamespace(
-            instrument_id=instrument_id,
+            raw_format=raw_format,
+            instrument_id="rig",
             dataset_name="dataset",
             subject_id="subject",
         )
@@ -483,7 +485,7 @@ class TestJobCoverage(unittest.TestCase):
             root = Path(temp_dir)
             settings = self._settings(root)
             guard, context = self._stage_guard()
-            metadata = self._metadata("UNKNOWN")
+            metadata = self._metadata(None)
             with (
                 patch.object(job, "JobSettings", return_value=settings),
                 patch.object(
@@ -508,14 +510,14 @@ class TestJobCoverage(unittest.TestCase):
             self.assertEqual(context.upstream_names, [])
 
     def test_run_routes_bergamo(self) -> None:
-        """Route Bergamo instruments to the Bergamo stitcher."""
+        """Route TIFF stacks to the stitcher."""
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             settings = self._settings(root)
             pophys = settings.input_dir / "pophys"
             pophys.mkdir()
             guard, _ = self._stage_guard()
-            metadata = self._metadata("Bergamo-1")
+            metadata = self._metadata("tiff_stack")
             stitcher = MagicMock()
             with (
                 patch.object(job, "JobSettings", return_value=settings),
@@ -553,7 +555,7 @@ class TestJobCoverage(unittest.TestCase):
             avg_depth = pophys / "session_averaged_depth.tiff"
             avg_depth.touch()
             guard, _ = self._stage_guard()
-            metadata = self._metadata("MESO-1")
+            metadata = self._metadata("mesoscope_aind")
             runner = MagicMock()
             metrics = [Mock()]
             find_values = [pophys, platform, avg_depth]
@@ -606,7 +608,7 @@ class TestJobCoverage(unittest.TestCase):
             platform.touch()
             find_values = [pophys, platform, None]
             guard, _ = self._stage_guard()
-            metadata = self._metadata("MESO-1")
+            metadata = self._metadata("mesoscope_aind")
             with (
                 patch.object(job, "JobSettings", return_value=settings),
                 patch.object(
@@ -629,15 +631,15 @@ class TestJobCoverage(unittest.TestCase):
             marker = settings.output_dir / "V1" / "V1.txt"
             self.assertEqual(marker.read_text(), "V1.h5")
 
-    def test_run_unknown_instrument_is_noop(self) -> None:
-        """Leave an unknown instrument route without conversion work."""
+    def test_run_unknown_raw_format_is_noop(self) -> None:
+        """Convert nothing when no raw format is known."""
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             settings = self._settings(root)
             pophys = settings.input_dir / "pophys"
             pophys.mkdir()
             guard, _ = self._stage_guard()
-            metadata = self._metadata("OTHER")
+            metadata = self._metadata(None)
             with (
                 patch.object(job, "JobSettings", return_value=settings),
                 patch.object(

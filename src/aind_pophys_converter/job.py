@@ -5,7 +5,12 @@ from pathlib import Path
 from typing import List, Optional
 
 from aind_data_schema_models.process_names import ProcessName
-from aind_pophys_metadata import find_one, relative_to_root
+from aind_pophys_metadata import (
+    RAW_FORMAT_MESOSCOPE,
+    RAW_FORMAT_TIFF_STACK,
+    find_one,
+    relative_to_root,
+)
 from aind_pophys_metadata.processing import collect_upstream_process_names
 from aind_pophys_metadata.runner import stage_guard
 from log_schema.main import setup_logging
@@ -34,18 +39,13 @@ from aind_pophys_converter.utils.platform_utils import (
     is_child_session_via_platform_json,
 )
 
-# instrument_id routing signals, each matched as a substring: v1 names a
-# mesoscope MESO.1, v2 422_MESO2_20260122.
-_BERGAMO_INSTRUMENT = "Bergamo"
-_MESOSCOPE_INSTRUMENT = "MESO"
-
 _POPHYS_DIR_PATTERN = "pophys/"
 
 # Raw source files each conversion route reads out of the pophys directory.
 # This is the converter's ``code.input_data`` provenance: it is the only
 # process in the pipeline that consumes the raw asset directly, so nothing
 # else records what it read.
-_BERGAMO_RAW_PATTERNS = ("*.tif",)
+_TIFF_STACK_RAW_PATTERNS = ("*.tif",)
 _MESOSCOPE_RAW_PATTERNS = (
     "*platform.json",
     "*timeseries.tiff",
@@ -57,26 +57,10 @@ _MESOSCOPE_RAW_PATTERNS = (
 )
 
 
-def is_mesoscope(instrument_id: str) -> bool:
-    """Return whether an instrument id names a mesoscope rig.
-
-    Parameters
-    ----------
-    instrument_id : str
-        v1 ``rig_id`` or v2 ``instrument_id``.
-
-    Returns
-    -------
-    bool
-        ``True`` when ``MESO`` appears anywhere in the id.
-    """
-    return _MESOSCOPE_INSTRUMENT in instrument_id.upper()
-
-
 def raw_input_data(
     input_dir: Path,
     pophys_dir: Optional[Path],
-    instrument_id: str,
+    raw_format: Optional[str],
 ) -> Optional[List[str]]:
     """List the raw source files this run reads, for ``code.input_data``.
 
@@ -94,8 +78,8 @@ def raw_input_data(
         Mounted data root; every returned path is relative to it.
     pophys_dir : Path or None
         The located ``pophys`` directory, or ``None`` when absent.
-    instrument_id : str
-        Instrument identifier, used to pick the route's file patterns.
+    raw_format : str or None
+        The raw format, used to pick the route's file patterns.
 
     Returns
     -------
@@ -106,8 +90,8 @@ def raw_input_data(
     if pophys_dir is None:
         return None
     patterns = (
-        _BERGAMO_RAW_PATTERNS
-        if _BERGAMO_INSTRUMENT in instrument_id
+        _TIFF_STACK_RAW_PATTERNS
+        if raw_format == RAW_FORMAT_TIFF_STACK
         else _MESOSCOPE_RAW_PATTERNS
     )
     found = {
@@ -128,16 +112,14 @@ def run() -> None:
 
     setup_logging(
         use_cloudwatch=True,
-        model=build_log_fields(
-            metadata.dataset_name or metadata.subject_id
-        ),
+        model=build_log_fields(metadata.dataset_name or metadata.subject_id),
     )
 
     pophys_dir = find_one(input_dir, _POPHYS_DIR_PATTERN, required=False)
     code = build_converter_code(
         job_parameters=job_settings.model_dump(mode="json"),
         input_data=(
-            raw_input_data(input_dir, pophys_dir, metadata.instrument_id)
+            raw_input_data(input_dir, pophys_dir, metadata.raw_format)
             or _mounted_input_assets(input_dir)
         ),
     )
@@ -157,7 +139,7 @@ def run() -> None:
             raise FileNotFoundError(
                 f"No {_POPHYS_DIR_PATTERN} directory found under {input_dir}"
             )
-        if _BERGAMO_INSTRUMENT in metadata.instrument_id:
+        if metadata.raw_format == RAW_FORMAT_TIFF_STACK:
             bergamo_settings = BergamoSettings(
                 input_dir=pophys_dir,
                 output_dir=output_dir,
@@ -167,7 +149,7 @@ def run() -> None:
                 bergamo_settings, metadata=metadata
             )
             bergamo_stitcher.run_converter()
-        elif is_mesoscope(metadata.instrument_id):
+        elif metadata.raw_format == RAW_FORMAT_MESOSCOPE:
             # recursive=False: rglob does not follow symlinks in Python
             # <=3.12 and pophys/ is a symlink in dev.
             platform_fp = find_one(
@@ -221,6 +203,12 @@ def run() -> None:
                         )
                     )
             finalize_quality_control(qc_metrics, pophys_dir, output_dir)
+        else:
+            logging.warning(
+                "No raw_format is stated or derivable from instrument id "
+                "%r; nothing converted.",
+                metadata.instrument_id,
+            )
 
 
 def _mounted_input_assets(input_dir: Path) -> Optional[list]:

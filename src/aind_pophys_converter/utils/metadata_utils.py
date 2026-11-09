@@ -60,8 +60,9 @@ class ConverterMetadata:
 
     Attributes
     ----------
-    instrument_id : str
-        Hardware identifier; drives Bergamo vs mesoscope routing.
+    raw_format : str or None
+        Raw movie layout (``aind_pophys_metadata.RAW_FORMATS``); picks the
+        conversion route. ``None`` when neither stated nor derivable.
     fov_ids : tuple of str
         Canonical FOV id per imaging plane, ordered by plane index (e.g.
         ``("plane_0",)`` single-plane, or ``("MOp_0", "VISp_1")``
@@ -85,15 +86,18 @@ class ConverterMetadata:
         time. The Bergamo stitcher concatenates epochs in this order so the
         HDF5 stack is chronological; empty when the input declares no
         stimulus epochs.
+    instrument_id : str or None
+        Hardware identifier; used only for logging.
     """
 
-    instrument_id: str
+    raw_format: Optional[str]
     fov_ids: Tuple[str, ...]
     plane_channels: Tuple[PlaneChannel, ...] = ()
     plane_depths: Tuple[Optional[float], ...] = ()
     dataset_name: Optional[str] = None
     subject_id: Optional[str] = None
     epoch_stems: Tuple[str, ...] = ()
+    instrument_id: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -107,8 +111,8 @@ def load_converter_metadata(input_dir: Path) -> ConverterMetadata:
     Searches ``input_dir`` recursively for the core acquisition file and an
     optional data_description file. Schema version is dispatched by which
     core file is present (``session.json`` -> v1, ``acquisition.json`` ->
-    v2). ``instrument_id`` is required; the remaining fields are optional
-    (logging labels / fail-fast-on-empty FOVs downstream).
+    v2). Every field is optional: ``run`` converts nothing when no
+    ``raw_format`` is known, and consumers fail fast on empty FOVs.
 
     Parameters
     ----------
@@ -125,13 +129,14 @@ def load_converter_metadata(input_dir: Path) -> ConverterMetadata:
     FileNotFoundError
         If no core metadata file is found.
     ValueError
-        If both v1 and v2 core files are present (ambiguous input), or if the
-        required ``instrument_id`` is missing.
+        If both v1 and v2 core files are present (ambiguous input), or if a
+        stated ``raw_format`` is not recognised.
     """
     core = CoreMetadata.load(input_dir)
     records = sorted(core.get_plane_records(), key=lambda r: r["plane_index"])
     return ConverterMetadata(
-        instrument_id=core.get_instrument_id(required=True),
+        raw_format=core.get_raw_format(),
+        instrument_id=core.get_instrument_id(),
         fov_ids=core.get_fov_ids(),
         plane_channels=tuple(
             PlaneChannel(

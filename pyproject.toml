@@ -19,7 +19,7 @@ dynamic = ["version"]
 dependencies = [
     'aind-data-schema==2.9.0',
     'aind-data-schema-models==6.2.0',
-    'aind-pophys-metadata @ git+https://github.com/AllenNeuralDynamics/aind-pophys-metadata.git@v0.3.1',
+    'aind-pophys-metadata @ git+https://github.com/AllenNeuralDynamics/aind-pophys-metadata.git@64e3dddbaefca46697c608c610f2d4b7f882015f',
     'log-schema[cloudwatch] @ git+https://github.com/AllenNeuralDynamics/aind-log-utils.git@f09685e#subdirectory=python',
     'aind-ophys-utils==0.0.8',
     'h5py==3.16.0',
