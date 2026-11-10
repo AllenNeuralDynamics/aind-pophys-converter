@@ -34,6 +34,14 @@ def _write_input(root: Path, core_name: str, core: dict) -> Path:
     return root
 
 
+#: The fields a minimal document needs for an NWB file.
+_MINIMAL_NWB_FIELDS = {
+    "frame_rate": 30.0,
+    "session_start_time": "2026-01-01T12:00:00-08:00",
+    "planes": [{"plane_index": 0}],
+}
+
+
 class TestLoadConverterMetadata(unittest.TestCase):
     """End-to-end loader tests (file-presence dispatch + mapping)."""
 
@@ -146,11 +154,23 @@ class TestLoaderContracts(unittest.TestCase):
         _write_input(
             self.root,
             "metadata.json",
-            {"instrument_id": "unknown", "raw_format": "tiff_stack"},
+            {
+                **_MINIMAL_NWB_FIELDS,
+                "instrument_id": "unknown",
+                "raw_format": "tiff_stack",
+            },
         )
         meta = load_converter_metadata(self.root)
         self.assertEqual(meta.raw_format, "tiff_stack")
         self.assertEqual(meta.instrument_id, "unknown")
+
+    def test_minimal_document_missing_nwb_fields_raises(self) -> None:
+        """Missing required NWB fields fail before any conversion."""
+        _write_input(self.root, "metadata.json", {"raw_format": "tiff_stack"})
+        with self.assertRaises(ValueError) as ctx:
+            load_converter_metadata(self.root)
+        for field in ("frame_rate", "session_start_time", "planes"):
+            self.assertIn(field, str(ctx.exception))
 
     def test_subject_id_optional(self) -> None:
         """subject_id is optional -> None when the core file omits it."""

@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 from aind_data_schema.components.identifiers import Code
-from aind_pophys_metadata import CoreMetadata
+from aind_pophys_metadata import CoreMetadata, SchemaVersion
 from aind_pophys_metadata import processing as shared_processing
 
 # ---------------------------------------------------------------------------
@@ -111,8 +111,9 @@ def load_converter_metadata(input_dir: Path) -> ConverterMetadata:
     Searches ``input_dir`` recursively for the core acquisition file and an
     optional data_description file. Schema version is dispatched by which
     core file is present (``session.json`` -> v1, ``acquisition.json`` ->
-    v2). Every field is optional: ``run`` converts nothing when no
-    ``raw_format`` is known, and consumers fail fast on empty FOVs.
+    v2). Every field is optional for v1 and v2: ``run`` converts nothing
+    when no ``raw_format`` is known, and consumers fail fast on empty FOVs.
+    A minimal document must carry the fields an NWB file requires.
 
     Parameters
     ----------
@@ -129,10 +130,12 @@ def load_converter_metadata(input_dir: Path) -> ConverterMetadata:
     FileNotFoundError
         If no core metadata file is found.
     ValueError
-        If both v1 and v2 core files are present (ambiguous input), or if a
-        stated ``raw_format`` is not recognised.
+        If both v1 and v2 core files are present (ambiguous input), if a
+        stated ``raw_format`` is not recognised, or if a minimal document
+        lacks a field the NWB file requires.
     """
     core = CoreMetadata.load(input_dir)
+    _require_nwb_fields(core)
     records = sorted(core.get_plane_records(), key=lambda r: r["plane_index"])
     return ConverterMetadata(
         instrument_id=core.get_instrument_id(),
@@ -151,6 +154,29 @@ def load_converter_metadata(input_dir: Path) -> ConverterMetadata:
         epoch_stems=_epoch_stems_by_start_time(core),
         raw_format=core.get_raw_format(),
     )
+
+
+def _require_nwb_fields(core: CoreMetadata) -> None:
+    """Fail when a minimal document lacks a field the NWB file requires.
+
+    Parameters
+    ----------
+    core : CoreMetadata
+        Loaded input metadata.
+
+    Raises
+    ------
+    ValueError
+        If the document is minimal and any required NWB field is missing.
+    """
+    if core.version is not SchemaVersion.MINIMAL:
+        return
+    missing = core.check_nwb_requirements().missing_required
+    if missing:
+        raise ValueError(
+            f"{core.core_path.name} is missing {list(missing)}, which the "
+            "NWB file requires."
+        )
 
 
 def _epoch_stems_by_start_time(core: CoreMetadata) -> Tuple[str, ...]:
