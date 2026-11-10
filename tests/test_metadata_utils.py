@@ -34,6 +34,27 @@ def _write_input(root: Path, core_name: str, core: dict) -> Path:
     return root
 
 
+#: v2 fields the pipeline requires, other than the raw format.
+_V2_PIPELINE_FIELDS = {
+    "acquisition_start_time": "2025-05-17T10:00:00-07:00",
+    "data_streams": [
+        {
+            "configurations": [
+                {
+                    "object_type": "Imaging config",
+                    "sampling_strategy": {"frame_rate": 30.0},
+                    "images": [
+                        {
+                            "object_type": "Planar image",
+                            "planes": [{"plane_index": 0}],
+                        }
+                    ],
+                }
+            ]
+        }
+    ],
+}
+
 #: The fields a minimal document needs for an NWB file.
 _MINIMAL_NWB_FIELDS = {
     "frame_rate": 30.0,
@@ -71,6 +92,7 @@ class TestLoadConverterMetadata(unittest.TestCase):
                 Path(tmp),
                 "acquisition.json",
                 {
+                    **_V2_PIPELINE_FIELDS,
                     "instrument_id": "Bergamo",
                     "stimulus_epochs": [
                         {
@@ -114,11 +136,12 @@ class TestLoadConverterMetadata(unittest.TestCase):
         self.assertEqual(meta.fov_ids[0], "VISp_0")
         self.assertEqual(meta.fov_ids[7], "VISp_7")
 
-    def test_single_plane_fixture(self) -> None:
-        """Minimal single-plane session.json (no schema_version, no dd)."""
-        meta = load_converter_metadata(SYNTHETIC_FIXTURES / "singleplane_v1")
-        self.assertIsNone(meta.dataset_name)
-        self.assertEqual(meta.fov_ids, ("plane_0",))
+    def test_single_plane_fixture_lacks_pipeline_fields(self) -> None:
+        """A non-AIND v1 session without a start time fails up front."""
+        with self.assertRaises(ValueError) as ctx:
+            load_converter_metadata(SYNTHETIC_FIXTURES / "singleplane_v1")
+        for field in ("session_start_time", "raw_format"):
+            self.assertIn(field, str(ctx.exception))
 
 
 class TestLoaderContracts(unittest.TestCase):
@@ -133,21 +156,19 @@ class TestLoaderContracts(unittest.TestCase):
         """Remove scratch directory."""
         self.tmp.cleanup()
 
-    def test_missing_instrument_id_leaves_the_raw_format_unknown(
-        self,
-    ) -> None:
-        """No instrument id is not fatal: run converts nothing."""
+    def test_unknown_raw_format_raises(self) -> None:
+        """v1 and v2 input with no known raw format fails up front."""
         cases = (
             ("session.json", {"data_streams": [{"ophys_fovs": [{}]}]}),
-            ("acquisition.json", {"data_streams": []}),
+            ("acquisition.json", _V2_PIPELINE_FIELDS),
         )
         for name, document in cases:
             with self.subTest(name=name):
                 with tempfile.TemporaryDirectory() as tmp:
                     _write_input(Path(tmp), name, document)
-                    meta = load_converter_metadata(Path(tmp))
-                self.assertIsNone(meta.instrument_id)
-                self.assertIsNone(meta.raw_format)
+                    with self.assertRaises(ValueError) as ctx:
+                        load_converter_metadata(Path(tmp))
+                self.assertIn("raw_format", str(ctx.exception))
 
     def test_minimal_document_states_its_raw_format(self) -> None:
         """An external metadata.json routes without an AIND rig id."""
@@ -158,18 +179,20 @@ class TestLoaderContracts(unittest.TestCase):
                 **_MINIMAL_NWB_FIELDS,
                 "instrument_id": "unknown",
                 "raw_format": "tiff_stack",
+                "epochs": [{"tiff_stem": "spont", "reference": True}],
             },
         )
         meta = load_converter_metadata(self.root)
         self.assertEqual(meta.raw_format, "tiff_stack")
         self.assertEqual(meta.instrument_id, "unknown")
 
-    def test_minimal_document_missing_nwb_fields_raises(self) -> None:
-        """Missing required NWB fields fail before any conversion."""
-        _write_input(self.root, "metadata.json", {"raw_format": "tiff_stack"})
+    def test_minimal_document_missing_pipeline_fields_raises(self) -> None:
+        """Missing required fields fail before any conversion."""
+        _write_input(self.root, "metadata.json", {})
         with self.assertRaises(ValueError) as ctx:
             load_converter_metadata(self.root)
-        for field in ("frame_rate", "session_start_time", "planes"):
+        fields = ("frame_rate", "session_start_time", "planes", "raw_format")
+        for field in fields:
             self.assertIn(field, str(ctx.exception))
 
     def test_subject_id_optional(self) -> None:
@@ -178,8 +201,11 @@ class TestLoaderContracts(unittest.TestCase):
             self.root,
             "session.json",
             {
-                "rig_id": "Bruker",
-                "data_streams": [{"ophys_fovs": [{"index": 0}]}],
+                "rig_id": "Bergamo",
+                "session_start_time": "2025-05-17T10:00:00-07:00",
+                "data_streams": [
+                    {"ophys_fovs": [{"index": 0, "frame_rate": "30.0"}]}
+                ],
             },
         )
         self.assertIsNone(load_converter_metadata(self.root).subject_id)

@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 from aind_data_schema.components.identifiers import Code
-from aind_pophys_metadata import CoreMetadata, SchemaVersion
+from aind_pophys_metadata import CoreMetadata
 from aind_pophys_metadata import processing as shared_processing
 
 # ---------------------------------------------------------------------------
@@ -111,9 +111,8 @@ def load_converter_metadata(input_dir: Path) -> ConverterMetadata:
     Searches ``input_dir`` recursively for the core acquisition file and an
     optional data_description file. Schema version is dispatched by which
     core file is present (``session.json`` -> v1, ``acquisition.json`` ->
-    v2). Every field is optional for v1 and v2: ``run`` converts nothing
-    when no ``raw_format`` is known, and consumers fail fast on empty FOVs.
-    A minimal document must carry the fields an NWB file requires.
+    v2). Every input version must carry the fields the full pipeline
+    requires, so a run that would fail at a later step fails here.
 
     Parameters
     ----------
@@ -131,11 +130,11 @@ def load_converter_metadata(input_dir: Path) -> ConverterMetadata:
         If no core metadata file is found.
     ValueError
         If both v1 and v2 core files are present (ambiguous input), if a
-        stated ``raw_format`` is not recognised, or if a minimal document
-        lacks a field the NWB file requires.
+        stated ``raw_format`` is not recognised, or if the input lacks a
+        field the full pipeline requires.
     """
     core = CoreMetadata.load(input_dir)
-    _require_nwb_fields(core)
+    _require_pipeline_fields(core)
     records = sorted(core.get_plane_records(), key=lambda r: r["plane_index"])
     return ConverterMetadata(
         instrument_id=core.get_instrument_id(),
@@ -156,8 +155,8 @@ def load_converter_metadata(input_dir: Path) -> ConverterMetadata:
     )
 
 
-def _require_nwb_fields(core: CoreMetadata) -> None:
-    """Fail when a minimal document lacks a field the NWB file requires.
+def _require_pipeline_fields(core: CoreMetadata) -> None:
+    """Fail when the input lacks a field the full pipeline requires.
 
     Parameters
     ----------
@@ -167,15 +166,13 @@ def _require_nwb_fields(core: CoreMetadata) -> None:
     Raises
     ------
     ValueError
-        If the document is minimal and any required NWB field is missing.
+        If any field in ``PIPELINE_REQUIRED_FIELDS`` is missing.
     """
-    if core.version is not SchemaVersion.MINIMAL:
-        return
-    missing = core.check_nwb_requirements().missing_required
+    missing = core.check_pipeline_requirements()
     if missing:
         raise ValueError(
             f"{core.core_path.name} is missing {list(missing)}, which the "
-            "NWB file requires."
+            "pipeline requires."
         )
 
 
