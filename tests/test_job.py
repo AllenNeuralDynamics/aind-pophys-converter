@@ -441,8 +441,8 @@ class TestRawInputData(unittest.TestCase):
         for entry in result:
             self.assertFalse(Path(entry).is_absolute())
 
-    def test_tiff_stack_route_records_the_epoch_tiffs(self) -> None:
-        """The TIFF-stack route records the tiff files it stitches."""
+    def test_bergamo_route_records_the_epoch_tiffs(self) -> None:
+        """The Bergamo route records the tiff files it stitches."""
         (self.pophys_dir / "epoch_00001.tif").touch()
         (self.pophys_dir / "s_timeseries.tiff").touch()
         result = self.fn(self.input_dir, self.pophys_dir, "tiff_stack")

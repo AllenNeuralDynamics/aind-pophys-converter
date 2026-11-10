@@ -45,7 +45,7 @@ _POPHYS_DIR_PATTERN = "pophys/"
 # This is the converter's ``code.input_data`` provenance: it is the only
 # process in the pipeline that consumes the raw asset directly, so nothing
 # else records what it read.
-_TIFF_STACK_RAW_PATTERNS = ("*.tif",)
+_BERGAMO_RAW_PATTERNS = ("*.tif",)
 _MESOSCOPE_RAW_PATTERNS = (
     "*platform.json",
     "*timeseries.tiff",
@@ -90,7 +90,7 @@ def raw_input_data(
     if pophys_dir is None:
         return None
     patterns = (
-        _TIFF_STACK_RAW_PATTERNS
+        _BERGAMO_RAW_PATTERNS
         if raw_format == RAW_FORMAT_TIFF_STACK
         else _MESOSCOPE_RAW_PATTERNS
     )
@@ -112,7 +112,9 @@ def run() -> None:
 
     setup_logging(
         use_cloudwatch=True,
-        model=build_log_fields(metadata.dataset_name or metadata.subject_id),
+        model=build_log_fields(
+            metadata.dataset_name or metadata.subject_id
+        ),
     )
 
     pophys_dir = find_one(input_dir, _POPHYS_DIR_PATTERN, required=False)

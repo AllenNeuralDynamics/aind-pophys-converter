@@ -343,14 +343,12 @@ class TestConverterMetadataEquality(unittest.TestCase):
     def test_equal_when_fields_match(self) -> None:
         """Two identically-populated ConverterMetadata compare equal."""
         a = ConverterMetadata(
-            raw_format=None,
             instrument_id="x",
             fov_ids=("VISp_0",),
             dataset_name="y",
             subject_id="z",
         )
         b = ConverterMetadata(
-            raw_format=None,
             instrument_id="x",
             fov_ids=("VISp_0",),
             dataset_name="y",

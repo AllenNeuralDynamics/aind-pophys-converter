@@ -60,9 +60,8 @@ class ConverterMetadata:
 
     Attributes
     ----------
-    raw_format : str or None
-        Raw movie layout (``aind_pophys_metadata.RAW_FORMATS``); picks the
-        conversion route. ``None`` when neither stated nor derivable.
+    instrument_id : str or None
+        Hardware identifier; used only for logging.
     fov_ids : tuple of str
         Canonical FOV id per imaging plane, ordered by plane index (e.g.
         ``("plane_0",)`` single-plane, or ``("MOp_0", "VISp_1")``
@@ -86,18 +85,19 @@ class ConverterMetadata:
         time. The Bergamo stitcher concatenates epochs in this order so the
         HDF5 stack is chronological; empty when the input declares no
         stimulus epochs.
-    instrument_id : str or None
-        Hardware identifier; used only for logging.
+    raw_format : str or None
+        Raw movie layout (``aind_pophys_metadata.RAW_FORMATS``); picks the
+        conversion route. ``None`` when neither stated nor derivable.
     """
 
-    raw_format: Optional[str]
+    instrument_id: Optional[str]
     fov_ids: Tuple[str, ...]
     plane_channels: Tuple[PlaneChannel, ...] = ()
     plane_depths: Tuple[Optional[float], ...] = ()
     dataset_name: Optional[str] = None
     subject_id: Optional[str] = None
     epoch_stems: Tuple[str, ...] = ()
-    instrument_id: Optional[str] = None
+    raw_format: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -135,7 +135,6 @@ def load_converter_metadata(input_dir: Path) -> ConverterMetadata:
     core = CoreMetadata.load(input_dir)
     records = sorted(core.get_plane_records(), key=lambda r: r["plane_index"])
     return ConverterMetadata(
-        raw_format=core.get_raw_format(),
         instrument_id=core.get_instrument_id(),
         fov_ids=core.get_fov_ids(),
         plane_channels=tuple(
@@ -150,6 +149,7 @@ def load_converter_metadata(input_dir: Path) -> ConverterMetadata:
         dataset_name=core.get_dataset_name(),
         subject_id=core.get_subject_id(),
         epoch_stems=_epoch_stems_by_start_time(core),
+        raw_format=core.get_raw_format(),
     )
 
 
