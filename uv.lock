@@ -112,7 +112,7 @@ requires-dist = [
     { name = "aind-data-schema-models", specifier = "==6.2.0" },
     { name = "aind-ophys-utils", specifier = "==0.0.8" },
     { name = "aind-pophys-converter", extras = ["full"], marker = "extra == 'dev'" },
-    { name = "aind-pophys-metadata", git = "https://github.com/AllenNeuralDynamics/aind-pophys-metadata.git?rev=63f179d2c0b36f90da9e2f6357b57ece3f243c47" },
+    { name = "aind-pophys-metadata", git = "https://github.com/AllenNeuralDynamics/aind-pophys-metadata.git?rev=v0.4.0" },
     { name = "black", marker = "extra == 'dev'" },
     { name = "coverage", marker = "extra == 'dev'" },
     { name = "flake8", marker = "extra == 'dev'" },
@@ -136,8 +136,8 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "aind-pophys-metadata"
-version = "0.3.1"
-source = { git = "https://github.com/AllenNeuralDynamics/aind-pophys-metadata.git?rev=63f179d2c0b36f90da9e2f6357b57ece3f243c47#63f179d2c0b36f90da9e2f6357b57ece3f243c47" }
+version = "0.4.0"
+source = { git = "https://github.com/AllenNeuralDynamics/aind-pophys-metadata.git?rev=v0.4.0#24914e9448fc73cbeb3eda74c47f448d25a40ffd" }
 dependencies = [
     { name = "aind-data-schema" },
     { name = "aind-data-schema-models" },
