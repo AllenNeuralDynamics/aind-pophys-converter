@@ -402,29 +402,6 @@ class TestWriteAvgDepthSlices(unittest.TestCase):
         self.assertEqual(list(avg_dir.glob("*.tif")), [])
 
 
-class TestIsMesoscope(unittest.TestCase):
-    """Tests for is_mesoscope, the converter's mesoscope route."""
-
-    def test_v1_and_v2_mesoscope_ids(self) -> None:
-        """v2 names a mesoscope by its dated instrument id."""
-        from aind_pophys_converter.job import is_mesoscope
-
-        for instrument_id in (
-            "MESO.1",
-            "MESO.2",
-            "422_MESO2_20260122",
-            "429_MESO1_20260122",
-        ):
-            with self.subTest(instrument_id=instrument_id):
-                self.assertTrue(is_mesoscope(instrument_id))
-
-    def test_bergamo_is_not_a_mesoscope(self) -> None:
-        """The Bergamo rig takes the other route."""
-        from aind_pophys_converter.job import is_mesoscope
-
-        self.assertFalse(is_mesoscope("442_Bergamo_2p_photostim"))
-
-
 class TestRawInputData(unittest.TestCase):
     """Tests for raw_input_data, the converter's input_data provenance."""
 
@@ -444,17 +421,19 @@ class TestRawInputData(unittest.TestCase):
 
     def test_returns_none_without_a_pophys_directory(self) -> None:
         """No pophys directory means no file-level provenance."""
-        self.assertIsNone(self.fn(self.input_dir, None, "MESO.1"))
+        self.assertIsNone(self.fn(self.input_dir, None, "mesoscope_aind"))
 
     def test_returns_none_when_nothing_matches(self) -> None:
         """An empty pophys directory yields None, not an empty list."""
-        self.assertIsNone(self.fn(self.input_dir, self.pophys_dir, "MESO.1"))
+        self.assertIsNone(
+            self.fn(self.input_dir, self.pophys_dir, "mesoscope_aind")
+        )
 
     def test_mesoscope_paths_are_relative_to_the_data_root(self) -> None:
         """Mesoscope sources are recorded as data-root-relative paths."""
         (self.pophys_dir / "s_timeseries.tiff").touch()
         (self.pophys_dir / "s_platform.json").touch()
-        result = self.fn(self.input_dir, self.pophys_dir, "MESO.1")
+        result = self.fn(self.input_dir, self.pophys_dir, "mesoscope_aind")
         self.assertEqual(
             result,
             ["asset/pophys/s_platform.json", "asset/pophys/s_timeseries.tiff"],
@@ -466,7 +445,7 @@ class TestRawInputData(unittest.TestCase):
         """The Bergamo route records the tiff files it stitches."""
         (self.pophys_dir / "epoch_00001.tif").touch()
         (self.pophys_dir / "s_timeseries.tiff").touch()
-        result = self.fn(self.input_dir, self.pophys_dir, "Bergamo photostim")
+        result = self.fn(self.input_dir, self.pophys_dir, "tiff_stack")
         self.assertEqual(result, ["asset/pophys/epoch_00001.tif"])
 
 

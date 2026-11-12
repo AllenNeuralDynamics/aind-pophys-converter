@@ -60,8 +60,8 @@ class ConverterMetadata:
 
     Attributes
     ----------
-    instrument_id : str
-        Hardware identifier; drives Bergamo vs mesoscope routing.
+    instrument_id : str or None
+        Hardware identifier; used only for logging.
     fov_ids : tuple of str
         Canonical FOV id per imaging plane, ordered by plane index (e.g.
         ``("plane_0",)`` single-plane, or ``("MOp_0", "VISp_1")``
@@ -85,15 +85,19 @@ class ConverterMetadata:
         time. The Bergamo stitcher concatenates epochs in this order so the
         HDF5 stack is chronological; empty when the input declares no
         stimulus epochs.
+    raw_format : str or None
+        Raw movie layout (``aind_pophys_metadata.RAW_FORMATS``); picks the
+        conversion route. ``None`` when neither stated nor derivable.
     """
 
-    instrument_id: str
+    instrument_id: Optional[str]
     fov_ids: Tuple[str, ...]
     plane_channels: Tuple[PlaneChannel, ...] = ()
     plane_depths: Tuple[Optional[float], ...] = ()
     dataset_name: Optional[str] = None
     subject_id: Optional[str] = None
     epoch_stems: Tuple[str, ...] = ()
+    raw_format: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -107,8 +111,8 @@ def load_converter_metadata(input_dir: Path) -> ConverterMetadata:
     Searches ``input_dir`` recursively for the core acquisition file and an
     optional data_description file. Schema version is dispatched by which
     core file is present (``session.json`` -> v1, ``acquisition.json`` ->
-    v2). ``instrument_id`` is required; the remaining fields are optional
-    (logging labels / fail-fast-on-empty FOVs downstream).
+    v2). Every input version must carry the fields the full pipeline
+    requires, so a run that would fail at a later step fails here.
 
     Parameters
     ----------
@@ -125,13 +129,15 @@ def load_converter_metadata(input_dir: Path) -> ConverterMetadata:
     FileNotFoundError
         If no core metadata file is found.
     ValueError
-        If both v1 and v2 core files are present (ambiguous input), or if the
-        required ``instrument_id`` is missing.
+        If both v1 and v2 core files are present (ambiguous input), if a
+        stated ``raw_format`` is not recognised, or if the input lacks a
+        field the full pipeline requires.
     """
     core = CoreMetadata.load(input_dir)
+    _require_pipeline_fields(core)
     records = sorted(core.get_plane_records(), key=lambda r: r["plane_index"])
     return ConverterMetadata(
-        instrument_id=core.get_instrument_id(required=True),
+        instrument_id=core.get_instrument_id(),
         fov_ids=core.get_fov_ids(),
         plane_channels=tuple(
             PlaneChannel(
@@ -145,7 +151,29 @@ def load_converter_metadata(input_dir: Path) -> ConverterMetadata:
         dataset_name=core.get_dataset_name(),
         subject_id=core.get_subject_id(),
         epoch_stems=_epoch_stems_by_start_time(core),
+        raw_format=core.get_raw_format(),
     )
+
+
+def _require_pipeline_fields(core: CoreMetadata) -> None:
+    """Fail when the input lacks a field the full pipeline requires.
+
+    Parameters
+    ----------
+    core : CoreMetadata
+        Loaded input metadata.
+
+    Raises
+    ------
+    ValueError
+        If any field in ``PIPELINE_REQUIRED_FIELDS`` is missing.
+    """
+    missing = core.check_pipeline_requirements()
+    if missing:
+        raise ValueError(
+            f"{core.core_path.name} is missing {list(missing)}, which the "
+            "pipeline requires."
+        )
 
 
 def _epoch_stems_by_start_time(core: CoreMetadata) -> Tuple[str, ...]:

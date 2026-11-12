@@ -50,11 +50,11 @@ All parameters can also be set as environment variables (e.g. `INPUT_DIR=/data/.
 ## Processing paths
 
 The top-level `job.run()` reads metadata from the input directory, then dispatches to one of two
-paths based on the instrument type.
+paths based on the raw format.
 
 ### Bergamo (single-plane)
 
-**Trigger:** `"Bergamo" in metadata.instrument_id`
+**Trigger:** `metadata.raw_format == "tiff_stack"`
 
 The Bergamo microscope produces a directory of per-epoch TIFF files under
 `pophys/`. `BergamoTiffStitcher.run_converter()`:
@@ -76,8 +76,7 @@ Output: `<output_dir>/<fov_id>/<fov_id>.h5`, `processing.json`
 
 ### Mesoscope (multi-plane)
 
-**Trigger:** `instrument_id.startswith("MESO")` (mesoscope rigs are named
-`MESO.*`).
+**Trigger:** `metadata.raw_format == "mesoscope_aind"`.
 
 The mesoscope produces multiplexed ScanImage TIFFs that interleave frames from
 multiple ROIs and depths. `TiffSplitterCLI.run_job()`:
@@ -140,9 +139,9 @@ splitting and writes only stub `.txt` pointer files.
 - **`utils/metadata_utils.py`** — the converter's only point of contact with
   schema-version differences; everything else reads the schema-agnostic
   `ConverterMetadata` (`instrument_id`, `fov_ids`, `dataset_name`, `subject_id`,
-  `epoch_stems`). The reads themselves live in the shared
+  `epoch_stems`, `raw_format`). The reads themselves live in the shared
   [`aind-pophys-metadata`](https://github.com/AllenNeuralDynamics/aind-pophys-metadata)
-  package. `instrument_id` drives Bergamo-versus-mesoscope routing; the rest are
+  package. `raw_format` drives Bergamo-versus-mesoscope routing; the rest are
   labels or may be empty for malformed input.
 
 - **`utils/tiff_metadata.py`** — `ScanImageMetadata`, a lazy wrapper over
