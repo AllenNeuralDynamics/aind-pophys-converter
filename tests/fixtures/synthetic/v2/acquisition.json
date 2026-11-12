@@ -16,6 +16,7 @@
             "configurations": [
                 {
                     "object_type": "Imaging config",
+                    "sampling_strategy": {"object_type": "Sampling strategy", "frame_rate": 9.48, "frame_rate_unit": "hertz"},
                     "device_name": "MESO.1",
                     "channels": [],
                     "images": [

@@ -34,6 +34,35 @@ def _write_input(root: Path, core_name: str, core: dict) -> Path:
     return root
 
 
+#: v2 fields the pipeline requires, other than the raw format.
+_V2_PIPELINE_FIELDS = {
+    "acquisition_start_time": "2025-05-17T10:00:00-07:00",
+    "data_streams": [
+        {
+            "configurations": [
+                {
+                    "object_type": "Imaging config",
+                    "sampling_strategy": {"frame_rate": 30.0},
+                    "images": [
+                        {
+                            "object_type": "Planar image",
+                            "planes": [{"plane_index": 0}],
+                        }
+                    ],
+                }
+            ]
+        }
+    ],
+}
+
+#: The fields a minimal document needs for an NWB file.
+_MINIMAL_NWB_FIELDS = {
+    "frame_rate": 30.0,
+    "session_start_time": "2026-01-01T12:00:00-08:00",
+    "planes": [{"plane_index": 0}],
+}
+
+
 class TestLoadConverterMetadata(unittest.TestCase):
     """End-to-end loader tests (file-presence dispatch + mapping)."""
 
@@ -63,6 +92,7 @@ class TestLoadConverterMetadata(unittest.TestCase):
                 Path(tmp),
                 "acquisition.json",
                 {
+                    **_V2_PIPELINE_FIELDS,
                     "instrument_id": "Bergamo",
                     "stimulus_epochs": [
                         {
@@ -106,11 +136,12 @@ class TestLoadConverterMetadata(unittest.TestCase):
         self.assertEqual(meta.fov_ids[0], "VISp_0")
         self.assertEqual(meta.fov_ids[7], "VISp_7")
 
-    def test_single_plane_fixture(self) -> None:
-        """Minimal single-plane session.json (no schema_version, no dd)."""
-        meta = load_converter_metadata(SYNTHETIC_FIXTURES / "singleplane_v1")
-        self.assertIsNone(meta.dataset_name)
-        self.assertEqual(meta.fov_ids, ("plane_0",))
+    def test_single_plane_fixture_lacks_pipeline_fields(self) -> None:
+        """A non-AIND v1 session without a start time fails up front."""
+        with self.assertRaises(ValueError) as ctx:
+            load_converter_metadata(SYNTHETIC_FIXTURES / "singleplane_v1")
+        for field in ("session_start_time", "raw_format"):
+            self.assertIn(field, str(ctx.exception))
 
 
 class TestLoaderContracts(unittest.TestCase):
@@ -125,26 +156,44 @@ class TestLoaderContracts(unittest.TestCase):
         """Remove scratch directory."""
         self.tmp.cleanup()
 
-    def test_missing_instrument_id_raises_for_a_v1_input(self) -> None:
-        """A v1 input naming no instrument raises, naming the field."""
+    def test_unknown_raw_format_raises(self) -> None:
+        """v1 and v2 input with no known raw format fails up front."""
+        cases = (
+            ("session.json", {"data_streams": [{"ophys_fovs": [{}]}]}),
+            ("acquisition.json", _V2_PIPELINE_FIELDS),
+        )
+        for name, document in cases:
+            with self.subTest(name=name):
+                with tempfile.TemporaryDirectory() as tmp:
+                    _write_input(Path(tmp), name, document)
+                    with self.assertRaises(ValueError) as ctx:
+                        load_converter_metadata(Path(tmp))
+                self.assertIn("raw_format", str(ctx.exception))
+
+    def test_minimal_document_states_its_raw_format(self) -> None:
+        """An external metadata.json routes without an AIND rig id."""
         _write_input(
             self.root,
-            "session.json",
-            {"data_streams": [{"ophys_fovs": [{"index": 0}]}]},
+            "metadata.json",
+            {
+                **_MINIMAL_NWB_FIELDS,
+                "instrument_id": "unknown",
+                "raw_format": "tiff_stack",
+                "epochs": [{"tiff_stem": "spont", "reference": True}],
+            },
         )
-        with self.assertRaises(ValueError) as cm:
-            load_converter_metadata(self.root)
-        # v1 spells the instrument id "rig_id".
-        self.assertIn("rig_id", str(cm.exception))
-        self.assertIn("session.json", str(cm.exception))
+        meta = load_converter_metadata(self.root)
+        self.assertEqual(meta.raw_format, "tiff_stack")
+        self.assertEqual(meta.instrument_id, "unknown")
 
-    def test_missing_instrument_id_raises_for_a_v2_input(self) -> None:
-        """A v2 input naming no instrument raises, naming the field."""
-        _write_input(self.root, "acquisition.json", {"data_streams": []})
-        with self.assertRaises(ValueError) as cm:
+    def test_minimal_document_missing_pipeline_fields_raises(self) -> None:
+        """Missing required fields fail before any conversion."""
+        _write_input(self.root, "metadata.json", {})
+        with self.assertRaises(ValueError) as ctx:
             load_converter_metadata(self.root)
-        self.assertIn("instrument_id", str(cm.exception))
-        self.assertIn("acquisition.json", str(cm.exception))
+        fields = ("frame_rate", "session_start_time", "planes", "raw_format")
+        for field in fields:
+            self.assertIn(field, str(ctx.exception))
 
     def test_subject_id_optional(self) -> None:
         """subject_id is optional -> None when the core file omits it."""
@@ -152,8 +201,11 @@ class TestLoaderContracts(unittest.TestCase):
             self.root,
             "session.json",
             {
-                "rig_id": "Bruker",
-                "data_streams": [{"ophys_fovs": [{"index": 0}]}],
+                "rig_id": "Bergamo",
+                "session_start_time": "2025-05-17T10:00:00-07:00",
+                "data_streams": [
+                    {"ophys_fovs": [{"index": 0, "frame_rate": "30.0"}]}
+                ],
             },
         )
         self.assertIsNone(load_converter_metadata(self.root).subject_id)
@@ -200,6 +252,7 @@ class TestAssetFixtures(unittest.TestCase):
         """Check core and platform metadata from a real Meso asset."""
         root, metadata = self._load_v1_and_v2(fixture_name)
         self.assertEqual(metadata.instrument_id, instrument_id)
+        self.assertEqual(metadata.raw_format, "mesoscope_aind")
         self.assertEqual(metadata.dataset_name, dataset_name)
         self.assertEqual(len(metadata.fov_ids), 8)
         self.assertEqual(metadata.fov_ids[0], "VISp_0")
@@ -276,6 +329,7 @@ class TestAssetFixtures(unittest.TestCase):
         """Both views preserve fields recovered from the DocDB record."""
         _, metadata = self._load_v1_and_v2("bergamo")
         self.assertEqual(metadata.instrument_id, "442_Bergamo_2p_photostim")
+        self.assertEqual(metadata.raw_format, "tiff_stack")
         self.assertEqual(
             metadata.dataset_name,
             "single-plane-ophys_772414_2025-04-11_17-41-16",

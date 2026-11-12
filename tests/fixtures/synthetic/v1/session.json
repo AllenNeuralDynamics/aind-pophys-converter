@@ -27,7 +27,9 @@
                     "fov_width": 512,
                     "fov_height": 512,
                     "magnification": "16x",
-                    "fov_scale_factor": "0.78"
+                    "fov_scale_factor": "0.78",
+                    "frame_rate": "9.48",
+                    "frame_rate_unit": "hertz"
                 },
                 {
                     "index": 0,
@@ -44,7 +46,9 @@
                     "fov_width": 512,
                     "fov_height": 512,
                     "magnification": "16x",
-                    "fov_scale_factor": "0.78"
+                    "fov_scale_factor": "0.78",
+                    "frame_rate": "9.48",
+                    "frame_rate_unit": "hertz"
                 }
             ]
         }
