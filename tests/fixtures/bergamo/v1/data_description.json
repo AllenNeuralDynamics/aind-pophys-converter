@@ -1,5 +1,5 @@
 {
-  "creation_time": "2025-04-11T17:41:16-07:00",
+  "creation_time": "2025-01-01T00:00:00-08:00",
   "data_level": "raw",
   "data_summary": null,
   "describedBy": "https://raw.githubusercontent.com/AllenNeuralDynamics/aind-data-schema/main/src/aind_data_schema/core/data_description.py",
@@ -31,13 +31,13 @@
   "investigators": [
     {
       "abbreviation": null,
-      "name": "Kayvon Daie",
+      "name": "Investigator A",
       "registry": null,
       "registry_identifier": null
     },
     {
       "abbreviation": null,
-      "name": "Marton Rozsa",
+      "name": "Investigator B",
       "registry": null,
       "registry_identifier": null
     }
@@ -58,14 +58,14 @@
       "name": "Behavior videos"
     }
   ],
-  "name": "single-plane-ophys_772414_2025-04-11_17-41-16",
+  "name": "single-plane-ophys_999999_2025-01-01_00-00-00",
   "platform": {
     "abbreviation": "single-plane-ophys",
     "name": "Single-plane optical physiology platform"
   },
-  "project_name": "Brain Computer Interface",
+  "project_name": "Test Project",
   "related_data": [],
   "restrictions": null,
   "schema_version": "1.0.3",
-  "subject_id": "772414"
+  "subject_id": "999999"
 }

@@ -3,20 +3,20 @@
    "describedBy": "https://raw.githubusercontent.com/AllenNeuralDynamics/aind-data-schema/main/src/aind_data_schema/core/acquisition.py",
    "schema_version": "2.5.3",
    "protocol_id": null,
-   "subject_id": "849375",
+   "subject_id": "999998",
    "specimen_id": null,
-   "acquisition_start_time": "2026-05-20T12:10:09.287508-07:00",
+   "acquisition_start_time": "2025-02-01T12:00:00.287508-08:00",
    "acquisition_start_tz": -7,
-   "acquisition_end_time": "2026-05-20T12:40:18.390548-07:00",
+   "acquisition_end_time": "2025-02-01T12:30:09.390548-08:00",
    "experimenters": [
-      "shiella caldejon"
+      "Experimenter A"
    ],
    "ethics_review_id": [
-      "2115"
+      "0000"
    ],
    "instrument_id": "MESO.1",
    "acquisition_type": "TRAINING_0_gratings_autorewards_15min",
-   "notes": " (v1v2 upgrade) Session end time was adjusted from 2026-05-20 12:40:15.465478-07:00 to 2026-05-20 12:40:18.390548-07:00",
+   "notes": " (v1v2 upgrade) Session end time was adjusted from 2025-02-01 12:30:06.465478-08:00 to 2025-02-01 12:30:09.390548-08:00",
    "coordinate_system": null,
    "global_coordinate_system": null,
    "calibrations": [],
@@ -24,8 +24,8 @@
    "data_streams": [
       {
          "object_type": "Data stream",
-         "stream_start_time": "2026-05-20T12:10:09.287508-07:00",
-         "stream_end_time": "2026-05-20T12:40:15.465478-07:00",
+         "stream_start_time": "2025-02-01T12:00:00.287508-08:00",
+         "stream_end_time": "2025-02-01T12:30:06.465478-08:00",
          "modalities": [
             {
                "name": "Planar optical physiology",
@@ -299,8 +299,8 @@
    "stimulus_epochs": [
       {
          "object_type": "Stimulus epoch",
-         "stimulus_start_time": "2026-05-20T12:15:09.343268-07:00",
-         "stimulus_end_time": "2026-05-20T12:40:18.390548-07:00",
+         "stimulus_start_time": "2025-02-01T12:05:00.343268-08:00",
+         "stimulus_end_time": "2025-02-01T12:30:09.390548-08:00",
          "stimulus_name": "grating",
          "code": {
             "object_type": "Code",

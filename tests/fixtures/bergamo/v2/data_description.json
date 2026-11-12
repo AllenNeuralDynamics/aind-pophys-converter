@@ -3,10 +3,10 @@
    "describedBy": "https://raw.githubusercontent.com/AllenNeuralDynamics/aind-data-schema/main/src/aind_data_schema/core/data_description.py",
    "schema_version": "2.4.1",
    "license": "CC-BY-4.0",
-   "subject_id": "772414",
-   "creation_time": "2025-04-11T17:41:16-07:00",
+   "subject_id": "999999",
+   "creation_time": "2025-01-01T00:00:00-08:00",
    "tags": null,
-   "name": "single-plane-ophys_772414_2025-04-11_17-41-16",
+   "name": "single-plane-ophys_999999_2025-01-01_00-00-00",
    "institution": {
       "name": "Allen Institute for Neural Dynamics",
       "abbreviation": "AIND",
@@ -38,18 +38,18 @@
    "investigators": [
       {
          "object_type": "Person",
-         "name": "Kayvon Daie",
+         "name": "Investigator A",
          "registry": "Open Researcher and Contributor ID (ORCID)",
          "registry_identifier": null
       },
       {
          "object_type": "Person",
-         "name": "Marton Rozsa",
+         "name": "Investigator B",
          "registry": "Open Researcher and Contributor ID (ORCID)",
          "registry_identifier": null
       }
    ],
-   "project_name": "Brain Computer Interface",
+   "project_name": "Test Project",
    "restrictions": null,
    "modalities": [
       {

@@ -244,22 +244,22 @@
          "software": [],
          "stack_parameters": null,
          "stick_microscopes": [],
-         "stream_end_time": "2025-09-03T10:36:07.794107-07:00",
+         "stream_end_time": "2025-01-15T13:00:40.794107-08:00",
          "stream_modalities": [
             {
                "abbreviation": "pophys",
                "name": "Planar optical physiology"
             }
          ],
-         "stream_start_time": "2025-09-03T09:35:27.072537-07:00"
+         "stream_start_time": "2025-01-15T12:00:00.072537-08:00"
       }
    ],
    "describedBy": "https://raw.githubusercontent.com/AllenNeuralDynamics/aind-data-schema/main/src/aind_data_schema/core/session.py",
    "experimenter_full_name": [
-      "shiella caldejon"
+      "Experimenter A"
    ],
    "headframe_registration": null,
-   "iacuc_protocol": "2115",
+   "iacuc_protocol": "0000",
    "maintenance": [],
    "mouse_platform_name": "disc",
    "notes": null,
@@ -269,10 +269,10 @@
    "reward_delivery": null,
    "rig_id": "MESO.2",
    "schema_version": "1.0.3",
-   "session_end_time": "2025-09-03T10:36:07.794107-07:00",
-   "session_start_time": "2025-09-03T09:35:27.072537-07:00",
+   "session_end_time": "2025-01-15T13:00:40.794107-08:00",
+   "session_start_time": "2025-01-15T12:00:00.072537-08:00",
    "session_type": "TRAINING_1_gratings",
    "stimulus_epochs": [],
-   "subject_id": "804670",
+   "subject_id": "999997",
    "weight_unit": "gram"
 }

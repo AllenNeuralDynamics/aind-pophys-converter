@@ -128,7 +128,7 @@ class TestLoadConverterMetadata(unittest.TestCase):
         self.assertEqual(v2.plane_channels[0].channel_name, "Ch1")
 
     def test_multiplane_bare_string_structures(self) -> None:
-        """Real multi-plane v1 (bare-string structures, no dd)."""
+        """Anonymised multi-plane v1 (bare-string structures, no dd)."""
         meta = load_converter_metadata(SYNTHETIC_FIXTURES / "multiplane_v1")
         self.assertEqual(meta.instrument_id, "MESO.2")
         self.assertIsNone(meta.dataset_name)
@@ -224,7 +224,7 @@ class TestLoaderContracts(unittest.TestCase):
 
 
 class TestAssetFixtures(unittest.TestCase):
-    """Verify converter metadata against synthetic and production assets."""
+    """Verify converter metadata against the anonymised asset fixtures."""
 
     def _load_v1_and_v2(
         self, fixture_name: str
@@ -249,7 +249,7 @@ class TestAssetFixtures(unittest.TestCase):
         parent_session: str,
         is_child: bool,
     ) -> None:
-        """Check core and platform metadata from a real Meso asset."""
+        """Check core and platform metadata from an anonymised Meso asset."""
         root, metadata = self._load_v1_and_v2(fixture_name)
         self.assertEqual(metadata.instrument_id, instrument_id)
         self.assertEqual(metadata.raw_format, "mesoscope_aind")
@@ -270,7 +270,7 @@ class TestAssetFixtures(unittest.TestCase):
         self.assertTrue((root / "v1" / "session.json").is_file())
         self.assertTrue((root / "v1" / "data_description.json").is_file())
 
-    def test_parent_meso_fixture_uses_real_metadata(self) -> None:
+    def test_parent_meso_fixture_metadata(self) -> None:
         """The 'parent' fixture is a true root session (no parent_session).
 
         It exercises the non-child converter branch: MESO.1, and
@@ -279,20 +279,20 @@ class TestAssetFixtures(unittest.TestCase):
         self._assert_meso_fixture(
             "meso_parent",
             "MESO.1",
-            "multiplane-ophys_849375_2026-05-20_12-10-09",
-            1779302846,
+            "multiplane-ophys_999998_2025-02-01_12-00-00",
+            1738438637,
             None,
             is_child=False,
         )
 
-    def test_child_meso_fixture_uses_real_metadata(self) -> None:
-        """Load child Meso metadata from Code Ocean data."""
+    def test_child_meso_fixture_metadata(self) -> None:
+        """Load child Meso metadata and its parent session."""
         self._assert_meso_fixture(
             "meso_child",
             "MESO.2",
-            "multiplane-ophys_849375_2026-06-20_13-13-04",
-            1781984614,
-            "multiplane-ophys_849375_2026-06-17_15-28-08",
+            "multiplane-ophys_999998_2025-03-04_12-00-00",
+            1741116630,
+            "multiplane-ophys_999998_2025-03-01_12-00-00",
             is_child=True,
         )
 
@@ -326,15 +326,15 @@ class TestAssetFixtures(unittest.TestCase):
         )
 
     def test_bergamo_fixture_v1_and_v2(self) -> None:
-        """Both views preserve fields recovered from the DocDB record."""
+        """Both schema views map the Bergamo fixture to equal metadata."""
         _, metadata = self._load_v1_and_v2("bergamo")
         self.assertEqual(metadata.instrument_id, "442_Bergamo_2p_photostim")
         self.assertEqual(metadata.raw_format, "tiff_stack")
         self.assertEqual(
             metadata.dataset_name,
-            "single-plane-ophys_772414_2025-04-11_17-41-16",
+            "single-plane-ophys_999999_2025-01-01_00-00-00",
         )
-        self.assertEqual(metadata.subject_id, "772414")
+        self.assertEqual(metadata.subject_id, "999999")
         self.assertEqual(metadata.fov_ids, ("plane_0",))
         self.assertEqual(
             metadata.epoch_stems,

@@ -89,14 +89,14 @@
         "recording_software": {
           "name": "pyBpod",
           "parameters": {},
-          "url": "https://github.com/rozmar/pySpinCapture",
-          "version": "26140c2"
+          "url": "",
+          "version": "0000000"
         },
         "sensor_format": null,
         "sensor_format_unit": null,
         "sensor_height": 1080,
         "sensor_width": 1440,
-        "serial_number": "19414825",
+        "serial_number": "SN0001",
         "size_unit": "pixel"
       },
       "camera_target": "Side",
@@ -200,14 +200,14 @@
         "recording_software": {
           "name": "pyBpod",
           "parameters": {},
-          "url": "https://github.com/rozmar/pySpinCapture",
-          "version": "26140c2"
+          "url": "",
+          "version": "0000000"
         },
         "sensor_format": null,
         "sensor_format_unit": null,
         "sensor_height": 1080,
         "sensor_width": 1440,
-        "serial_number": "1944074",
+        "serial_number": "SN0002",
         "size_unit": "pixel"
       },
       "camera_target": "Bottom",
@@ -244,7 +244,7 @@
     {
       "additional_settings": {},
       "channels": [],
-      "computer_name": "2p_PC",
+      "computer_name": "Computer A",
       "data_interface": "PXI",
       "device_type": "DAQ Device",
       "firmware_version": null,
@@ -311,7 +311,7 @@
       "sensor_format_unit": null,
       "sensor_height": null,
       "sensor_width": null,
-      "serial_number": "AF7695",
+      "serial_number": "SN0003",
       "size_unit": "pixel"
     },
     {
@@ -357,7 +357,7 @@
       "sensor_format_unit": null,
       "sensor_height": null,
       "sensor_width": null,
-      "serial_number": "AF7690",
+      "serial_number": "SN0004",
       "size_unit": "pixel"
     }
   ],
@@ -480,7 +480,7 @@
       "path_to_cad": null,
       "port_index": null,
       "power_unit": "milliwatt",
-      "serial_number": "0918012925",
+      "serial_number": "SN0005",
       "wavelength": 1035,
       "wavelength_unit": "nanometer"
     },
@@ -507,7 +507,7 @@
       "path_to_cad": null,
       "port_index": null,
       "power_unit": "milliwatt",
-      "serial_number": "GDP.1185374.8460",
+      "serial_number": "SN0006",
       "wavelength": 920,
       "wavelength_unit": "nanometer"
     }

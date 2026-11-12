@@ -109,14 +109,14 @@
         "targeted_structure": "Primary Motor Cortex"
       },
       "stick_microscopes": [],
-      "stream_end_time": "2025-04-11T17:42:30.895163-07:00",
+      "stream_end_time": "2025-01-01T00:01:14.895163-08:00",
       "stream_modalities": [
         {
           "abbreviation": "pophys",
           "name": "Planar optical physiology"
         }
       ],
-      "stream_start_time": "2025-04-11T17:41:16.971000-07:00"
+      "stream_start_time": "2025-01-01T00:00:00.971000-08:00"
     },
     {
       "camera_names": [],
@@ -179,14 +179,14 @@
       "software": [],
       "stack_parameters": null,
       "stick_microscopes": [],
-      "stream_end_time": "2025-04-11T18:00:18.835554-07:00",
+      "stream_end_time": "2025-01-01T00:19:02.835554-08:00",
       "stream_modalities": [
         {
           "abbreviation": "pophys",
           "name": "Planar optical physiology"
         }
       ],
-      "stream_start_time": "2025-04-11T17:49:59.719999-07:00"
+      "stream_start_time": "2025-01-01T00:08:43.719999-08:00"
     },
     {
       "camera_names": [],
@@ -249,14 +249,14 @@
       "software": [],
       "stack_parameters": null,
       "stick_microscopes": [],
-      "stream_end_time": "2025-04-11T18:42:03.293412-07:00",
+      "stream_end_time": "2025-01-01T01:00:47.293412-08:00",
       "stream_modalities": [
         {
           "abbreviation": "pophys",
           "name": "Planar optical physiology"
         }
       ],
-      "stream_start_time": "2025-04-11T18:37:07.105999-07:00"
+      "stream_start_time": "2025-01-01T00:55:51.105999-08:00"
     },
     {
       "camera_names": [
@@ -322,7 +322,7 @@
       "software": [],
       "stack_parameters": null,
       "stick_microscopes": [],
-      "stream_end_time": "2025-04-11T18:35:34.284264-07:00",
+      "stream_end_time": "2025-01-01T00:54:18.284264-08:00",
       "stream_modalities": [
         {
           "abbreviation": "pophys",
@@ -337,18 +337,18 @@
           "name": "Behavior videos"
         }
       ],
-      "stream_start_time": "2025-04-11T18:17:12.762999-07:00"
+      "stream_start_time": "2025-01-01T00:35:56.762999-08:00"
     }
   ],
   "describedBy": "https://raw.githubusercontent.com/AllenNeuralDynamics/aind-data-schema/main/src/aind_data_schema/core/session.py",
   "experimenter_full_name": [
-    "Marton Rozsa"
+    "Experimenter A"
   ],
   "headframe_registration": null,
-  "iacuc_protocol": "2109",
+  "iacuc_protocol": "0000",
   "maintenance": [],
   "mouse_platform_name": "Standard Mouse Tube",
-  "notes": "photostiming a neuron when the CN is bursting - new code, fooling around",
+  "notes": "",
   "protocol_id": [],
   "reward_consumed_total": null,
   "reward_consumed_unit": "milliliter",
@@ -406,8 +406,8 @@
   },
   "rig_id": "442_Bergamo_2p_photostim",
   "schema_version": "1.0.1",
-  "session_end_time": "2025-04-11T18:42:03.293412-07:00",
-  "session_start_time": "2025-04-11T17:41:16.971000-07:00",
+  "session_end_time": "2025-01-01T01:00:47.293412-08:00",
+  "session_start_time": "2025-01-01T00:00:00.971000-08:00",
   "session_type": "BCI",
   "stimulus_epochs": [
     {
@@ -481,13 +481,13 @@
       "software": [],
       "speaker_config": null,
       "stimulus_device_names": [],
-      "stimulus_end_time": "2025-04-11T18:00:18.835554-07:00",
+      "stimulus_end_time": "2025-01-01T00:19:02.835554-08:00",
       "stimulus_modalities": [
         "None"
       ],
       "stimulus_name": "spontaneous activity",
       "stimulus_parameters": null,
-      "stimulus_start_time": "2025-04-11T17:49:59.719999-07:00",
+      "stimulus_start_time": "2025-01-01T00:08:43.719999-08:00",
       "trials_finished": null,
       "trials_rewarded": null,
       "trials_total": null
@@ -534,13 +534,13 @@
       "software": [],
       "speaker_config": null,
       "stimulus_device_names": [],
-      "stimulus_end_time": "2025-04-11T18:42:03.293412-07:00",
+      "stimulus_end_time": "2025-01-01T01:00:47.293412-08:00",
       "stimulus_modalities": [
         "None"
       ],
       "stimulus_name": "spontaneous activity",
       "stimulus_parameters": null,
-      "stimulus_start_time": "2025-04-11T18:37:07.105999-07:00",
+      "stimulus_start_time": "2025-01-01T00:55:51.105999-08:00",
       "trials_finished": null,
       "trials_rewarded": null,
       "trials_total": null
@@ -672,8 +672,8 @@
       "script": {
         "name": "pybpod_basic.py",
         "parameters": {},
-        "url": "https://github.com/rozmar/BCI-motor-control/blob/main/BCI-pybpod-protocols/bci_basic.py",
-        "version": "2d77d15"
+        "url": "",
+        "version": "0000000"
       },
       "session_number": null,
       "software": [
@@ -689,18 +689,18 @@
         "speaker",
         "lickport"
       ],
-      "stimulus_end_time": "2025-04-11T18:35:34.284264-07:00",
+      "stimulus_end_time": "2025-01-01T00:54:18.284264-08:00",
       "stimulus_modalities": [
         "Auditory"
       ],
       "stimulus_name": "single neuron BCI conditioning",
       "stimulus_parameters": [],
-      "stimulus_start_time": "2025-04-11T18:17:12.762999-07:00",
+      "stimulus_start_time": "2025-01-01T00:35:56.762999-08:00",
       "trials_finished": null,
       "trials_rewarded": null,
       "trials_total": 110
     }
   ],
-  "subject_id": "772414",
+  "subject_id": "999999",
   "weight_unit": "gram"
 }

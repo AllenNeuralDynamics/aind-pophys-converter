@@ -34,7 +34,7 @@ class TestLoadPlatformPlanePositions(unittest.TestCase):
         self.platform_fp.write_text(json.dumps(platform))
         return self.platform_fp
 
-    def test_real_platform_lists_planes_in_group_order(self) -> None:
+    def test_platform_lists_planes_in_group_order(self) -> None:
         """Each group's planes are returned in the order platform.json lists
         them, with the scanfield z the TIFF records for each."""
         positions = load_platform_plane_positions(MESO_CHILD_PLATFORM)

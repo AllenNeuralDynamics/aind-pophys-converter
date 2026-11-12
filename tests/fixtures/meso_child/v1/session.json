@@ -244,22 +244,22 @@
          "software": [],
          "stack_parameters": null,
          "stick_microscopes": [],
-         "stream_end_time": "2026-06-20T14:28:10.410826-07:00",
+         "stream_end_time": "2025-03-04T13:15:06.410826-08:00",
          "stream_modalities": [
             {
                "abbreviation": "pophys",
                "name": "Planar optical physiology"
             }
          ],
-         "stream_start_time": "2026-06-20T13:13:04.169066-07:00"
+         "stream_start_time": "2025-03-04T12:00:00.169066-08:00"
       }
    ],
    "describedBy": "https://raw.githubusercontent.com/AllenNeuralDynamics/aind-data-schema/main/src/aind_data_schema/core/session.py",
    "experimenter_full_name": [
-      "shiella caldejon"
+      "Experimenter A"
    ],
    "headframe_registration": null,
-   "iacuc_protocol": "2115",
+   "iacuc_protocol": "0000",
    "maintenance": [],
    "mouse_platform_name": "disc",
    "notes": null,
@@ -269,8 +269,8 @@
    "reward_delivery": null,
    "rig_id": "MESO.2",
    "schema_version": "1.0.3",
-   "session_end_time": "2026-06-20T14:28:10.410826-07:00",
-   "session_start_time": "2026-06-20T13:13:04.169066-07:00",
+   "session_end_time": "2025-03-04T13:15:06.410826-08:00",
+   "session_start_time": "2025-03-04T12:00:00.169066-08:00",
    "session_type": "TRAINING_2_gratings_flashed",
    "stimulus_epochs": [
       {
@@ -290,13 +290,13 @@
             {
                "name": "camstim",
                "parameters": {},
-               "url": "https://eng-gitlab.corp.alleninstitute.org/braintv/camstim",
+               "url": "",
                "version": "1.0"
             }
          ],
          "speaker_config": null,
          "stimulus_device_names": [],
-         "stimulus_end_time": "2026-06-20T14:28:16.835096-07:00",
+         "stimulus_end_time": "2025-03-04T13:15:12.835096-08:00",
          "stimulus_modalities": [
             "Visual"
          ],
@@ -1231,12 +1231,12 @@
                "stimulus_type": "Visual Stimulation"
             }
          ],
-         "stimulus_start_time": "2026-06-20T13:18:04.220116-07:00",
+         "stimulus_start_time": "2025-03-04T12:05:00.220116-08:00",
          "trials_finished": null,
          "trials_rewarded": null,
          "trials_total": null
       }
    ],
-   "subject_id": "849375",
+   "subject_id": "999998",
    "weight_unit": "gram"
 }

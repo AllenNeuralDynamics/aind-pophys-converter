@@ -4,19 +4,19 @@
   "breeding_info": {
     "breeding_group": "TetO-GCaMP6s;Camk2a-tTA",
     "maternal_genotype": "Camk2a-tTA/wt",
-    "maternal_id": "736690",
+    "maternal_id": "000001",
     "paternal_genotype": "tetO-GCaMP6s/wt",
-    "paternal_id": "733588"
+    "paternal_id": "000002"
   },
-  "date_of_birth": "2024-10-15",
+  "date_of_birth": "2024-01-01",
   "describedBy": "https://raw.githubusercontent.com/AllenNeuralDynamics/aind-data-schema/main/src/aind_data_schema/core/subject.py",
   "genotype": "Camk2a-tTA/wt;tetO-GCaMP6s/wt",
   "housing": {
-    "cage_id": "8283451",
+    "cage_id": "000000",
     "cohoused_subjects": [],
     "home_cage_enrichment": [],
     "light_cycle": null,
-    "room_id": "221"
+    "room_id": "000"
   },
   "notes": null,
   "restrictions": null,
@@ -40,6 +40,6 @@
     },
     "registry_identifier": "NCBI:txid10090"
   },
-  "subject_id": "772414",
+  "subject_id": "999999",
   "wellness_reports": []
 }

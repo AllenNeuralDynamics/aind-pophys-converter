@@ -3,10 +3,10 @@
    "describedBy": "https://raw.githubusercontent.com/AllenNeuralDynamics/aind-data-schema/main/src/aind_data_schema/core/data_description.py",
    "schema_version": "2.4.1",
    "license": "CC-BY-4.0",
-   "subject_id": "849375",
-   "creation_time": "2026-05-20T12:10:09.287508-07:00",
+   "subject_id": "999998",
+   "creation_time": "2025-02-01T12:00:00.287508-08:00",
    "tags": null,
-   "name": "multiplane-ophys_849375_2026-05-20_12-10-09",
+   "name": "multiplane-ophys_999998_2025-02-01_12-00-00",
    "institution": {
       "name": "Allen Institute for Neural Dynamics",
       "abbreviation": "AIND",
@@ -38,30 +38,30 @@
    "investigators": [
       {
          "object_type": "Person",
-         "name": "Marina Garrett",
+         "name": "Investigator A",
          "registry": "Open Researcher and Contributor ID (ORCID)",
          "registry_identifier": null
       },
       {
          "object_type": "Person",
-         "name": "Peter Groblewski",
+         "name": "Investigator B",
          "registry": "Open Researcher and Contributor ID (ORCID)",
          "registry_identifier": null
       },
       {
          "object_type": "Person",
-         "name": "Anton Arkhipov",
+         "name": "Investigator C",
          "registry": "Open Researcher and Contributor ID (ORCID)",
          "registry_identifier": null
       },
       {
          "object_type": "Person",
-         "name": "Omid Zobeiri",
+         "name": "Investigator D",
          "registry": "Open Researcher and Contributor ID (ORCID)",
          "registry_identifier": null
       }
    ],
-   "project_name": "Learning mFISH-V1omFISH",
+   "project_name": "Test Project",
    "restrictions": null,
    "modalities": [
       {
@@ -78,5 +78,5 @@
       }
    ],
    "source_data": null,
-   "data_summary": "LearningmFISHTask1A"
+   "data_summary": "TestProjectCode"
 }

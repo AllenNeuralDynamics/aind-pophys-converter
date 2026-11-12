@@ -2,26 +2,26 @@
     "schema_version": 3,
     "schema_type": "Mesoscope",
     "rig_id": "MESO.2",
-    "session_id": 1781984614,
-    "subject_id": "849375",
-    "project_code": "LearningmFISHTask1A",
-    "parent_session": "multiplane-ophys_849375_2026-06-17_15-28-08",
-    "stimulus_pkl": "1781984614.pkl",
+    "session_id": 1741116630,
+    "subject_id": "999998",
+    "project_code": "TestProjectCode",
+    "parent_session": "multiplane-ophys_999998_2025-03-01_12-00-00",
+    "stimulus_pkl": "1741116630.pkl",
     "wfltk_version": "5.6.1.post2+g4f7551d.b148583",
     "wfl_version": "4.0.9",
     "foraging_id": "",
-    "sync_file": "1781984614_20260620T131250.h5",
-    "timeseries_tif": "1781984614_timeseries.tiff",
-    "timeseries_roi_file": "1781984614_timeseries.roi",
-    "depths_tif": "1781984614_averaged_depth.tiff",
-    "surface_tif": "1781984614_averaged_surface.tiff",
-    "surface_roi_file": "1781984614_surface.roi",
-    "eye_tracking_video": "1781984614_Eye_20260620T131252.mp4",
-    "behavior_video": "1781984614_Behavior_20260620T131251.mp4",
-    "face_tracking": "1781984614_Face_20260620T131252.mp4",
-    "eye_cam_json": "1781984614_Eye_20260620T131252.json",
-    "beh_cam_json": "1781984614_Behavior_20260620T131251.json",
-    "face_tracking_json": "1781984614_Face_20260620T131252.json",
+    "sync_file": "1741116630_20250304T115946.h5",
+    "timeseries_tif": "1741116630_timeseries.tiff",
+    "timeseries_roi_file": "1741116630_timeseries.roi",
+    "depths_tif": "1741116630_averaged_depth.tiff",
+    "surface_tif": "1741116630_averaged_surface.tiff",
+    "surface_roi_file": "1741116630_surface.roi",
+    "eye_tracking_video": "1741116630_Eye_20250304T115948.mp4",
+    "behavior_video": "1741116630_Behavior_20250304T115947.mp4",
+    "face_tracking": "1741116630_Face_20250304T115948.mp4",
+    "eye_cam_json": "1741116630_Eye_20250304T115948.json",
+    "beh_cam_json": "1741116630_Behavior_20250304T115947.json",
+    "face_tracking_json": "1741116630_Face_20250304T115948.json",
     "stimulus_name": "TRAINING_2_gratings_flashed",
     "beam_1_100_percent_power_mw": "249",
     "beam_2_100_percent_power_mw": "402",
@@ -31,29 +31,29 @@
             "stage_y": 10265.0,
             "stage_z": 17903.0,
             "pixel_size_um": 0.4962,
-            "acquired_at": "2026-06-20T12:48:55.022926",
+            "acquired_at": "2025-03-04T11:35:51.022926",
             "rotation": -1.041,
             "stage_image_rotation": 49.415,
             "x_offset": 0,
             "y_offset": 0,
-            "filename": "1781984614_reticle.tif"
+            "filename": "1741116630_reticle.tif"
         },
         "surface_vasculature": {
             "stage_x": -21004.0,
             "stage_y": 10265.0,
             "stage_z": 17903.0,
             "pixel_size_um": 0.4962,
-            "acquired_at": "2026-06-20T14:29:12.612697",
+            "acquired_at": "2025-03-04T13:16:08.612697",
             "rotation": -1.041,
             "stage_image_rotation": null,
             "x_offset": 0,
             "y_offset": 0,
-            "filename": "1781984614_vasculature.tif"
+            "filename": "1741116630_vasculature.tif"
         }
     },
     "imaging_plane_groups": [
         {
-            "local_z_stack_tif": "1781984614_local_z_stack0.tiff",
+            "local_z_stack_tif": "1741116630_local_z_stack0.tiff",
             "acquisition_framerate_Hz": 10.71,
             "scanimage_power_percent": 60,
             "scanimage_split_percent": 40,
@@ -72,12 +72,12 @@
                         "stage_y": 0.0,
                         "stage_z": 0.0,
                         "pixel_size_um": 1.0,
-                        "acquired_at": "2026-06-20T14:28:30.102013",
+                        "acquired_at": "2025-03-04T13:15:26.102013",
                         "rotation": -108.1414,
                         "stage_image_rotation": null,
                         "x_offset": 0,
                         "y_offset": 0,
-                        "filename": "1781984614_timeseries.tiff"
+                        "filename": "1741116630_timeseries.tiff"
                     },
                     "intended_depth": 160,
                     "calculated_power_mw": 90.0
@@ -96,12 +96,12 @@
                         "stage_y": 0.0,
                         "stage_z": 0.0,
                         "pixel_size_um": 1.0,
-                        "acquired_at": "2026-06-20T14:28:30.102013",
+                        "acquired_at": "2025-03-04T13:15:26.102013",
                         "rotation": -108.1414,
                         "stage_image_rotation": null,
                         "x_offset": 0,
                         "y_offset": 0,
-                        "filename": "1781984614_timeseries.tiff"
+                        "filename": "1741116630_timeseries.tiff"
                     },
                     "intended_depth": 200,
                     "calculated_power_mw": 102.0
@@ -109,7 +109,7 @@
             ]
         },
         {
-            "local_z_stack_tif": "1781984614_local_z_stack1.tiff",
+            "local_z_stack_tif": "1741116630_local_z_stack1.tiff",
             "acquisition_framerate_Hz": 10.71,
             "scanimage_power_percent": 65,
             "scanimage_split_percent": 38,
@@ -128,12 +128,12 @@
                         "stage_y": 0.0,
                         "stage_z": 0.0,
                         "pixel_size_um": 1.0,
-                        "acquired_at": "2026-06-20T14:28:30.102013",
+                        "acquired_at": "2025-03-04T13:15:26.102013",
                         "rotation": -108.1414,
                         "stage_image_rotation": null,
                         "x_offset": 0,
                         "y_offset": 0,
-                        "filename": "1781984614_timeseries.tiff"
+                        "filename": "1741116630_timeseries.tiff"
                     },
                     "intended_depth": 120,
                     "calculated_power_mw": 91.15
@@ -152,12 +152,12 @@
                         "stage_y": 0.0,
                         "stage_z": 0.0,
                         "pixel_size_um": 1.0,
-                        "acquired_at": "2026-06-20T14:28:30.102013",
+                        "acquired_at": "2025-03-04T13:15:26.102013",
                         "rotation": -108.1414,
                         "stage_image_rotation": null,
                         "x_offset": 0,
                         "y_offset": 0,
-                        "filename": "1781984614_timeseries.tiff"
+                        "filename": "1741116630_timeseries.tiff"
                     },
                     "intended_depth": 240,
                     "calculated_power_mw": 113.82
@@ -165,7 +165,7 @@
             ]
         },
         {
-            "local_z_stack_tif": "1781984614_local_z_stack2.tiff",
+            "local_z_stack_tif": "1741116630_local_z_stack2.tiff",
             "acquisition_framerate_Hz": 10.71,
             "scanimage_power_percent": 65,
             "scanimage_split_percent": 28,
@@ -184,12 +184,12 @@
                         "stage_y": 0.0,
                         "stage_z": 0.0,
                         "pixel_size_um": 1.0,
-                        "acquired_at": "2026-06-20T14:28:30.102013",
+                        "acquired_at": "2025-03-04T13:15:26.102013",
                         "rotation": -108.1414,
                         "stage_image_rotation": null,
                         "x_offset": 0,
                         "y_offset": 0,
-                        "filename": "1781984614_timeseries.tiff"
+                        "filename": "1741116630_timeseries.tiff"
                     },
                     "intended_depth": 80,
                     "calculated_power_mw": 63.15
@@ -208,12 +208,12 @@
                         "stage_y": 0.0,
                         "stage_z": 0.0,
                         "pixel_size_um": 1.0,
-                        "acquired_at": "2026-06-20T14:28:30.102013",
+                        "acquired_at": "2025-03-04T13:15:26.102013",
                         "rotation": -108.1414,
                         "stage_image_rotation": null,
                         "x_offset": 0,
                         "y_offset": 0,
-                        "filename": "1781984614_timeseries.tiff"
+                        "filename": "1741116630_timeseries.tiff"
                     },
                     "intended_depth": 280,
                     "calculated_power_mw": 130.45
@@ -221,7 +221,7 @@
             ]
         },
         {
-            "local_z_stack_tif": "1781984614_local_z_stack3.tiff",
+            "local_z_stack_tif": "1741116630_local_z_stack3.tiff",
             "acquisition_framerate_Hz": 10.71,
             "scanimage_power_percent": 65,
             "scanimage_split_percent": 25,
@@ -240,12 +240,12 @@
                         "stage_y": 0.0,
                         "stage_z": 0.0,
                         "pixel_size_um": 1.0,
-                        "acquired_at": "2026-06-20T14:28:30.102013",
+                        "acquired_at": "2025-03-04T13:15:26.102013",
                         "rotation": -108.1414,
                         "stage_image_rotation": null,
                         "x_offset": 0,
                         "y_offset": 0,
-                        "filename": "1781984614_timeseries.tiff"
+                        "filename": "1741116630_timeseries.tiff"
                     },
                     "intended_depth": 40,
                     "calculated_power_mw": 54.75
@@ -264,12 +264,12 @@
                         "stage_y": 0.0,
                         "stage_z": 0.0,
                         "pixel_size_um": 1.0,
-                        "acquired_at": "2026-06-20T14:28:30.102013",
+                        "acquired_at": "2025-03-04T13:15:26.102013",
                         "rotation": -108.1414,
                         "stage_image_rotation": null,
                         "x_offset": 0,
                         "y_offset": 0,
-                        "filename": "1781984614_timeseries.tiff"
+                        "filename": "1741116630_timeseries.tiff"
                     },
                     "intended_depth": 320,
                     "calculated_power_mw": 135.44

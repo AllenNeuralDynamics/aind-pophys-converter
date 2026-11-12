@@ -2,26 +2,26 @@
     "schema_version": 3,
     "schema_type": "Mesoscope",
     "rig_id": "MESO.1",
-    "session_id": 1779302846,
-    "subject_id": "849375",
-    "project_code": "LearningmFISHTask1A",
+    "session_id": 1738438637,
+    "subject_id": "999998",
+    "project_code": "TestProjectCode",
     "parent_session": null,
-    "stimulus_pkl": "1779302846.pkl",
+    "stimulus_pkl": "1738438637.pkl",
     "wfltk_version": "5.6.1.post2+g4f7551d.b148583",
     "wfl_version": "4.0.9",
     "foraging_id": "",
-    "sync_file": "1779302846_20260520T120947.h5",
-    "timeseries_tif": "1779302846_timeseries.tiff",
-    "timeseries_roi_file": "1779302846_timeseries.roi",
-    "depths_tif": "1779302846_averaged_depth.tiff",
-    "surface_tif": "1779302846_averaged_surface.tiff",
-    "surface_roi_file": "1779302846_surface.roi",
-    "eye_tracking_video": "1779302846_Eye_20260520T120947.mp4",
-    "behavior_video": "1779302846_Behavior_20260520T120947.mp4",
-    "face_tracking": "1779302846_Face_20260520T120948.mp4",
-    "eye_cam_json": "1779302846_Eye_20260520T120947.json",
-    "beh_cam_json": "1779302846_Behavior_20260520T120947.json",
-    "face_tracking_json": "1779302846_Face_20260520T120948.json",
+    "sync_file": "1738438637_20250201T115938.h5",
+    "timeseries_tif": "1738438637_timeseries.tiff",
+    "timeseries_roi_file": "1738438637_timeseries.roi",
+    "depths_tif": "1738438637_averaged_depth.tiff",
+    "surface_tif": "1738438637_averaged_surface.tiff",
+    "surface_roi_file": "1738438637_surface.roi",
+    "eye_tracking_video": "1738438637_Eye_20250201T115938.mp4",
+    "behavior_video": "1738438637_Behavior_20250201T115938.mp4",
+    "face_tracking": "1738438637_Face_20250201T115939.mp4",
+    "eye_cam_json": "1738438637_Eye_20250201T115938.json",
+    "beh_cam_json": "1738438637_Behavior_20250201T115938.json",
+    "face_tracking_json": "1738438637_Face_20250201T115939.json",
     "stimulus_name": "TRAINING_0_gratings_autorewards_15min",
     "beam_1_100_percent_power_mw": "373",
     "beam_2_100_percent_power_mw": "232",
@@ -31,29 +31,29 @@
             "stage_y": 340.0,
             "stage_z": 27755.0,
             "pixel_size_um": 0.4962,
-            "acquired_at": "2026-05-20T11:49:24.274978",
+            "acquired_at": "2025-02-01T11:39:15.274978",
             "rotation": 26.0,
             "stage_image_rotation": 30.0,
             "x_offset": 0,
             "y_offset": 0,
-            "filename": "1779302846_reticle.tif"
+            "filename": "1738438637_reticle.tif"
         },
         "surface_vasculature": {
             "stage_x": -596.0,
             "stage_y": 340.0,
             "stage_z": 27755.0,
             "pixel_size_um": 0.4962,
-            "acquired_at": "2026-05-20T12:41:29.884952",
+            "acquired_at": "2025-02-01T12:31:20.884952",
             "rotation": 26.0,
             "stage_image_rotation": null,
             "x_offset": 0,
             "y_offset": 0,
-            "filename": "1779302846_vasculature.tif"
+            "filename": "1738438637_vasculature.tif"
         }
     },
     "imaging_plane_groups": [
         {
-            "local_z_stack_tif": "1779302846_local_z_stack0.tiff",
+            "local_z_stack_tif": "1738438637_local_z_stack0.tiff",
             "acquisition_framerate_Hz": 9.48,
             "scanimage_power_percent": 65,
             "scanimage_split_percent": 65,
@@ -72,12 +72,12 @@
                         "stage_y": 0.0,
                         "stage_z": 0.0,
                         "pixel_size_um": 1.0,
-                        "acquired_at": "2026-05-20T12:40:26.231024",
+                        "acquired_at": "2025-02-01T12:30:17.231024",
                         "rotation": -108.1414,
                         "stage_image_rotation": null,
                         "x_offset": 0,
                         "y_offset": 0,
-                        "filename": "1779302846_timeseries.tiff"
+                        "filename": "1738438637_timeseries.tiff"
                     },
                     "intended_depth": 160,
                     "calculated_power_mw": 90.62
@@ -96,12 +96,12 @@
                         "stage_y": 0.0,
                         "stage_z": 0.0,
                         "pixel_size_um": 1.0,
-                        "acquired_at": "2026-05-20T12:40:26.231024",
+                        "acquired_at": "2025-02-01T12:30:17.231024",
                         "rotation": -108.1414,
                         "stage_image_rotation": null,
                         "x_offset": 0,
                         "y_offset": 0,
-                        "filename": "1779302846_timeseries.tiff"
+                        "filename": "1738438637_timeseries.tiff"
                     },
                     "intended_depth": 200,
                     "calculated_power_mw": 92.94
@@ -109,7 +109,7 @@
             ]
         },
         {
-            "local_z_stack_tif": "1779302846_local_z_stack1.tiff",
+            "local_z_stack_tif": "1738438637_local_z_stack1.tiff",
             "acquisition_framerate_Hz": 9.48,
             "scanimage_power_percent": 65,
             "scanimage_split_percent": 55,
@@ -128,12 +128,12 @@
                         "stage_y": 0.0,
                         "stage_z": 0.0,
                         "pixel_size_um": 1.0,
-                        "acquired_at": "2026-05-20T12:40:26.231024",
+                        "acquired_at": "2025-02-01T12:30:17.231024",
                         "rotation": -108.1414,
                         "stage_image_rotation": null,
                         "x_offset": 0,
                         "y_offset": 0,
-                        "filename": "1779302846_timeseries.tiff"
+                        "filename": "1738438637_timeseries.tiff"
                     },
                     "intended_depth": 120,
                     "calculated_power_mw": 70.5
@@ -152,12 +152,12 @@
                         "stage_y": 0.0,
                         "stage_z": 0.0,
                         "pixel_size_um": 1.0,
-                        "acquired_at": "2026-05-20T12:40:26.231024",
+                        "acquired_at": "2025-02-01T12:30:17.231024",
                         "rotation": -108.1414,
                         "stage_image_rotation": null,
                         "x_offset": 0,
                         "y_offset": 0,
-                        "filename": "1779302846_timeseries.tiff"
+                        "filename": "1738438637_timeseries.tiff"
                     },
                     "intended_depth": 240,
                     "calculated_power_mw": 123.88
@@ -165,7 +165,7 @@
             ]
         },
         {
-            "local_z_stack_tif": "1779302846_local_z_stack2.tiff",
+            "local_z_stack_tif": "1738438637_local_z_stack2.tiff",
             "acquisition_framerate_Hz": 9.48,
             "scanimage_power_percent": 65,
             "scanimage_split_percent": 50,
@@ -184,12 +184,12 @@
                         "stage_y": 0.0,
                         "stage_z": 0.0,
                         "pixel_size_um": 1.0,
-                        "acquired_at": "2026-05-20T12:40:26.231024",
+                        "acquired_at": "2025-02-01T12:30:17.231024",
                         "rotation": -108.1414,
                         "stage_image_rotation": null,
                         "x_offset": 0,
                         "y_offset": 0,
-                        "filename": "1779302846_timeseries.tiff"
+                        "filename": "1738438637_timeseries.tiff"
                     },
                     "intended_depth": 80,
                     "calculated_power_mw": 60.25
@@ -208,12 +208,12 @@
                         "stage_y": 0.0,
                         "stage_z": 0.0,
                         "pixel_size_um": 1.0,
-                        "acquired_at": "2026-05-20T12:40:26.231024",
+                        "acquired_at": "2025-02-01T12:30:17.231024",
                         "rotation": -108.1414,
                         "stage_image_rotation": null,
                         "x_offset": 0,
                         "y_offset": 0,
-                        "filename": "1779302846_timeseries.tiff"
+                        "filename": "1738438637_timeseries.tiff"
                     },
                     "intended_depth": 280,
                     "calculated_power_mw": 139.75
@@ -221,7 +221,7 @@
             ]
         },
         {
-            "local_z_stack_tif": "1779302846_local_z_stack3.tiff",
+            "local_z_stack_tif": "1738438637_local_z_stack3.tiff",
             "acquisition_framerate_Hz": 9.48,
             "scanimage_power_percent": 65,
             "scanimage_split_percent": 45,
@@ -240,12 +240,12 @@
                         "stage_y": 0.0,
                         "stage_z": 0.0,
                         "pixel_size_um": 1.0,
-                        "acquired_at": "2026-05-20T12:40:26.231024",
+                        "acquired_at": "2025-02-01T12:30:17.231024",
                         "rotation": -108.1414,
                         "stage_image_rotation": null,
                         "x_offset": 0,
                         "y_offset": 0,
-                        "filename": "1779302846_timeseries.tiff"
+                        "filename": "1738438637_timeseries.tiff"
                     },
                     "intended_depth": 40,
                     "calculated_power_mw": 50.0
@@ -264,12 +264,12 @@
                         "stage_y": 0.0,
                         "stage_z": 0.0,
                         "pixel_size_um": 1.0,
-                        "acquired_at": "2026-05-20T12:40:26.231024",
+                        "acquired_at": "2025-02-01T12:30:17.231024",
                         "rotation": -108.1414,
                         "stage_image_rotation": null,
                         "x_offset": 0,
                         "y_offset": 0,
-                        "filename": "1779302846_timeseries.tiff"
+                        "filename": "1738438637_timeseries.tiff"
                     },
                     "intended_depth": 320,
                     "calculated_power_mw": 155.62

@@ -227,7 +227,7 @@ class TestMesoscopeSplitter(unittest.TestCase):
         return splitter, expected
 
     def _copy_meso_child_platform(self) -> None:
-        """Copy the real meso_child platform.json into the test directory."""
+        """Copy the meso_child platform.json into the test directory."""
         platform = next((MESO_CHILD / "v1" / "pophys").glob("*platform.json"))
         shutil.copy(platform, self.test_path / platform.name)
 

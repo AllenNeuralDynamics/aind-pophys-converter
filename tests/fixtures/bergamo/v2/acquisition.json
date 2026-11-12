@@ -3,20 +3,20 @@
    "describedBy": "https://raw.githubusercontent.com/AllenNeuralDynamics/aind-data-schema/main/src/aind_data_schema/core/acquisition.py",
    "schema_version": "2.5.3",
    "protocol_id": null,
-   "subject_id": "772414",
+   "subject_id": "999999",
    "specimen_id": null,
-   "acquisition_start_time": "2025-04-11T17:41:16.971000-07:00",
+   "acquisition_start_time": "2025-01-01T00:00:00.971000-08:00",
    "acquisition_start_tz": -7,
-   "acquisition_end_time": "2025-04-11T18:42:03.293412-07:00",
+   "acquisition_end_time": "2025-01-01T01:00:47.293412-08:00",
    "experimenters": [
-      "Marton Rozsa"
+      "Experimenter A"
    ],
    "ethics_review_id": [
-      "2109"
+      "0000"
    ],
    "instrument_id": "442_Bergamo_2p_photostim",
    "acquisition_type": "BCI",
-   "notes": "photostiming a neuron when the CN is bursting - new code, fooling around",
+   "notes": "",
    "coordinate_system": null,
    "global_coordinate_system": null,
    "calibrations": [],
@@ -24,8 +24,8 @@
    "data_streams": [
       {
          "object_type": "Data stream",
-         "stream_start_time": "2025-04-11T17:41:16.971000-07:00",
-         "stream_end_time": "2025-04-11T17:42:30.895163-07:00",
+         "stream_start_time": "2025-01-01T00:00:00.971000-08:00",
+         "stream_end_time": "2025-01-01T00:01:14.895163-08:00",
          "modalities": [
             {
                "name": "Planar optical physiology",
@@ -227,8 +227,8 @@
       },
       {
          "object_type": "Data stream",
-         "stream_start_time": "2025-04-11T17:49:59.719999-07:00",
-         "stream_end_time": "2025-04-11T18:00:18.835554-07:00",
+         "stream_start_time": "2025-01-01T00:08:43.719999-08:00",
+         "stream_end_time": "2025-01-01T00:19:02.835554-08:00",
          "modalities": [
             {
                "name": "Planar optical physiology",
@@ -333,8 +333,8 @@
       },
       {
          "object_type": "Data stream",
-         "stream_start_time": "2025-04-11T18:37:07.105999-07:00",
-         "stream_end_time": "2025-04-11T18:42:03.293412-07:00",
+         "stream_start_time": "2025-01-01T00:55:51.105999-08:00",
+         "stream_end_time": "2025-01-01T01:00:47.293412-08:00",
          "modalities": [
             {
                "name": "Planar optical physiology",
@@ -439,8 +439,8 @@
       },
       {
          "object_type": "Data stream",
-         "stream_start_time": "2025-04-11T18:17:12.762999-07:00",
-         "stream_end_time": "2025-04-11T18:35:34.284264-07:00",
+         "stream_start_time": "2025-01-01T00:35:56.762999-08:00",
+         "stream_end_time": "2025-01-01T00:54:18.284264-08:00",
          "modalities": [
             {
                "name": "Planar optical physiology",
@@ -557,8 +557,8 @@
    "stimulus_epochs": [
       {
          "object_type": "Stimulus epoch",
-         "stimulus_start_time": "2025-04-11T17:49:59.719999-07:00",
-         "stimulus_end_time": "2025-04-11T18:00:18.835554-07:00",
+         "stimulus_start_time": "2025-01-01T00:08:43.719999-08:00",
+         "stimulus_end_time": "2025-01-01T00:19:02.835554-08:00",
          "stimulus_name": "spontaneous activity",
          "code": null,
          "stimulus_modalities": [
@@ -573,8 +573,8 @@
       },
       {
          "object_type": "Stimulus epoch",
-         "stimulus_start_time": "2025-04-11T18:37:07.105999-07:00",
-         "stimulus_end_time": "2025-04-11T18:42:03.293412-07:00",
+         "stimulus_start_time": "2025-01-01T00:55:51.105999-08:00",
+         "stimulus_end_time": "2025-01-01T01:00:47.293412-08:00",
          "stimulus_name": "spontaneous activity",
          "code": null,
          "stimulus_modalities": [
@@ -589,14 +589,14 @@
       },
       {
          "object_type": "Stimulus epoch",
-         "stimulus_start_time": "2025-04-11T18:17:12.762999-07:00",
-         "stimulus_end_time": "2025-04-11T18:35:34.284264-07:00",
+         "stimulus_start_time": "2025-01-01T00:35:56.762999-08:00",
+         "stimulus_end_time": "2025-01-01T00:54:18.284264-08:00",
          "stimulus_name": "single neuron BCI conditioning",
          "code": {
             "object_type": "Code",
-            "url": "https://github.com/rozmar/BCI-motor-control/blob/main/BCI-pybpod-protocols/bci_basic.py",
+            "url": "",
             "name": "pybpod_basic.py",
-            "version": "2d77d15",
+            "version": "0000000",
             "commit_hash": null,
             "container": null,
             "run_script": null,
